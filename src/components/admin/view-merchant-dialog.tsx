@@ -1,0 +1,253 @@
+
+"use client"
+
+import { useToast } from "@/hooks/use-toast";
+import type { GatewayFee, Merchant, User, Fee } from "@/lib/types";
+import { Copy, FileText, Image as ImageIcon, ExternalLink, CheckCircle2, XCircle } from "lucide-react";
+import { Button } from "../ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "../ui/dialog";
+import { ScrollArea } from "../ui/scroll-area";
+import { Separator } from "../ui/separator";
+import Link from "next/link";
+import { Badge } from "../ui/badge";
+import { useEffect, useState } from "react";
+
+interface ViewMerchantDialogProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  merchant: Merchant | null;
+}
+
+const DetailRow = ({ label, value, isCopyable = false, onCopy, children }: { label: string, value?: string | number | null, isCopyable?: boolean, onCopy?: (value: string) => void, children?: React.ReactNode }) => {
+    if (!value && value !== 0 && !children) return null;
+    const displayValue = typeof value === 'number' ? value.toString() : value;
+    return (
+        <div className="grid grid-cols-3 gap-2 text-sm items-center py-1.5">
+            <p className="text-muted-foreground col-span-1">{label}</p>
+            <div className="col-span-2 font-medium break-words flex items-center gap-2">
+                {children ? children : <span>{displayValue}</span>}
+                {isCopyable && onCopy && displayValue && (
+                     <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-6 w-6"
+                        onClick={() => onCopy(displayValue)}
+                        >
+                        <Copy className="h-3.5 w-3.5" />
+                        <span className="sr-only">Copy {label}</span>
+                    </Button>
+                )}
+            </div>
+        </div>
+    )
+}
+
+const DocumentRow = ({ label, url, type }: { label: string, url?: string, type: 'image' | 'document' }) => {
+  if (!url) {
+    return (
+       <div className="grid grid-cols-3 gap-2 text-sm items-center py-1.5">
+          <p className="text-muted-foreground col-span-1">{label}</p>
+          <div className="col-span-2 text-muted-foreground italic">Not provided</div>
+      </div>
+    )
+  }
+  return (
+    <div className="grid grid-cols-3 gap-2 text-sm items-center py-1.5">
+        <p className="text-muted-foreground col-span-1">{label}</p>
+        <div className="col-span-2 font-medium break-words flex items-center gap-2">
+            <Link href={url} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline flex items-center gap-2">
+               {type === 'image' ? <ImageIcon className="h-4 w-4"/> : <FileText className="h-4 w-4" />}
+               View Document <ExternalLink className="h-3.5 w-3.5" />
+            </Link>
+        </div>
+    </div>
+  )
+}
+
+const FeeDetailRow = ({ label, fee }: { label: string, fee?: Fee }) => {
+    if (!fee || typeof fee.value === 'undefined') return <DetailRow label={label} value="N/A" />;
+    
+    const value = fee.type === 'percentage' 
+        ? `${fee.value}%` 
+        : `$${fee.value.toFixed(2)}`;
+
+    return <DetailRow label={label} value={value} />;
+}
+
+const GatewayFeeDetails = ({ name, fees }: { name: string, fees?: GatewayFee }) => {
+    if (!fees) {
+        return (
+             <div className="p-3 rounded-lg border bg-muted/50">
+                 <h5 className="font-semibold capitalize flex items-center gap-2 mb-2"><XCircle className="h-4 w-4 text-destructive"/>{name}</h5>
+                <p className="text-sm text-muted-foreground">Not configured</p>
+            </div>
+        )
+    }
+    return (
+        <div className="p-3 rounded-lg border">
+            <h5 className="font-semibold capitalize flex items-center gap-2 mb-2">
+                 { fees.enabled ? <CheckCircle2 className="h-4 w-4 text-green-500" /> : <XCircle className="h-4 w-4 text-destructive" />}
+                 {name}
+            </h5>
+            {fees.enabled ? (
+                 <div className="space-y-1 pl-6">
+                    <FeeDetailRow label="Transaction Fee" fee={fees.transactionFee} />
+                    <FeeDetailRow label="Refund Fee" fee={fees.refundFee} />
+                    <FeeDetailRow label="Chargeback Fee" fee={fees.chargebackFee} />
+                </div>
+            ) : (
+                <p className="text-sm text-muted-foreground pl-6">This gateway is disabled for the merchant.</p>
+            )}
+        </div>
+    )
+}
+
+
+export function ViewMerchantDialog({ open, onOpenChange, merchant }: ViewMerchantDialogProps) {
+    const { toast } = useToast();
+    const [salesAgent, setSalesAgent] = useState<User | null>(null);
+
+    useEffect(() => {
+        if (open && merchant?.salesAgentId) {
+            const fetchAgent = async () => {
+                try {
+                    const res = await fetch(`/api/users/${merchant.salesAgentId}`);
+                    if(res.ok) {
+                        const data = await res.json();
+                        setSalesAgent(data);
+                    } else {
+                        setSalesAgent(null);
+                    }
+                } catch (error) {
+                    console.error("Failed to fetch sales agent", error);
+                    setSalesAgent(null);
+                }
+            };
+            fetchAgent();
+        } else if (!open) {
+            setSalesAgent(null);
+        }
+    }, [open, merchant]);
+
+    const handleCopy = (value: string, fieldName: string) => {
+        navigator.clipboard.writeText(value);
+        toast({
+            title: "Copied to clipboard",
+            description: `${fieldName} has been copied.`,
+        });
+    }
+
+    if (!merchant) return null;
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle>Merchant Details</DialogTitle>
+          <DialogDescription>
+            Full details for {merchant.name}.
+          </DialogDescription>
+        </DialogHeader>
+        <ScrollArea className="max-h-[70vh]">
+            <div className="space-y-4 py-4 pr-6">
+                <section>
+                     <h4 className="text-sm font-semibold text-primary mb-2">General Information</h4>
+                     <div className="space-y-1">
+                        <DetailRow label="Merchant ID" value={merchant.id} />
+                        <DetailRow label="Full Name" value={merchant.name} />
+                        <DetailRow label="Login Email" value={merchant.email} />
+                        <DetailRow label="API Token" value={merchant.token} isCopyable onCopy={(v) => handleCopy(v, 'API Token')} />
+                        <DetailRow label="Order ID Prefix" value={merchant.orderIdPrefix || "Not Set"} />
+                        <DetailRow label="Status"><Badge variant={merchant.status === 'Active' ? "secondary" : "destructive"}>{merchant.status}</Badge></DetailRow>
+                        <DetailRow label="Date Joined" value={new Date(merchant.dateJoined).toLocaleDateString()} />
+                        {merchant.websiteUrl && <DetailRow label="Website" value={merchant.websiteUrl} />}
+                     </div>
+                </section>
+                <Separator />
+                <section>
+                     <h4 className="text-sm font-semibold text-primary mb-2">Personal & ID</h4>
+                     <div className="space-y-1">
+                        <DetailRow label="Nationality" value={merchant.nationality} />
+                        <DetailRow label="Date of Birth" value={merchant.dateOfBirth ? new Date(merchant.dateOfBirth).toLocaleDateString() : undefined} />
+                        <DetailRow label="ID Type" value={merchant.idType} />
+                        <DocumentRow label="Photo ID" url={merchant.photoIdUrl} type="image"/>
+                        <DocumentRow label="Business Document" url={merchant.businessDocumentUrl} type="document" />
+                     </div>
+                </section>
+                <Separator />
+                 <section>
+                     <h4 className="text-sm font-semibold text-primary mb-2">Banking Details</h4>
+                    <div className="space-y-1">
+                      <DetailRow label="Bank Name" value={merchant.bankName} />
+                      <DetailRow 
+                          label="Account Number" 
+                          value={merchant.bankAccountNumber}
+                          isCopyable={!!merchant.bankAccountNumber}
+                          onCopy={(value) => handleCopy(value, 'Bank Account Number')} 
+                      />
+                      <DetailRow label="Account Type" value={merchant.bankAccountType} />
+                      <DetailRow 
+                          label="Bank Email" 
+                          value={merchant.bankEmail}
+                          isCopyable={!!merchant.bankEmail}
+                          onCopy={(value) => handleCopy(value, 'Bank Email')} 
+                      />
+                    </div>
+                </section>
+                <Separator />
+                <section>
+                    <h4 className="text-sm font-semibold text-primary mb-2">Crypto Wallet</h4>
+                    <div className="space-y-1">
+                      <DetailRow 
+                          label="Wallet Address" 
+                          value={merchant.walletAddress}
+                          isCopyable={!!merchant.walletAddress}
+                          onCopy={(value) => handleCopy(value, 'Wallet Address')}
+                      />
+                      <DetailRow label="Network" value={merchant.network} />
+                    </div>
+                </section>
+                 <Separator />
+                <section>
+                    <h4 className="text-sm font-semibold text-primary mb-2">Settlement Fees</h4>
+                    <div className="space-y-1">
+                      <FeeDetailRow label="Domestic Transfer" fee={merchant.settlementFees?.domesticTransferFee} />
+                      <FeeDetailRow label="International Transfer" fee={merchant.settlementFees?.internationalTransferFee} />
+                      <FeeDetailRow label="Crypto Transfer" fee={merchant.settlementFees?.cryptoTransferFee} />
+                    </div>
+                </section>
+                 <Separator />
+                <section>
+                    <h4 className="text-sm font-semibold text-primary mb-2">Payment Gateway Fees</h4>
+                    <div className="space-y-2">
+                        <GatewayFeeDetails name="Stripe" fees={merchant.paymentGatewayFees?.stripe} />
+                        <GatewayFeeDetails name="Square" fees={merchant.paymentGatewayFees?.square} />
+                        <GatewayFeeDetails name="Zelle" fees={merchant.paymentGatewayFees?.zelle} />
+                    </div>
+                </section>
+                 <Separator />
+                <section>
+                    <h4 className="text-sm font-semibold text-primary mb-2">Sales & Commission</h4>
+                    <div className="space-y-1">
+                      <DetailRow label="Assigned Agent" value={salesAgent?.name || 'N/A'} />
+                      <FeeDetailRow label="Stripe Commission" fee={merchant.commissionRates?.stripe} />
+                      <FeeDetailRow label="Square Commission" fee={merchant.commissionRates?.square} />
+                      <FeeDetailRow label="Zelle Commission" fee={merchant.commissionRates?.zelle} />
+                    </div>
+                </section>
+            </div>
+        </ScrollArea>
+         <DialogFooter>
+            <Button type="button" variant="secondary" onClick={() => onOpenChange(false)}>Close</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
