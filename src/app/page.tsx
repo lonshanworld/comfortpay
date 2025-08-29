@@ -161,9 +161,9 @@ export default function HomePage() {
         <div className="mb-8 flex flex-col items-center text-center">
             <Logo className="h-12 w-auto text-primary" />
             <h1 className="mt-4 text-3xl font-bold">ComfortPay Gateway</h1>
-            <p className="mt-2 text-muted-foreground">This page demonstrates both a redirect and a modal checkout flow.</p>
+            {/* <p className="mt-2 text-muted-foreground">This page demonstrates both a redirect and a modal checkout flow.</p> */}
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 w-full max-w-4xl">
+        <div className=" gap-8 w-full max-w-4xl">
              <Card className="w-full">
                 <CardHeader>
                 <CardTitle>Role-Based Access</CardTitle>
@@ -194,7 +194,7 @@ export default function HomePage() {
                     </Link>
                 </CardContent>
             </Card>
-             <Card className="w-full hidden">
+             {/* <Card className="w-full hidden">
                 <CardHeader>
                 <CardTitle>Test Customer Checkout</CardTitle>
                 <CardDescription>
@@ -240,10 +240,10 @@ export default function HomePage() {
                         Clicking a button calls a backend flow to create a secure session. The SDK then either redirects or opens the modal.
                     </p>
                 </CardContent>
-            </Card>
+            </Card> */}
         </div>
         <footer className="mt-12 text-center text-sm text-muted-foreground">
-            <p>&copy; {new Date().getFullYear()} ComfortPay. This is a demonstration application.</p>
+            <p>CopyRight &copy; {new Date().getFullYear()} ComfortPay</p>
         </footer>
     </div>
   );

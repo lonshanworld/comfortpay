@@ -2,14 +2,11 @@
 'use server';
 
 import { NextResponse } from 'next/server';
-import { initialPaymentAccounts } from '@/lib/in-memory-db';
 import { executeQuery, runQuery } from '@/lib/db';
 import { promises as fs } from 'fs';
 import path from 'path';
 import crypto from 'crypto';
 
-// In-memory data - this will be used as a fallback if the database is not connected.
-let paymentAccounts = initialPaymentAccounts;
 
 const parseDbAccount = (dbAccount: any) => {
     if (!dbAccount) return null;
@@ -23,10 +20,7 @@ const parseDbAccount = (dbAccount: any) => {
                               const { searchParams } = new URL(request.url);
                                 const type = searchParams.get('type');
 
-                                  // =================================================================
-                                    // REAL DATABASE LOGIC
-                                      // =================================================================
-                                        try {
+                                  try {
                                             let query = "SELECT * FROM payment_accounts";
                                                 const params = [];
                                                     if (type) {
@@ -37,13 +31,7 @@ const parseDbAccount = (dbAccount: any) => {
                                                                                 return NextResponse.json(dbAccounts.map(parseDbAccount));
                                                                                   } catch (error) {
                                                                                       console.error("Failed to fetch payment accounts from DB:", error);
-                                                                                          // Fallback to in-memory data
-                                                                                              let filteredAccounts = paymentAccounts;
-                                                                                                  if (type) {
-                                                                                                        filteredAccounts = paymentAccounts.filter(acc => acc.type.toLowerCase() === type.toLowerCase());
-                                                                                                            }
-                                                                                                                
-                                                                                                                    return NextResponse.json(filteredAccounts);
+                                                                                          return NextResponse.json({ message: "Failed to fetch payment accounts" }, { status: 500 });
                                                                                                                       }
                                                                                                                       }
 
