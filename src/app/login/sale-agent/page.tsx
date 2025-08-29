@@ -22,8 +22,8 @@ import { login } from '@/app/actions/auth';
 export default function SaleAgentLoginPage() {
   const router = useRouter();
   const { toast } = useToast();
-  const [email, setEmail] = useState('agent.smith@comfortpay.com');
-  const [password, setPassword] = useState('password');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
