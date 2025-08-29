@@ -47,8 +47,8 @@ const transactionFormSchema = z.object({
   paidAmount: z.coerce.number().min(0, "Amount must be zero or positive."),
   paymentMethod: z.enum(["Credit Card", "Zelle"]),
   paymentType: z.enum(["Stripe", "Square", "Zelle"]),
-  orderDate: z.string().optional(),
-  paymentReceivedDate: z.string().optional(),
+  orderDate: z.string().refine(val => !isNaN(Date.parse(val)), { message: "Invalid date format" }),
+  paymentReceivedDate: z.string().optional().or(z.literal('')).refine(val => !val || !isNaN(Date.parse(val)), { message: "Invalid date format" }),
 });
 
 
@@ -61,22 +61,24 @@ interface EditTransactionDialogProps {
   order: Order | null;
 }
 
-const toDateTimeLocal = (isoString?: string) => {
-  if (!isoString) return "";
-  try {
-    const date = new Date(isoString);
-    if (isNaN(date.getTime())) return "";
-    const ten = (i: number) => (i < 10 ? '0' : '') + i;
-    const YYYY = date.getFullYear();
-    const MM = ten(date.getMonth() + 1);
-    const DD = ten(date.getDate());
-    const HH = ten(date.getHours());
-    const mm = ten(date.getMinutes());
-    return `${YYYY}-${MM}-${DD}T${HH}:${mm}`;
-  } catch (e) {
-    return "";
-  }
+const toDateTimeLocal = (isoString?: string | null) => {
+    if (!isoString) return "";
+    try {
+        const date = new Date(isoString);
+        // Directly format to YYYY-MM-DDTHH:mm which <input type="datetime-local"> requires.
+        // This keeps the time in the user's local timezone for the input, which is expected behavior for this control.
+        // The display will be local, but the submission will be converted back to ISO string (UTC).
+        const year = date.getFullYear();
+        const month = (date.getMonth() + 1).toString().padStart(2, '0');
+        const day = date.getDate().toString().padStart(2, '0');
+        const hours = date.getHours().toString().padStart(2, '0');
+        const minutes = date.getMinutes().toString().padStart(2, '0');
+        return `${year}-${month}-${day}T${hours}:${minutes}`;
+    } catch (e) {
+        return "";
+    }
 };
+
 
 export function EditOrderDialog({ open, onOpenChange, onOrderUpdated, order: transaction }: EditTransactionDialogProps) {
   const { toast } = useToast();
@@ -110,6 +112,7 @@ export function EditOrderDialog({ open, onOpenChange, onOrderUpdated, order: tra
 
     const dataToSubmit = {
         ...values,
+        // Convert local input time back to UTC ISO string for the server
         orderDate: values.orderDate ? new Date(values.orderDate).toISOString() : undefined,
         paymentReceivedDate: values.paymentReceivedDate ? new Date(values.paymentReceivedDate).toISOString() : undefined,
     }
@@ -159,7 +162,7 @@ export function EditOrderDialog({ open, onOpenChange, onOrderUpdated, order: tra
         <DialogHeader>
           <DialogTitle>Edit Transaction {transaction.id}</DialogTitle>
           <DialogDescription>
-            Update the details for this transaction. Changes will be saved immediately.
+            Update the details for this transaction. All times are in GMT.
           </DialogDescription>
         </DialogHeader>
         <Form {...form}>
@@ -293,7 +296,7 @@ export function EditOrderDialog({ open, onOpenChange, onOrderUpdated, order: tra
                         name="orderDate"
                         render={({ field }) => (
                         <FormItem>
-                            <FormLabel>Transaction Date</FormLabel>
+                            <FormLabel>Transaction Date (GMT)</FormLabel>
                             <FormControl>
                             <Input type="datetime-local" {...field} disabled={isLoading} />
                             </FormControl>
@@ -306,7 +309,7 @@ export function EditOrderDialog({ open, onOpenChange, onOrderUpdated, order: tra
                         name="paymentReceivedDate"
                         render={({ field }) => (
                         <FormItem>
-                            <FormLabel>Payment Received Date</FormLabel>
+                            <FormLabel>Payment Received Date (GMT)</FormLabel>
                             <FormControl>
                             <Input type="datetime-local" {...field} disabled={isLoading} />
                             </FormControl>

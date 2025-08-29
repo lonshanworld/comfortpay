@@ -18,6 +18,7 @@ import { ScrollArea } from "../ui/scroll-area";
 import { Separator } from "../ui/separator";
 import Link from "next/link";
 import { Badge } from "../ui/badge";
+import { useEffect, useState } from "react";
 
 interface ViewTransactionDialogProps {
   open: boolean;
@@ -51,6 +52,13 @@ const DetailRow = ({ label, value, isCopyable = false, onCopy, children }: { lab
 
 export function ViewTransactionDialog({ open, onOpenChange, transaction }: ViewTransactionDialogProps) {
     const { toast } = useToast();
+    const [userRole, setUserRole] = useState<string | null>(null);
+
+    useEffect(() => {
+        if (typeof window !== "undefined") {
+            setUserRole(localStorage.getItem('userRole'));
+        }
+    }, [open]);
 
     const handleCopy = (value: string, fieldName: string) => {
         navigator.clipboard.writeText(value);
@@ -65,6 +73,8 @@ export function ViewTransactionDialog({ open, onOpenChange, transaction }: ViewT
     const fullName = `${transaction.billingDetails?.firstName || ''} ${transaction.billingDetails?.lastName || ''}`.trim() || transaction.customerName;
     const fullAddress = [transaction.billingDetails?.address1, transaction.billingDetails?.address2, transaction.billingDetails?.city, transaction.billingDetails?.state, transaction.billingDetails?.postcode, transaction.billingDetails?.country].filter(Boolean).join(', ');
     const formatCurrency = (amount: number, currency: string) => new Intl.NumberFormat("en-US", { style: "currency", currency }).format(amount);
+
+    const isAdmin = userRole === 'Admin' || userRole === 'Staff';
 
 
   return (
@@ -83,23 +93,15 @@ export function ViewTransactionDialog({ open, onOpenChange, transaction }: ViewT
                      <div className="space-y-1">
                         <DetailRow label="ComfortPay ID" value={transaction.id} isCopyable onCopy={(v) => handleCopy(v, "ComfortPay ID")} />
                         <DetailRow label="Merchant Transaction ID" value={transaction.merchantOrderId} isCopyable onCopy={(v) => handleCopy(v, "Merchant Transaction ID")} />
-                        <DetailRow label="Gateway Txn ID" value={transaction.paymentGatewayTransactionId} isCopyable onCopy={(v) => handleCopy(v, "Gateway Transaction ID")} />
+                         {isAdmin && <DetailRow label="Gateway Txn ID" value={transaction.paymentGatewayTransactionId} isCopyable onCopy={(v) => handleCopy(v, "Gateway Transaction ID")} />}
                         <DetailRow label="Status"><Badge>{transaction.status}</Badge></DetailRow>
                         <DetailRow label="Transaction Date" value={new Date(transaction.orderDate).toLocaleString()} />
                         <DetailRow label="Payment Received" value={transaction.paymentReceivedDate ? new Date(transaction.paymentReceivedDate).toLocaleString() : 'N/A'} />
-                        <DetailRow label="Transaction Amount" value={formatCurrency(transaction.orderAmount, transaction.currency)} />
+                        <DetailRow label="Order Amount" value={formatCurrency(transaction.orderAmount, transaction.currency)} />
                         <DetailRow label="Total Amount" value={formatCurrency(transaction.totalAmount, transaction.currency)} />
-                        <DetailRow label="Paid Amount">
-                           <div className="flex flex-col items-start">
-                             <span>{formatCurrency(transaction.paidAmount, transaction.currency)}</span>
-                              {transaction.paidAmount > transaction.totalAmount && (
-                                <Badge variant="destructive" className="mt-1">
-                                    Refund Due: {formatCurrency(transaction.paidAmount - transaction.totalAmount, transaction.currency)}
-                                </Badge>
-                               )}
-                           </div>
-                        </DetailRow>
+                        <DetailRow label="Paid Amount" value={formatCurrency(transaction.paidAmount, transaction.currency)} />
                         <DetailRow label="Payment Method" value={`${transaction.paymentType} (${transaction.paymentMethod})`} />
+                        {isAdmin && <DetailRow label="Payment Account ID" value={String(transaction.paymentAccountId) || "N/A"} />}
                      </div>
                 </section>
                 <Separator />
@@ -112,15 +114,17 @@ export function ViewTransactionDialog({ open, onOpenChange, transaction }: ViewT
                             </Link>
                         </DetailRow>
                         <DetailRow label="Merchant ID" value={transaction.merchantId} isCopyable onCopy={(v) => handleCopy(v, "Merchant ID")} />
-                        <DetailRow label="Source Website">
-                           {transaction.sourceWebsiteUrl ? (
-                                <Link href={transaction.sourceWebsiteUrl} target="_blank" className="flex items-center gap-1.5 hover:underline">
-                                    {transaction.sourceWebsiteUrl} <ExternalLink className="h-3 w-3" />
-                                </Link>
-                           ) : (
-                                <span className="text-muted-foreground">N/A</span>
-                           )}
-                        </DetailRow>
+                        {isAdmin && (
+                             <DetailRow label="Source Website">
+                               {transaction.sourceWebsiteUrl ? (
+                                    <Link href={transaction.sourceWebsiteUrl} target="_blank" className="flex items-center gap-1.5 hover:underline">
+                                        {transaction.sourceWebsiteUrl} <ExternalLink className="h-3 w-3" />
+                                    </Link>
+                               ) : (
+                                    <span className="text-muted-foreground">N/A</span>
+                               )}
+                            </DetailRow>
+                        )}
                      </div>
                 </section>
                 <Separator />

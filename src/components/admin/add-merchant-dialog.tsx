@@ -41,12 +41,12 @@ import type { User, Fee } from "@/lib/types";
 
 const feeSchema = z.object({
   value: z.coerce.number().optional(),
-  type: z.enum(["percentage", "flat"]).optional(),
 });
 
 const gatewayFeeSchema = z.object({
     enabled: z.boolean().default(false),
     transactionFee: feeSchema.optional(),
+    transactionFeeFixed: feeSchema.optional(),
     refundFee: feeSchema.optional(),
     chargebackFee: feeSchema.optional(),
 });
@@ -101,6 +101,14 @@ interface AddMerchantDialogProps {
   onOpenChange: (open: boolean) => void;
   onMerchantAdded: () => void;
 }
+
+const toBase64 = (file: File): Promise<string> => new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = error => reject(error);
+});
+
 
 const FeeInput = ({ name, control, label }: { name: string, control: any, label: string }) => (
     <div className="space-y-2 rounded-md border p-2">
@@ -167,7 +175,30 @@ const GatewayFeeSection = ({ gatewayName, control }: { gatewayName: 'stripe' | '
           />
          {isEnabled && (
             <div className="space-y-4 pl-2 border-l-2 ml-2 mt-2 pt-2">
-                 <FeeInput name={`paymentGatewayFees.${gatewayName}.transactionFee`} control={control} label="Transaction Fee" />
+                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <FormField
+                        control={control}
+                        name={`paymentGatewayFees.${gatewayName}.transactionFee.value`}
+                        render={({ field }) => (
+                            <FormItem>
+                            <FormLabel className="text-xs">Transaction Fee (%)</FormLabel>
+                            <FormControl><Input type="number" step="0.01" placeholder="e.g., 2.9" {...field} value={field.value ?? ''} /></FormControl>
+                            <FormMessage />
+                            </FormItem>
+                        )}
+                    />
+                    <FormField
+                        control={control}
+                        name={`paymentGatewayFees.${gatewayName}.transactionFeeFixed.value`}
+                        render={({ field }) => (
+                            <FormItem>
+                            <FormLabel className="text-xs">Transaction Fixed Fee ($)</FormLabel>
+                            <FormControl><Input type="number" step="0.01" placeholder="e.g., 0.30" {...field} value={field.value ?? ''} /></FormControl>
+                            <FormMessage />
+                            </FormItem>
+                        )}
+                    />
+                </div>
                  <FeeInput name={`paymentGatewayFees.${gatewayName}.refundFee`} control={control} label="Refund Fee" />
                  <FeeInput name={`paymentGatewayFees.${gatewayName}.chargebackFee`} control={control} label="Chargeback Fee" />
             </div>
@@ -189,7 +220,7 @@ export function AddMerchantDialog({ open, onOpenChange, onMerchantAdded }: AddMe
       password: "",
       websiteUrl: "",
       orderIdPrefix: "",
-      status: "Active",
+      status: "Inactive",
       nationality: "",
       dateOfBirth: "",
       bankName: "",
@@ -204,9 +235,9 @@ export function AddMerchantDialog({ open, onOpenChange, onMerchantAdded }: AddMe
         cryptoTransferFee: { value: 1.00, type: "percentage" },
       },
       paymentGatewayFees: {
-        stripe: { enabled: true, transactionFee: { value: 2.9, type: 'percentage'}, refundFee: { value: 0, type: 'flat'}, chargebackFee: { value: 15.00, type: 'flat'} },
-        square: { enabled: true, transactionFee: { value: 2.6, type: 'percentage'}, refundFee: { value: 0, type: 'flat'}, chargebackFee: { value: 20.00, type: 'flat'} },
-        zelle: { enabled: true, transactionFee: { value: 0, type: 'percentage'}, refundFee: { value: 0, type: 'flat'}, chargebackFee: { value: 0, type: 'flat'} },
+        stripe: { enabled: true, transactionFee: { value: 2.9 }, transactionFeeFixed: {value: 0.30}, refundFee: { value: 0, type: 'flat'}, chargebackFee: { value: 15.00, type: 'flat'} },
+        square: { enabled: true, transactionFee: { value: 2.6 }, transactionFeeFixed: {value: 0.10}, refundFee: { value: 0, type: 'flat'}, chargebackFee: { value: 20.00, type: 'flat'} },
+        zelle: { enabled: true, transactionFee: { value: 0 }, transactionFeeFixed: {value: 0}, refundFee: { value: 0, type: 'flat'}, chargebackFee: { value: 0, type: 'flat'} },
       },
       salesAgentId: "",
       commissionRates: { 
@@ -235,20 +266,20 @@ export function AddMerchantDialog({ open, onOpenChange, onMerchantAdded }: AddMe
 
   const onSubmit = async (values: MerchantFormValues) => {
     setIsLoading(true);
-    // In a real app, you would handle file uploads here.
-    // For now, we'll just log the file info.
-    console.log("Photo ID File:", values.photoId);
-    console.log("Business Document File:", values.businessDocument);
-
-    const dataToSubmit = { 
-        ...values,
-        salesAgentId: values.salesAgentId === 'none' ? '' : values.salesAgentId,
-     };
-    delete dataToSubmit.photoId;
-    delete dataToSubmit.businessDocument;
-
 
     try {
+      const dataToSubmit: any = { 
+          ...values,
+          salesAgentId: values.salesAgentId === 'none' ? '' : values.salesAgentId,
+      };
+
+      if (values.photoId && values.photoId instanceof File) {
+        dataToSubmit.photoId = await toBase64(values.photoId);
+      }
+       if (values.businessDocument && values.businessDocument instanceof File) {
+        dataToSubmit.businessDocument = await toBase64(values.businessDocument);
+      }
+
       const response = await fetch('/api/merchants', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -371,7 +402,7 @@ export function AddMerchantDialog({ open, onOpenChange, onMerchantAdded }: AddMe
                   <FormItem>
                     <FormLabel>Website URL</FormLabel>
                     <FormControl>
-                      <Input placeholder="https://example.com" {...field} disabled={isLoading}/>
+                      <Input placeholder="https://example.com" {...field} disabled={isLoading} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -552,7 +583,6 @@ export function AddMerchantDialog({ open, onOpenChange, onMerchantAdded }: AddMe
                   )}
                 />
               </div>
-
                 <Separator className="my-4" />
                 <h4 className="text-sm font-semibold text-primary">Settlement Fees</h4>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

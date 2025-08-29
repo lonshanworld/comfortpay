@@ -6,12 +6,16 @@ import sgMail from '@sendgrid/mail';
 
 
 async function getEmailConfig() {
-    const settings = await executeQuery("SELECT key, value FROM settings WHERE key IN ('emailProvider', 'cpanelSmtp', 'titanSmtp', 'sendgrid', 'fromEmail')");
+    const settings = await executeQuery("SELECT `key`, `value` FROM settings WHERE `key` IN ('emailEnabled', 'emailProvider', 'cpanelSmtp', 'titanSmtp', 'sendgrid', 'fromEmail')");
     
     const config: any = {};
     for (const setting of settings) {
         try {
-            config[setting.key] = JSON.parse(setting.value);
+             if (setting.value === 'true' || setting.value === 'false') {
+                config[setting.key] = setting.value === 'true';
+            } else {
+                config[setting.key] = JSON.parse(setting.value);
+            }
         } catch (e) {
             config[setting.key] = setting.value;
         }
@@ -21,7 +25,20 @@ async function getEmailConfig() {
 
 export async function POST(request: Request) {
   try {
+    const body = await request.json();
+    const { recipient } = body;
+
+    if (!recipient) {
+      return NextResponse.json({ message: 'Recipient email is required.' }, { status: 400 });
+    }
+
     const emailConfig = await getEmailConfig();
+    const emailEnabled = emailConfig.emailEnabled;
+
+    if (!emailEnabled) {
+         return NextResponse.json({ message: "Email notifications are globally disabled. Cannot send test email." }, { status: 400 });
+    }
+
     const activeProviderKey = emailConfig.emailProvider;
     const fromEmail = emailConfig.fromEmail;
     
@@ -43,7 +60,7 @@ export async function POST(request: Request) {
         }
         sgMail.setApiKey(sgApiKey);
         await sgMail.send({
-            to: fromEmail,
+            to: recipient,
             from: { name: 'ComfortPay Test', email: fromEmail },
             subject,
             html,
@@ -72,7 +89,7 @@ export async function POST(request: Request) {
 
         await transporter.sendMail({
           from: `"ComfortPay Test" <${fromEmail}>`,
-          to: fromEmail, // Send the test to the 'from' address itself
+          to: recipient,
           subject: subject,
           html: `
             ${html}
@@ -84,7 +101,7 @@ export async function POST(request: Request) {
         });
     }
 
-    return NextResponse.json({ success: true, message: 'Test email sent successfully!' });
+    return NextResponse.json({ success: true, message: `Test email sent successfully to ${recipient}!` });
 
   } catch (error: any) {
     console.error("Failed to send test email:", error);
@@ -94,5 +111,3 @@ export async function POST(request: Request) {
     return NextResponse.json({ message: `Failed to send test email: ${error.message}` }, { status: 500 });
   }
 }
-
-    

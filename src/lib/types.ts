@@ -37,11 +37,12 @@ export interface Order {
   customerEmail: string;
   status: OrderStatus;
   paymentMethod: PaymentMethod;
-  orderAmount: number;
-  totalAmount: number;
+  orderAmount: number; // Subtotal of items
+  totalAmount: number; // From Woo (subtotal + shipping/tax)
   paidAmount: number;
   currency: string; // e.g., "USD", "EUR"
   paymentType: PaymentType;
+  paymentAccountId?: string;
   processor?: PaymentAccountType;
   paymentGatewayTransactionId?: string; // e.g., Stripe's ch_... or a Zelle confirmation code
   merchantWebsiteUrl?: string;
@@ -54,12 +55,12 @@ export type IdType = "Passport" | "Driver License" | "ID Card";
 
 export interface Fee {
   value?: number;
-  type?: 'percentage' | 'flat';
 }
 
 export interface GatewayFee {
   enabled?: boolean;
-  transactionFee?: Fee;
+  transactionFee?: Fee; // Percentage
+  transactionFeeFixed?: Fee; // Flat amount
   refundFee?: Fee;
   chargebackFee?: Fee;
 }
@@ -116,9 +117,9 @@ export interface User {
     zelle?: GatewayFee;
   };
   commissionRates?: {
-    stripe?: Fee;
-    square?: Fee;
-    zelle?: Fee;
+    stripe?: { value: number, type: 'percentage' | 'flat' };
+    square?: { value: number, type: 'percentage' | 'flat' };
+    zelle?: { value: number, type: 'percentage' | 'flat' };
   };
 }
 
@@ -129,7 +130,7 @@ export type Merchant = User;
 export type PaymentAccountType = "Stripe" | "Square" | "Zelle";
 
 export interface PaymentAccount {
-  id: string;
+  id: number;
   type: PaymentAccountType;
   name: string;
   status: "Active" | "Inactive";
@@ -138,6 +139,7 @@ export interface PaymentAccount {
   prefix_order_name?: string;
   websiteUrl: string;
   accountEmail?: string; // For Zelle
+  qrCodeUrl?: string | null; // For Zelle QR code image
 }
 
 export interface DashboardStats {
@@ -174,9 +176,12 @@ export interface DashboardStats {
 export type CreateCheckoutSessionInput = z.infer<typeof CreateCheckoutSessionInputSchema> & {
     comfortPayOrderId?: string;
     merchantOrigin?: string;
+    wooCommerceOrderReceivedUrl?: string | null;
 };
 
-export type SendOrderNotificationInput = z.infer<typeof SendOrderNotificationInputSchema>;
+export type SendOrderNotificationInput = z.infer<typeof SendOrderNotificationInputSchema> & {
+    items?: OrderItem[];
+};
 
 export type SendOrderNotificationOutput = {
     success: boolean;

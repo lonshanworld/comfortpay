@@ -9,15 +9,16 @@ const nextConfig: NextConfig = {
     ignoreDuringBuilds: true,
   },
   images: {
-    // remotePatterns: [
-    //   {
-    //     protocol: 'https',
-    //     hostname: 'placehold.co',
-    //     port: '',
-    //     pathname: '/**',
-    //   },
-    // ],
+    remotePatterns: [
+      {
+        protocol: 'https',
+        hostname: 'placehold.co',
+        port: '',
+        pathname: '/**',
+      },
+    ],
   },
+   unoptimized: process.env.NODE_ENV === 'development',
 };
 
 export default nextConfig;

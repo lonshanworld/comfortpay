@@ -17,39 +17,39 @@ const sampleBillingDetails = {
 };
 
 const defaultSettlementFees = {
-    domesticTransferFee: 2.50,
-    internationalTransferFee: 5.00,
-    cryptoTransferFee: 1.00,
+    domesticTransferFee: { value: 2.50, type: "flat" },
+    internationalTransferFee: { value: 5.00, type: "flat" },
+    cryptoTransferFee: { value: 1.00, type: "percentage" },
 };
 
 const defaultGatewayFees = {
     stripe: {
         enabled: true,
-        transactionFeePercentage: 2.9,
-        transactionFeeFlat: 0.30,
-        refundFee: 0,
-        chargebackFee: 15,
+        transactionFee: { value: 2.9 },
+        transactionFeeFixed: { value: 0.30 },
+        refundFee: { value: 0 },
+        chargebackFee: { value: 15.00 }
     },
     square: {
         enabled: true,
-        transactionFeePercentage: 2.6,
-        transactionFeeFlat: 0.10,
-        refundFee: 0,
-        chargebackFee: 20,
+        transactionFee: { value: 2.6 },
+        transactionFeeFixed: { value: 0.10 },
+        refundFee: { value: 0 },
+        chargebackFee: { value: 20.00 }
     },
     zelle: {
         enabled: true,
-        transactionFeePercentage: 0,
-        transactionFeeFlat: 0,
-        refundFee: 0,
-        chargebackFee: 0,
+        transactionFee: { value: 0 },
+        transactionFeeFixed: { value: 0 },
+        refundFee: { value: 0 },
+        chargebackFee: { value: 0 }
     },
 };
 
 
 const initialUsers = [
   // Admins
-  { id: 'user_1', name: 'Admin User', email: 'admin@comfortpay.com', password: 'password', role: 'Admin', createdAt: '2023-01-01T12:00:00Z', status: 'Active' },
+  { id: 'user_1', name: 'Admin User', email: 'admin@comfortpay.com', password: 'password', role: 'Admin', createdAt: '2023-01-01T12:00:00Z', status: 'Active', dateJoined: '2023-01-01T12:00:00Z' },
   
   // Merchants
   { 
@@ -59,11 +59,12 @@ const initialUsers = [
     password: 'password', 
     role: 'Merchant',
     createdAt: '2023-01-15T12:00:00Z',
+    dateJoined: '2023-01-15T12:00:00Z',
     status: 'Active', 
     nationality: 'American',
     dateOfBirth: '1985-05-20',
     idType: 'Driver License',
-    token: 'tok_123abc', 
+    token: 'cp_tok_123abc', 
     websiteUrl: 'https://gadgetstore.example.com',
     orderIdPrefix: 'GADGETS', 
     bankName: 'Chase', 
@@ -75,7 +76,7 @@ const initialUsers = [
     settlementFees: defaultSettlementFees,
     paymentGatewayFees: defaultGatewayFees,
     salesAgentId: 'user_3',
-    commissionRates: { stripe: 1.5, square: 1.5, zelle: 0.5 },
+    commissionRates: { stripe: { value: 1.5, type: 'percentage' }, square: { value: 1.5, type: 'percentage' }, zelle: { value: 0.5, type: 'percentage' } },
   },
   { 
     id: 'user_5', 
@@ -84,11 +85,12 @@ const initialUsers = [
     password: 'password',
     role: 'Merchant',
     createdAt: '2023-03-22T12:00:00Z',
+    dateJoined: '2023-03-22T12:00:00Z',
     status: 'Active', 
     nationality: 'British',
     dateOfBirth: '1990-11-12',
     idType: 'Passport',
-    token: 'tok_456def', 
+    token: 'cp_tok_456def', 
     websiteUrl: 'https://bookwormnook.example.com',
     orderIdPrefix: '', // No prefix
     bankName: 'Bank of America', 
@@ -98,7 +100,7 @@ const initialUsers = [
     settlementFees: defaultSettlementFees,
     paymentGatewayFees: defaultGatewayFees,
     salesAgentId: 'user_7',
-    commissionRates: { stripe: 1.2, square: 1.2, zelle: 0.2 },
+    commissionRates: { stripe: { value: 1.2, type: 'percentage' }, square: { value: 1.2, type: 'percentage' }, zelle: { value: 0.2, type: 'percentage' } },
   },
   { 
     id: 'user_8',
@@ -107,8 +109,9 @@ const initialUsers = [
     password: 'password',
     role: 'Merchant',
     createdAt: '2023-05-10T12:00:00Z',
+    dateJoined: '2023-05-10T12:00:00Z',
     status: 'Inactive',
-    token: 'tok_789ghi', 
+    token: 'cp_tok_789ghi', 
     websiteUrl: 'https://craftycreations.example.com',
     orderIdPrefix: 'CRAFTY',
     bankName: 'Wells Fargo', 
@@ -127,16 +130,17 @@ const initialUsers = [
     password: 'password',
     role: 'Merchant',
     createdAt: '2023-08-01T12:00:00Z',
+    dateJoined: '2023-08-01T12:00:00Z',
     status: 'Active',
     nationality: 'Spanish',
     dateOfBirth: '1992-07-14',
     idType: 'ID Card',
-    token: 'tok_jklmno', 
+    token: 'cp_tok_jklmno', 
     websiteUrl: 'https://techinnovators.example.com',
     settlementFees: defaultSettlementFees,
     paymentGatewayFees: defaultGatewayFees,
     salesAgentId: 'user_3',
-    commissionRates: { stripe: 2.0, square: 2.0, zelle: 1.0 },
+    commissionRates: { stripe: { value: 2.0, type: 'percentage' }, square: { value: 2.0, type: 'percentage' }, zelle: { value: 1.0, type: 'percentage' } },
   },
   { 
     id: 'user_10',
@@ -145,13 +149,14 @@ const initialUsers = [
     password: 'password',
     role: 'Merchant',
     createdAt: '2023-09-05T10:00:00Z',
+    dateJoined: '2023-09-05T10:00:00Z',
     status: 'Active',
     websiteUrl: 'https://fashionforward.example.com',
     orderIdPrefix: 'FF',
     salesAgentId: 'user_7',
     settlementFees: defaultSettlementFees,
     paymentGatewayFees: defaultGatewayFees,
-    commissionRates: { stripe: 1.8, square: 1.8, zelle: 0.8 },
+    commissionRates: { stripe: { value: 1.8, type: 'percentage' }, square: { value: 1.8, type: 'percentage' }, zelle: { value: 0.8, type: 'percentage' } },
   },
   { 
     id: 'user_12',
@@ -160,13 +165,14 @@ const initialUsers = [
     password: 'password',
     role: 'Merchant',
     createdAt: '2023-11-15T10:00:00Z',
+    dateJoined: '2023-11-15T10:00:00Z',
     status: 'Active',
     websiteUrl: 'https://healthybites.example.com',
     orderIdPrefix: 'HB',
     salesAgentId: 'user_13',
     settlementFees: defaultSettlementFees,
     paymentGatewayFees: defaultGatewayFees,
-    commissionRates: { stripe: 2.2, square: 2.2, zelle: 1.2 },
+    commissionRates: { stripe: { value: 2.2, type: 'percentage' }, square: { value: 2.2, type: 'percentage' }, zelle: { value: 1.2, type: 'percentage' } },
   },
   { 
     id: 'user_14',
@@ -175,6 +181,7 @@ const initialUsers = [
     password: 'password',
     role: 'Merchant',
     createdAt: '2024-01-20T10:00:00Z',
+    dateJoined: '2024-01-20T10:00:00Z',
     status: 'Active',
     websiteUrl: 'https://petpalace.example.com',
     orderIdPrefix: 'PET',
@@ -183,15 +190,15 @@ const initialUsers = [
   },
 
   // Sale Agents
-  { id: 'user_3', name: 'Agent Smith', email: 'agent.smith@comfortpay.com', password: 'password', role: 'Sale Agent', createdAt: '2023-02-01T12:00:00Z', status: 'Active' },
-  { id: 'user_7', name: 'Trinity', email: 'trinity@comfortpay.com', password: 'password', role: 'Sale Agent', createdAt: '2023-05-15T12:00:00Z', status: 'Active' },
-  { id: 'user_13', name: 'Morpheus Prime', email: 'morpheus.prime@comfortpay.com', password: 'password', role: 'Sale Agent', createdAt: '2023-10-20T12:00:00Z', status: 'Active' },
+  { id: 'user_3', name: 'Agent Smith', email: 'agent.smith@comfortpay.com', password: 'password', role: 'Sale Agent', createdAt: '2023-02-01T12:00:00Z', status: 'Active', dateJoined: '2023-02-01T12:00:00Z' },
+  { id: 'user_7', name: 'Trinity', email: 'trinity@comfortpay.com', password: 'password', role: 'Sale Agent', createdAt: '2023-05-15T12:00:00Z', status: 'Active', dateJoined: '2023-05-15T12:00:00Z' },
+  { id: 'user_13', name: 'Morpheus Prime', email: 'morpheus.prime@comfortpay.com', password: 'password', role: 'Sale Agent', createdAt: '2023-10-20T12:00:00Z', status: 'Active', dateJoined: '2023-10-20T12:00:00Z' },
   
   // Staff
-  { id: 'user_4', name: 'Support Staff', email: 'support@comfortpay.com', password: 'password', role: 'Staff', createdAt: '2023-02-10T12:00:00Z', status: 'Active', permissions: '{"view_transactions":true,"view_merchants":true}' },
-  { id: 'user_6', name: 'Finance Staff', email: 'finance@comfortpay.com', password: 'password', role: 'Staff', createdAt: '2023-04-01T12:00:00Z', status: 'Active', permissions: '{"view_dashboard":true,"view_transactions":true,"edit_transactions":true}' },
-  { id: 'user_11', name: 'Compliance Officer', email: 'compliance@comfortpay.com', password: 'password', role: 'Staff', createdAt: '2023-10-01T09:00:00Z', status: 'Active', permissions: '{"view_dashboard":true, "view_transactions":true, "view_merchants":true, "view_users":true}' },
-  { id: 'user_15', name: 'Junior Admin', email: 'junior.admin@comfortpay.com', password: 'password', role: 'Staff', createdAt: '2024-02-01T09:00:00Z', status: 'Active', permissions: '{"view_dashboard":true, "view_merchants":true, "edit_merchants":true, "view_users":true, "edit_users":true}' },
+  { id: 'user_4', name: 'Support Staff', email: 'support@comfortpay.com', password: 'password', role: 'Staff', createdAt: '2023-02-10T12:00:00Z', status: 'Active', permissions: '{"view_transactions":true,"view_merchants":true}', dateJoined: '2023-02-10T12:00:00Z' },
+  { id: 'user_6', name: 'Finance Staff', email: 'finance@comfortpay.com', password: 'password', role: 'Staff', createdAt: '2023-04-01T12:00:00Z', status: 'Active', permissions: '{"view_dashboard":true,"view_transactions":true,"edit_transactions":true}', dateJoined: '2023-04-01T12:00:00Z' },
+  { id: 'user_11', name: 'Compliance Officer', email: 'compliance@comfortpay.com', password: 'password', role: 'Staff', createdAt: '2023-10-01T09:00:00Z', status: 'Active', permissions: '{"view_dashboard":true, "view_transactions":true, "view_merchants":true, "view_users":true}', dateJoined: '2023-10-01T09:00:00Z' },
+  { id: 'user_15', name: 'Junior Admin', email: 'junior.admin@comfortpay.com', password: 'password', role: 'Staff', createdAt: '2024-02-01T09:00:00Z', status: 'Active', permissions: '{"view_dashboard":true, "view_merchants":true, "edit_merchants":true, "view_users":true, "edit_users":true}', dateJoined: '2024-02-01T09:00:00Z' },
 
 ];
 
@@ -230,14 +237,14 @@ const initialOrders = [
 ];
 
 const initialPaymentAccounts = [
-  { id: 'pa_1', type: 'Stripe', name: 'Stripe Primary (USD)', status: 'Active', dailyLimit: 25000, currentVolume: 18500, prefix_order_name: 'Online Purchase', websiteUrl: 'https://comfortcommerce.cc/stripe1', accountEmail: '' },
-  { id: 'pa_2', type: 'Stripe', name: 'Stripe Secondary (EUR)', status: 'Active', dailyLimit: 10000, currentVolume: 1200, prefix_order_name: 'EU-SALE', websiteUrl: 'https://comfortcommerce.cc/stripe2', accountEmail: '' },
-  { id: 'pa_3', type: 'Square', name: 'Square Main (USD)', status: 'Active', dailyLimit: 15000, currentVolume: 9800, prefix_order_name: '', websiteUrl: 'https://comfortcommerce.cc/square1', accountEmail: '' },
-  { id: 'pa_4', type: 'Square', name: 'Square Backup', status: 'Inactive', dailyLimit: 5000, currentVolume: 0, prefix_order_name: 'Backup Sale', websiteUrl: 'https://comfortcommerce.cc/square2', accountEmail: '' },
-  { id: 'pa_5', type: 'Zelle', name: 'Zelle Primary', status: 'Active', dailyLimit: 2500, currentVolume: 1500, prefix_order_name: '', accountEmail: 'billing@comfortpay.com', websiteUrl: 'https://comfortcommerce.cc/zelle1' },
-  { id: 'pa_6', type: 'Zelle', name: 'Zelle Business', status: 'Active', dailyLimit: 5000, currentVolume: 450, prefix_order_name: 'USE_COMFORTPAY_ID', accountEmail: 'sales@comfortpay.com', websiteUrl: 'https://comfortcommerce.cc/zelle2' },
-  { id: 'pa_7', type: 'Stripe', name: 'Stripe HighVolume (USD)', status: 'Active', dailyLimit: 100000, currentVolume: 75000, prefix_order_name: 'HV-TXN', websiteUrl: 'https://comfortcommerce.cc/stripe-hv', accountEmail: '' },
-  { id: 'pa_8', type: 'Square', name: 'Square Events (USD)', status: 'Active', dailyLimit: 5000, currentVolume: 4500, prefix_order_name: 'EVENT', websiteUrl: 'https://comfortcommerce.cc/square-events', accountEmail: '' },
+  { id: 1, type: 'Stripe', name: 'Stripe Primary (USD)', status: 'Active', dailyLimit: 25000, currentVolume: 18500, prefix_order_name: 'Online Purchase', websiteUrl: 'https://comfortcommerce.cc/stripe1', accountEmail: '' },
+  { id: 2, type: 'Stripe', name: 'Stripe Secondary (EUR)', status: 'Active', dailyLimit: 10000, currentVolume: 1200, prefix_order_name: 'EU-SALE', websiteUrl: 'https://comfortcommerce.cc/stripe2', accountEmail: '' },
+  { id: 3, type: 'Square', name: 'Square Main (USD)', status: 'Active', dailyLimit: 15000, currentVolume: 9800, prefix_order_name: '', websiteUrl: 'https://comfortcommerce.cc/square1', accountEmail: '' },
+  { id: 4, type: 'Square', name: 'Square Backup', status: 'Inactive', dailyLimit: 5000, currentVolume: 0, prefix_order_name: 'Backup Sale', websiteUrl: 'https://comfortcommerce.cc/square2', accountEmail: '' },
+  { id: 5, type: 'Zelle', name: 'Zelle Primary', status: 'Active', dailyLimit: 2500, currentVolume: 1500, prefix_order_name: '', accountEmail: 'billing@comfortpay.com', websiteUrl: 'https://comfortcommerce.cc/zelle1', qrCodeUrl: '/placeholders/zelle-qr-1.png' },
+  { id: 6, type: 'Zelle', name: 'Zelle Business', status: 'Active', dailyLimit: 5000, currentVolume: 450, prefix_order_name: 'USE_COMFORTPAY_ID', accountEmail: 'sales@comfortpay.com', websiteUrl: 'https://comfortcommerce.cc/zelle2', qrCodeUrl: null },
+  { id: 7, type: 'Stripe', name: 'Stripe HighVolume (USD)', status: 'Active', dailyLimit: 100000, currentVolume: 75000, prefix_order_name: 'HV-TXN', websiteUrl: 'https://comfortcommerce.cc/stripe-hv', accountEmail: '' },
+  { id: 8, type: 'Square', name: 'Square Events (USD)', status: 'Active', dailyLimit: 5000, currentVolume: 4500, prefix_order_name: 'EVENT', websiteUrl: 'https://comfortcommerce.cc/square-events', accountEmail: '' },
 ];
 
 module.exports = {

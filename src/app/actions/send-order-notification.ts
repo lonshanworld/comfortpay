@@ -8,21 +8,27 @@
  */
 
 import { z } from 'zod';
-import { CreateCheckoutSessionInputSchema } from '@/lib/schemas';
+import { CreateCheckoutSessionInputSchema, SendSupportEmailInputSchema } from '@/lib/schemas';
 import { getCustomerEmailContent, getMerchantEmailContent } from '@/lib/email-templates';
-import { executeQuery } from '@/lib/db';
-import type { SendOrderNotificationInput, SendOrderNotificationOutput } from '@/lib/types';
+import { executeQuery, runQuery } from '@/lib/db';
+import type { Order, SendOrderNotificationInput, SendOrderNotificationOutput } from '@/lib/types';
 import nodemailer from 'nodemailer';
 import sgMail from '@sendgrid/mail';
+import { formatDateForMySQL } from '@/lib/utils';
 
 
 async function getEmailConfig() {
-    const settings = await executeQuery("SELECT key, value FROM settings WHERE key IN ('emailProvider', 'cpanelSmtp', 'titanSmtp', 'sendgrid', 'fromEmail')");
+    const settings = await executeQuery("SELECT `key`, `value` FROM settings WHERE `key` IN ('emailEnabled', 'emailProvider', 'cpanelSmtp', 'titanSmtp', 'sendgrid', 'fromEmail', 'sendToCustomer', 'sendToMerchant')");
     
     const config: any = {};
     for (const setting of settings) {
         try {
-            config[setting.key] = JSON.parse(setting.value);
+            // Attempt to parse JSON, handle booleans, otherwise use the value as is.
+            if (setting.value === 'true' || setting.value === 'false') {
+                 config[setting.key] = setting.value === 'true';
+            } else {
+                 config[setting.key] = JSON.parse(setting.value);
+            }
         } catch (e) {
             config[setting.key] = setting.value;
         }
@@ -32,18 +38,50 @@ async function getEmailConfig() {
 
 // The main exported function that clients will call
 export async function sendOrderNotification(input: SendOrderNotificationInput): Promise<SendOrderNotificationOutput> {
+    const emailConfig = await getEmailConfig();
+
+    if (!emailConfig.emailEnabled) {
+        console.log("Skipping email notification as the feature is globally disabled by the admin.");
+        return { success: true, message: "Email notifications are globally disabled." };
+    }
+
+    if (input.recipientType === 'customer' && !emailConfig.sendToCustomer) {
+        console.log("Skipping customer email notification as it is disabled by admin.");
+        return { success: true, message: "Customer email skipped by admin setting." };
+    }
+    if (input.recipientType === 'merchant' && !emailConfig.sendToMerchant) {
+        console.log("Skipping merchant email notification as it is disabled by admin.");
+        return { success: true, message: "Merchant email skipped by admin setting." };
+    }
+
     const recipient = input.recipientType === 'customer' ? input.customerEmail : input.merchantEmail;
 
     if (!recipient) {
          return { success: false, message: `Recipient email not provided for ${input.recipientType}.` };
     }
+    
+    // Ensure items are part of the orderDetails passed to templates
+    const orderDetailsWithItems = {
+        ...input.orderDetails,
+        items: input.items || [], // Ensure items is always an array
+    };
+
+    // Safely parse billingDetails if it's a string
+    if (typeof orderDetailsWithItems.billingDetails === 'string') {
+        try {
+            orderDetailsWithItems.billingDetails = JSON.parse(orderDetailsWithItems.billingDetails);
+        } catch (e) {
+            console.error("Failed to parse billingDetails JSON in sendOrderNotification, setting to null.");
+            orderDetailsWithItems.billingDetails = null; // Set to null if parsing fails
+        }
+    }
+
 
     const { subject, body } = input.recipientType === 'customer' 
-        ? getCustomerEmailContent(input)
-        : getMerchantEmailContent(input);
+        ? getCustomerEmailContent({ ...input, orderDetails: orderDetailsWithItems })
+        : getMerchantEmailContent({ ...input, orderDetails: orderDetailsWithItems });
 
     try {
-        const emailConfig = await getEmailConfig();
         const activeProviderKey = emailConfig.emailProvider || 'cpanel'; // 'cpanel', 'titan', or 'sendgrid'
         const fromEmail = emailConfig.fromEmail || 'noreply@yourdomain.com';
 
@@ -77,6 +115,9 @@ export async function sendOrderNotification(input: SendOrderNotificationInput): 
                     user: smtpConfig.user,
                     pass: smtpConfig.pass,
                 },
+                 tls: {
+                    rejectUnauthorized: false
+                }
             });
 
             await transporter.sendMail({
@@ -105,5 +146,3 @@ export async function sendOrderNotification(input: SendOrderNotificationInput): 
         return { success: false, message: `Failed to send email: ${errorMessage}` };
     }
 }
-
-    

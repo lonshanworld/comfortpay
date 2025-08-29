@@ -29,9 +29,10 @@ const calculateCommission = (transaction: Order, merchant: User) => {
 
 export async function GET(
   request: Request,
-  { params }: { params: { agentId: string } }
+  context: { params: Promise<{ agentId: string }> }
 ) {
-  const agentId = params.agentId.split('_')[1];
+  const { agentId: agentIdWithPrefix } = await context.params;
+  const agentId = agentIdWithPrefix.split('_')[1];
 
   if (!agentId) {
     return NextResponse.json({ message: 'Agent ID is required' }, { status: 400 });

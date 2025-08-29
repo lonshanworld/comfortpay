@@ -17,6 +17,7 @@ import { Label } from '@/components/ui/label';
 import { Logo } from '@/components/icons/logo';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2 } from 'lucide-react';
+import { login } from '@/app/actions/auth';
 
 export default function MerchantLoginPage() {
   const router = useRouter();
@@ -31,29 +32,31 @@ export default function MerchantLoginPage() {
     localStorage.removeItem('userId');
   }, []);
 
-  const handleSignIn = (e: React.FormEvent) => {
+  const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
     
-    // Simulate API call
-    setTimeout(() => {
-      if (email.includes('merchant') && password === 'password') {
+    try {
+      const result = await login({ email, password, role: 'Merchant' });
+      if (result.success && result.user) {
         toast({
           title: "Login Successful",
           description: "Redirecting to merchant dashboard...",
         });
-        localStorage.setItem('userRole', 'Merchant');
-        localStorage.setItem('userId', 'user_2'); // Corresponds to John Doe merchant
+        localStorage.setItem('userRole', result.user.role);
+        localStorage.setItem('userId', result.user.id);
         router.push('/merchant/dashboard');
       } else {
-        toast({
+        throw new Error(result.message);
+      }
+    } catch (error: any) {
+       toast({
           variant: "destructive",
           title: "Login Failed",
-          description: "Invalid credentials for a merchant account.",
+          description: error.message || "An unknown error occurred.",
         });
-        setIsLoading(false);
-      }
-    }, 1000);
+       setIsLoading(false);
+    }
   };
 
   return (

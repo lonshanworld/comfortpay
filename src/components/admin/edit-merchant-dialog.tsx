@@ -41,12 +41,12 @@ import { Switch } from "../ui/switch";
 
 const feeSchema = z.object({
   value: z.coerce.number().optional(),
-  type: z.enum(["percentage", "flat"]).optional(),
 });
 
 const gatewayFeeSchema = z.object({
     enabled: z.boolean().default(false),
     transactionFee: feeSchema.optional(),
+    transactionFeeFixed: feeSchema.optional(),
     refundFee: feeSchema.optional(),
     chargebackFee: feeSchema.optional(),
 });
@@ -103,6 +103,14 @@ interface EditMerchantDialogProps {
   onMerchantUpdated: () => void;
   merchant: Merchant | null;
 }
+
+const toBase64 = (file: File): Promise<string> => new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = error => reject(error);
+});
+
 
 const FeeInput = ({ name, control, label }: { name: string, control: any, label: string }) => (
     <div className="space-y-2 rounded-md border p-2">
@@ -169,7 +177,30 @@ const GatewayFeeSection = ({ gatewayName, control }: { gatewayName: 'stripe' | '
           />
          {isEnabled && (
              <div className="space-y-4 pl-2 border-l-2 ml-2 mt-2 pt-2">
-                 <FeeInput name={`paymentGatewayFees.${gatewayName}.transactionFee`} control={control} label="Transaction Fee" />
+                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <FormField
+                        control={control}
+                        name={`paymentGatewayFees.${gatewayName}.transactionFee.value`}
+                        render={({ field }) => (
+                            <FormItem>
+                            <FormLabel className="text-xs">Transaction Fee (%)</FormLabel>
+                            <FormControl><Input type="number" step="0.01" placeholder="e.g., 2.9" {...field} value={field.value ?? ''} /></FormControl>
+                            <FormMessage />
+                            </FormItem>
+                        )}
+                    />
+                    <FormField
+                        control={control}
+                        name={`paymentGatewayFees.${gatewayName}.transactionFeeFixed.value`}
+                        render={({ field }) => (
+                            <FormItem>
+                            <FormLabel className="text-xs">Transaction Fixed Fee ($)</FormLabel>
+                            <FormControl><Input type="number" step="0.01" placeholder="e.g., 0.30" {...field} value={field.value ?? ''} /></FormControl>
+                            <FormMessage />
+                            </FormItem>
+                        )}
+                    />
+                </div>
                  <FeeInput name={`paymentGatewayFees.${gatewayName}.refundFee`} control={control} label="Refund Fee" />
                  <FeeInput name={`paymentGatewayFees.${gatewayName}.chargebackFee`} control={control} label="Chargeback Fee" />
             </div>
@@ -232,16 +263,25 @@ export function EditMerchantDialog({ open, onOpenChange, onMerchantUpdated, merc
     if (!merchant) return;
     setIsLoading(true);
 
-    // Filter out empty password field so it doesn't overwrite the existing one if left blank
-    const dataToSubmit: Partial<MerchantFormValues> = { 
+    const dataToSubmit: any = { 
         ...values,
         salesAgentId: values.salesAgentId === 'none' ? '' : values.salesAgentId,
      };
     if (!dataToSubmit.password) {
       delete dataToSubmit.password;
     }
-    delete dataToSubmit.photoId;
-    delete dataToSubmit.businessDocument;
+    
+    if (values.photoId && values.photoId instanceof File) {
+        dataToSubmit.photoId = await toBase64(values.photoId);
+    } else {
+        delete dataToSubmit.photoId;
+    }
+
+    if (values.businessDocument && values.businessDocument instanceof File) {
+        dataToSubmit.businessDocument = await toBase64(values.businessDocument);
+    } else {
+        delete dataToSubmit.businessDocument;
+    }
 
     try {
       const response = await fetch(`/api/merchants/${merchant.id}`, {

@@ -25,6 +25,8 @@ import { EditAccountDialog } from "@/components/admin/edit-account-dialog"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Terminal } from "lucide-react"
 import Link from "next/link"
+import Image from "next/image"
+import { useToast } from "@/hooks/use-toast"
 
 const AccountCard = ({ account, onManage }: { account: PaymentAccount, onManage: (account: PaymentAccount) => void }) => (
   <Card>
@@ -50,6 +52,26 @@ const AccountCard = ({ account, onManage }: { account: PaymentAccount, onManage:
             </Link>
         </div>
        )}
+       {account.type === 'Zelle' && account.accountEmail && (
+        <div>
+            <p className="text-sm font-medium text-muted-foreground">Zelle Email</p>
+            <p className="text-sm">{account.accountEmail}</p>
+        </div>
+       )}
+        {account.type === 'Zelle' && account.qrCodeUrl && (
+            <div>
+                <p className="text-sm font-medium text-muted-foreground mb-2">QR Code</p>
+                <div className="relative w-32 h-32">
+                    <Image
+                        src={account.qrCodeUrl}
+                        alt="Zelle QR Code"
+                        layout="fill"
+                        objectFit="contain"
+                        className="rounded-md border p-1"
+                    />
+                </div>
+            </div>
+        )}
       <div>
         <p className="text-sm font-medium text-muted-foreground">Order Prefix</p>
         <p className="text-sm font-semibold">{account.prefix_order_name || "Not Set"}</p>
@@ -83,6 +105,7 @@ export default function PaymentsPage() {
     const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
     const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
     const [selectedAccount, setSelectedAccount] = useState<PaymentAccount | null>(null);
+    const { toast } = useToast();
 
     const fetchAccounts = async () => {
         setIsLoading(true);
@@ -113,6 +136,30 @@ export default function PaymentsPage() {
         setSelectedAccount(account);
         setIsEditDialogOpen(true);
     }
+    
+    const handleAccountDeleted = async (accountId: string) => {
+        try {
+            const response = await fetch(`/api/payments/accounts/${accountId}`, {
+                method: 'DELETE',
+            });
+            if (!response.ok) {
+                throw new Error('Failed to delete the account.');
+            }
+            toast({
+                title: "Account Deleted",
+                description: `Payment account ${accountId} has been successfully deleted.`
+            });
+            fetchAccounts();
+            setIsEditDialogOpen(false);
+        } catch (error) {
+             toast({
+                variant: 'destructive',
+                title: "Deletion Failed",
+                description: "There was a problem deleting the payment account."
+            });
+        }
+    };
+
 
   return (
     <div className="flex flex-col gap-4">
@@ -168,7 +215,13 @@ export default function PaymentsPage() {
         )}
       </Tabs>
       <AddAccountDialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen} onAccountAdded={handleAccountAdded} />
-      <EditAccountDialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen} onAccountUpdated={handleAccountUpdated} account={selectedAccount} />
+      <EditAccountDialog 
+        open={isEditDialogOpen} 
+        onOpenChange={setIsEditDialogOpen} 
+        onAccountUpdated={handleAccountUpdated} 
+        onAccountDeleted={handleAccountDeleted}
+        account={selectedAccount} 
+      />
     </div>
   )
 }

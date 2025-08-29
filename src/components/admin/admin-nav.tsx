@@ -24,7 +24,7 @@ const navLinks = [
     { href: '/admin/dashboard/merchants', label: 'Merchants', icon: Users },
     { href: '/admin/dashboard/users', label: 'Users', icon: Users2 },
     { href: '/admin/dashboard/payments', label: 'Payment Accounts', icon: CreditCard },
-    { href: '/admin/dashboard/email-templates', label: 'Email Templates', icon: Mail },
+    { href: '/admin/dashboard/email', label: 'Email', icon: Mail },
     { href: '/admin/dashboard/settings', label: 'Settings', icon: Settings },
 ];
 

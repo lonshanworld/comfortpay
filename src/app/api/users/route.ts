@@ -1,7 +1,8 @@
 
-
 import { NextResponse } from 'next/server';
 import { executeQuery, runQuery } from '@/lib/db';
+import { hashPassword } from '@/lib/password-service';
+import { formatDateForMySQL } from '@/lib/utils';
 
 const parseDbUser = (dbUser: any) => {
     if (!dbUser) return null;
@@ -21,14 +22,14 @@ export async function GET(request: Request) {
     let query = "SELECT id, name, email, role, createdAt, status, permissions FROM users";
     const params: string[] = [];
     
-    // Filter by role, but exclude 'Merchant' role as they are handled by the '/api/merchants' endpoint
+    // If a specific role is requested (and it's not 'all'), filter by it.
+    // Otherwise, fetch all users.
     if (role && role !== 'all') {
         query += " WHERE role = ?";
         params.push(role);
-    } else {
-      // 'all' tab should fetch all non-merchant users
-      query += " WHERE role != 'Merchant'";
     }
+    
+    query += " ORDER BY createdAt DESC";
 
     const dbUsers = await executeQuery(query, params);
     return NextResponse.json(dbUsers.map(parseDbUser));
@@ -43,14 +44,17 @@ export async function POST(request: Request) {
   
   try {
     const { name, email, password, role, status, permissions } = body;
+    const hashedPassword = await hashPassword(password);
     const query = `
       INSERT INTO users 
-      (name, email, password, role, createdAt, status, permissions) 
-      VALUES (?, ?, ?, ?, ?, ?, ?)
+      (name, email, password, role, createdAt, status, permissions, dateJoined) 
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     `;
+    const now = formatDateForMySQL(new Date());
     const params = [
-        name, email, password, role, new Date().toISOString(), status, 
-        permissions ? JSON.stringify(permissions) : JSON.stringify({})
+        name, email, hashedPassword, role, now, status, 
+        permissions ? JSON.stringify(permissions) : JSON.stringify({}),
+        now
     ];
     const result: any = await runQuery(query, params);
     

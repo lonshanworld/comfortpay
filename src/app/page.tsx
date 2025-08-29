@@ -194,7 +194,7 @@ export default function HomePage() {
                     </Link>
                 </CardContent>
             </Card>
-             <Card className="w-full">
+             <Card className="w-full hidden">
                 <CardHeader>
                 <CardTitle>Test Customer Checkout</CardTitle>
                 <CardDescription>

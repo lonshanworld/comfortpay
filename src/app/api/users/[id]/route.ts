@@ -1,113 +1,101 @@
 
 import { NextResponse } from 'next/server';
-import { initialUsers } from '@/lib/in-memory-db';
 import { executeQuery, runQuery } from '@/lib/db';
-
-let users = initialUsers;
+import { hashPassword } from '@/lib/password-service';
 
 const parseDbUser = (dbUser: any) => {
     if (!dbUser) return null;
-    return {
-        ...dbUser,
-        id: `user_${dbUser.id}`,
-    }
+    const user = { ...dbUser };
+    user.id = `user_${user.id}`;
+    // Safely parse JSON fields
+    try { user.permissions = JSON.parse(user.permissions || '{}'); } catch (e) { user.permissions = {}; }
+    try { user.settlementFees = JSON.parse(user.settlementFees || '{}'); } catch (e) { user.settlementFees = {}; }
+    try { user.paymentGatewayFees = JSON.parse(user.paymentGatewayFees || '{}'); } catch (e) { user.paymentGatewayFees = {}; }
+    try { user.commissionRates = JSON.parse(user.commissionRates || '{}'); } catch (e) { user.commissionRates = {}; }
+    return user;
 }
 
 
 export async function GET(
   request: Request,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
-    const { id } = params;
+    const { id } = await context.params;
     const numericId = id.split('_')[1];
     try {
-        const results: any[] = await executeQuery("SELECT id, name, email, role, createdAt, status, permissions FROM users WHERE id = ?", [numericId]);
+        const results: any[] = await executeQuery("SELECT * FROM users WHERE id = ?", [numericId]);
         if (results.length === 0) {
             return NextResponse.json({ message: 'User not found' }, { status: 404 });
         }
-        return NextResponse.json(parseDbUser(results[0]));
+        // Omit password before sending
+        const { password, ...userWithoutPassword } = results[0];
+        return NextResponse.json(parseDbUser(userWithoutPassword));
     } catch (error) {
-        // Fallback to in-memory
-        const user = users.find(u => u.id === id);
-        if (user) {
-            const { password, ...userWithoutPassword } = user;
-            return NextResponse.json(userWithoutPassword);
-        }
         return NextResponse.json({ message: 'User not found' }, { status: 404 });
     }
 }
 
 export async function PUT(
   request: Request,
-  { params: { id } }: { params: { id:string } }
+  context: { params: Promise<{ id:string }> }
 ) {
+    const { id } = await context.params;
     const numericId = id.split('_')[1];
     const body = await request.json();
-    const { name, email, password, role, status, permissions } = body;
-
+    
     try {
-        let query = "UPDATE users SET";
-        const queryParams: any[] = [];
         const fieldsToUpdate: string[] = [];
-
-        if (name !== undefined) {
-            fieldsToUpdate.push("name = ?");
-            queryParams.push(name);
-        }
-        if (email !== undefined) {
-            fieldsToUpdate.push("email = ?");
-            queryParams.push(email);
-        }
-        if (role !== undefined) {
-            fieldsToUpdate.push("role = ?");
-            queryParams.push(role);
-        }
-        if (status !== undefined) {
-            fieldsToUpdate.push("status = ?");
-            queryParams.push(status);
-        }
-        if (permissions !== undefined) {
-            fieldsToUpdate.push("permissions = ?");
-            queryParams.push(permissions);
-        }
-        if (password) {
-            fieldsToUpdate.push("password = ?");
-            queryParams.push(password); // Remember to hash the password
+        const queryParams: any[] = [];
+        
+        // Handle password separately
+        if (body.password) {
+            const hashedPassword = await hashPassword(body.password);
+            fieldsToUpdate.push('password = ?');
+            queryParams.push(hashedPassword);
+            delete body.password; // remove from body to not process it again
         }
 
+        for (const key in body) {
+            if (Object.prototype.hasOwnProperty.call(body, key) && body[key] !== undefined) {
+                if (key === 'id') continue; // Do not update the ID
+
+                // For object fields, stringify them
+                if (typeof body[key] === 'object' && body[key] !== null) {
+                    fieldsToUpdate.push(`${key} = ?`);
+                    queryParams.push(JSON.stringify(body[key]));
+                } else {
+                    fieldsToUpdate.push(`${key} = ?`);
+                    queryParams.push(body[key]);
+                }
+            }
+        }
+        
         if (fieldsToUpdate.length === 0) {
             return NextResponse.json({ message: "No fields to update" }, { status: 400 });
         }
 
-        query += ` ${fieldsToUpdate.join(', ')} WHERE id = ?`;
+        let query = `UPDATE users SET ${fieldsToUpdate.join(', ')} WHERE id = ?`;
         queryParams.push(numericId);
         
         const result: any = await runQuery(query, queryParams);
 
         if (result.changes === 0) {
-            return NextResponse.json({ message: 'User not found' }, { status: 404 });
+            return NextResponse.json({ message: 'User not found or no changes made' }, { status: 404 });
         }
         
         return NextResponse.json({ id, ...body });
 
     } catch (error) {
         console.error(`Failed to update user ${id}:`, error);
-        // In-memory fallback
-        const index = users.findIndex(u => u.id === id);
-        if (index !== -1) {
-            users[index] = { ...users[index], ...body };
-            const { password, ...updatedUser } = users[index];
-            return NextResponse.json(updatedUser);
-        }
-        return NextResponse.json({ message: 'User not found' }, { status: 404 });
+        return NextResponse.json({ message: 'Failed to update user' }, { status: 500 });
     }
 }
 
 export async function DELETE(
   request: Request,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
-    const { id } = params;
+    const { id } = await context.params;
     const numericId = id.split('_')[1];
     try {
         const result: any = await runQuery("DELETE FROM users WHERE id = ?", [numericId]);
@@ -117,12 +105,6 @@ export async function DELETE(
         return new Response(null, { status: 204 });
     } catch (error) {
         console.error(`Failed to delete user ${id}:`, error);
-        // In-memory fallback
-        const index = users.findIndex(u => u.id === id);
-        if (index !== -1) {
-            users.splice(index, 1);
-            return new Response(null, { status: 204 });
-        }
-        return NextResponse.json({ message: 'User not found' }, { status: 404 });
+        return NextResponse.json({ message: 'Failed to delete user' }, { status: 500 });
     }
 }

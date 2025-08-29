@@ -14,6 +14,7 @@ import {
 import {
   Form,
   FormControl,
+  FormDescription,
   FormField,
   FormItem,
   FormLabel,
@@ -28,7 +29,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { Loader2 } from "lucide-react";
+import { Loader2, Trash } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -40,16 +41,27 @@ const accountFormSchema = z.object({
   status: z.enum(["Active", "Inactive"]),
   dailyLimit: z.coerce.number().positive("Daily limit must be a positive number."),
   prefix_order_name: z.string().optional(),
-  websiteUrl: z.string().url("Please enter a valid URL."),
+  websiteUrl: z.string().optional().or(z.literal('')),
   accountEmail: z.string().email("Please enter a valid email for Zelle.").optional().or(z.literal('')),
-}).refine(data => {
+  qrCode: z.any().optional(),
+}).superRefine((data, ctx) => {
     if (data.type === "Zelle") {
-        return !!data.accountEmail;
+        if (!data.accountEmail) {
+             ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                message: "Zelle account email is required.",
+                path: ["accountEmail"],
+            });
+        }
+    } else { // Stripe or Square
+        if (!data.websiteUrl || !z.string().url().safeParse(data.websiteUrl).success) {
+            ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                message: "Please enter a valid URL.",
+                path: ["websiteUrl"],
+            });
+        }
     }
-    return true;
-}, {
-    message: "Zelle account email is required.",
-    path: ["accountEmail"],
 });
 
 
@@ -59,12 +71,23 @@ interface EditAccountDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onAccountUpdated: () => void;
+  onAccountDeleted: (accountId: string) => void;
   account: PaymentAccount | null;
 }
 
-export function EditAccountDialog({ open, onOpenChange, onAccountUpdated, account }: EditAccountDialogProps) {
+// Helper to read file as Base64
+const toBase64 = (file: File): Promise<string> => new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = error => reject(error);
+});
+
+
+export function EditAccountDialog({ open, onOpenChange, onAccountUpdated, onAccountDeleted, account }: EditAccountDialogProps) {
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const form = useForm<AccountFormValues>({
     resolver: zodResolver(accountFormSchema),
@@ -80,6 +103,7 @@ export function EditAccountDialog({ open, onOpenChange, onAccountUpdated, accoun
         prefix_order_name: account.prefix_order_name || "",
         websiteUrl: account.websiteUrl || "",
         accountEmail: account.accountEmail || "",
+        qrCode: null, // Reset file input
       });
     }
   }, [account, open, form]);
@@ -87,11 +111,20 @@ export function EditAccountDialog({ open, onOpenChange, onAccountUpdated, accoun
   const onSubmit = async (values: AccountFormValues) => {
     if (!account) return;
     setIsLoading(true);
+
+    const dataToSubmit: any = { ...values };
+    
+    if (values.qrCode && values.qrCode instanceof File) {
+        dataToSubmit.qrCode = await toBase64(values.qrCode);
+    } else {
+        delete dataToSubmit.qrCode;
+    }
+
     try {
       const response = await fetch(`/api/payments/accounts/${account.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(values),
+        body: JSON.stringify(dataToSubmit),
       });
 
       if (!response.ok) {
@@ -116,13 +149,24 @@ export function EditAccountDialog({ open, onOpenChange, onAccountUpdated, accoun
       setIsLoading(false);
     }
   };
+
+  const handleDelete = () => {
+    if (!account) return;
+    if (confirm(`Are you sure you want to delete account "${account.name}"? This action cannot be undone.`)) {
+        setIsDeleting(true);
+        onAccountDeleted(account.id);
+        setIsDeleting(false);
+    }
+  };
+
    const handleOpenChange = (open: boolean) => {
-    if (!isLoading) {
+    if (!isLoading && !isDeleting) {
       onOpenChange(open);
     }
   };
 
   if (!account) return null;
+  const selectedType = form.watch('type');
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
@@ -171,6 +215,7 @@ export function EditAccountDialog({ open, onOpenChange, onAccountUpdated, accoun
               )}
             />
             {account.type === 'Zelle' && (
+                <>
                  <FormField
                     control={form.control}
                     name="accountEmail"
@@ -184,6 +229,23 @@ export function EditAccountDialog({ open, onOpenChange, onAccountUpdated, accoun
                         </FormItem>
                     )}
                  />
+                 <FormField
+                    control={form.control}
+                    name="qrCode"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Upload New QR Code (Optional)</FormLabel>
+                        <FormControl>
+                          <Input type="file" accept="image/*" onChange={(e) => field.onChange(e.target.files?.[0])} disabled={isLoading} />
+                        </FormControl>
+                         <FormDescription>
+                           Leave blank to keep the existing QR code.
+                         </FormDescription>
+                         <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </>
             )}
              <FormField
                 control={form.control}
@@ -237,7 +299,7 @@ export function EditAccountDialog({ open, onOpenChange, onAccountUpdated, accoun
               name="websiteUrl"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Source Website URL</FormLabel>
+                  <FormLabel>Source Website URL {selectedType !== 'Zelle' && <span className="text-destructive">*</span>}</FormLabel>
                   <FormControl>
                     <Input placeholder="https://your-source-website.com" {...field} disabled={isLoading} />
                   </FormControl>
@@ -246,6 +308,10 @@ export function EditAccountDialog({ open, onOpenChange, onAccountUpdated, accoun
               )}
             />
             <DialogFooter>
+              <Button type="button" variant="destructive" onClick={handleDelete} disabled={isLoading || isDeleting} className="mr-auto">
+                 {isDeleting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Trash className="mr-2 h-4 w-4" />}
+                 Delete Account
+              </Button>
               <Button type="button" variant="ghost" onClick={() => handleOpenChange(false)} disabled={isLoading}>Cancel</Button>
               <Button type="submit" disabled={isLoading}>
                 {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}

@@ -3,7 +3,7 @@
 "use client"
 
 import { ColumnDef } from "@tanstack/react-table"
-import { MoreHorizontal } from "lucide-react"
+import { MoreHorizontal, ArrowUpDown } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -36,6 +36,13 @@ const getStatusVariant = (status: OrderStatus) => {
 type TransactionColumnsProps = {
   onView: (transaction: Order) => void;
 };
+
+const formatCurrency = (amount: number, currency: string) => {
+    return new Intl.NumberFormat("en-US", {
+        style: "currency",
+        currency: currency,
+    }).format(amount);
+}
 
 
 export const columns = ({ onView }: TransactionColumnsProps): ColumnDef<Order>[] => [
@@ -75,14 +82,32 @@ export const columns = ({ onView }: TransactionColumnsProps): ColumnDef<Order>[]
     header: "Payment Method",
   },
   {
+    accessorKey: "orderAmount",
+    header: ({ column }) => (
+        <div className="text-right">
+            <Button variant="ghost" onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}>
+                Order Amount
+                <ArrowUpDown className="ml-2 h-4 w-4" />
+            </Button>
+        </div>
+    ),
+    cell: ({ row }) => (
+        <div className="text-right">{formatCurrency(row.original.orderAmount, row.original.currency)}</div>
+    )
+  },
+  {
     accessorKey: "totalAmount",
-    header: "Amount",
+    header: ({ column }) => (
+        <div className="text-right">
+            <Button variant="ghost" onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}>
+                Total Amount
+                <ArrowUpDown className="ml-2 h-4 w-4" />
+            </Button>
+        </div>
+    ),
     cell: ({ row }) => {
       const { totalAmount, currency } = row.original;
-      return new Intl.NumberFormat("en-US", {
-        style: "currency",
-        currency: currency,
-      }).format(totalAmount)
+      return <div className="text-right">{formatCurrency(totalAmount, currency)}</div>
     },
   },
   {

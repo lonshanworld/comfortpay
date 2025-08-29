@@ -7,9 +7,9 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { ApiError, Client, Environment } from 'square';
+import { ApiError, Client, Environment } from 'square/legacy';
 import crypto from 'crypto';
-import { runQuery } from '@/lib/db';
+import { executeQuery, runQuery } from '@/lib/db';
 import { sendOrderNotification } from '@/app/actions/send-order-notification';
 
 
@@ -29,11 +29,11 @@ function isWebhookSignatureValid(signature: string, body: string, url: string, k
 
 
 async function getOrderDetails(orderId: string) {
-    const orderResults = await runQuery("SELECT * FROM orders WHERE id = ?", [orderId]);
+    const orderResults: any[] = await executeQuery("SELECT * FROM orders WHERE id = ?", [orderId]);
     if (orderResults.length === 0) return null;
     const order = orderResults[0];
 
-    const merchantResults = await runQuery("SELECT * FROM merchants WHERE id = ?", [order.merchantId]);
+    const merchantResults: any[] = await executeQuery("SELECT * FROM users WHERE id = ?", [order.merchantId]);
      if (merchantResults.length === 0) return null;
 
     return { order, merchant: merchantResults[0] };

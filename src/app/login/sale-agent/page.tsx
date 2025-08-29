@@ -17,6 +17,7 @@ import { Label } from '@/components/ui/label';
 import { Logo } from '@/components/icons/logo';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2 } from 'lucide-react';
+import { login } from '@/app/actions/auth';
 
 export default function SaleAgentLoginPage() {
   const router = useRouter();
@@ -32,29 +33,31 @@ export default function SaleAgentLoginPage() {
   }, []);
 
 
-  const handleSignIn = (e: React.FormEvent) => {
+  const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
     
-    // Simulate API call
-    setTimeout(() => {
-      if (email.includes('agent') && password === 'password') {
+    try {
+      const result = await login({ email, password, role: 'Sale Agent' });
+      if (result.success && result.user) {
         toast({
           title: "Login Successful",
           description: "Redirecting to sales dashboard...",
         });
-        localStorage.setItem('userRole', 'Sale Agent');
-        localStorage.setItem('userId', 'user_3'); // Corresponds to Agent Smith
+        localStorage.setItem('userRole', result.user.role);
+        localStorage.setItem('userId', result.user.id);
         router.push('/sale-agent/dashboard');
       } else {
-        toast({
+        throw new Error(result.message);
+      }
+    } catch (error: any) {
+       toast({
           variant: "destructive",
           title: "Login Failed",
-          description: "Invalid credentials for a sales account.",
+          description: error.message || "An unknown error occurred.",
         });
-        setIsLoading(false);
-      }
-    }, 1000);
+       setIsLoading(false);
+    }
   };
 
   return (

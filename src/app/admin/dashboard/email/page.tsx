@@ -12,7 +12,7 @@ import { getCustomerEmailContent, getMerchantEmailContent } from "@/lib/email-te
 import type { SendOrderNotificationInput } from "@/lib/types"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useEffect, useState } from "react";
-import { useForm } from "react-hook-form";
+import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Button } from "@/components/ui/button";
@@ -33,6 +33,7 @@ import {
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Terminal } from "lucide-react";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
+import { Switch } from "@/components/ui/switch"
 
 
 const sampleOrder: SendOrderNotificationInput = {
@@ -116,8 +117,11 @@ function EmailTemplatesTab() {
 }
 
 const emailSettingsSchema = z.object({
+  emailEnabled: z.boolean().default(true),
   emailProvider: z.enum(["cpanel", "titan", "sendgrid"]),
   fromEmail: z.string().email("Please enter a valid 'From' email address."),
+  sendToCustomer: z.boolean().default(true),
+  sendToMerchant: z.boolean().default(true),
   cpanelSmtp: z.object({
     host: z.string().optional(),
     port: z.coerce.number().optional(),
@@ -142,16 +146,26 @@ function EmailSettingsTab() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isTesting, setIsTesting] = useState(false);
+  const [testEmailRecipient, setTestEmailRecipient] = useState("");
 
   const form = useForm<EmailSettingsFormValues>({
     resolver: zodResolver(emailSettingsSchema),
     defaultValues: {
+      emailEnabled: true,
       emailProvider: "cpanel",
       fromEmail: "",
+      sendToCustomer: true,
+      sendToMerchant: true,
       cpanelSmtp: { host: "", port: 465, user: "", pass: "" },
       titanSmtp: { host: "", port: 465, user: "", pass: "" },
       sendgrid: { apiKey: "" },
     },
+  });
+
+  const emailEnabled = useWatch({
+    control: form.control,
+    name: "emailEnabled",
+    defaultValue: true,
   });
 
   useEffect(() => {
@@ -162,12 +176,16 @@ function EmailSettingsTab() {
         if (response.ok) {
           const data = await response.json();
           form.reset({
+            emailEnabled: typeof data.emailEnabled === 'boolean' ? data.emailEnabled : true,
             emailProvider: data.emailProvider || 'cpanel',
             fromEmail: data.fromEmail || '',
+            sendToCustomer: typeof data.sendToCustomer === 'boolean' ? data.sendToCustomer : true,
+            sendToMerchant: typeof data.sendToMerchant === 'boolean' ? data.sendToMerchant : true,
             cpanelSmtp: data.cpanelSmtp || { host: "", port: 465, user: "", pass: "" },
             titanSmtp: data.titanSmtp || { host: "", port: 465, user: "", pass: "" },
             sendgrid: data.sendgrid || { apiKey: "" },
           });
+          setTestEmailRecipient(data.fromEmail || '');
         }
       } catch (error) {
         toast({
@@ -209,10 +227,20 @@ function EmailSettingsTab() {
   };
 
   const handleTestEmail = async () => {
+    if (!testEmailRecipient) {
+        toast({
+            variant: "destructive",
+            title: "Recipient Required",
+            description: "Please enter an email address to send the test email to.",
+        });
+        return;
+    }
     setIsTesting(true);
      try {
       const response = await fetch("/api/settings/test-email", {
         method: "POST",
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ recipient: testEmailRecipient })
       });
 
        const result = await response.json();
@@ -223,7 +251,7 @@ function EmailSettingsTab() {
       
       toast({
         title: "Test Email Sent",
-        description: `An email has been sent via the active provider. Check your inbox.`,
+        description: `An email has been sent to ${testEmailRecipient} via the active provider.`,
       });
 
     } catch (error: any) {
@@ -252,106 +280,174 @@ function EmailSettingsTab() {
                 <CardHeader>
                     <CardTitle>Global Email Settings</CardTitle>
                     <CardDescription>
-                       Select the active email provider and set the default sender address.
+                       Select the active email provider, set sender details, and control notifications.
                     </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-6">
                     <FormField
-                      control={form.control}
-                      name="emailProvider"
-                      render={({ field }) => (
-                        <FormItem className="space-y-3">
-                          <FormLabel className="text-base">Active Email Provider</FormLabel>
-                          <FormDescription>
-                            Select the service that will be used to send all transactional emails.
-                          </FormDescription>
-                          <FormControl>
-                            <RadioGroup
-                              onValueChange={field.onChange}
-                              defaultValue={field.value}
-                              className="flex flex-col space-y-1"
-                            >
-                              <FormItem className="flex items-center space-x-3 space-y-0">
-                                <FormControl>
-                                  <RadioGroupItem value="cpanel" />
-                                </FormControl>
-                                <FormLabel className="font-normal">
-                                 cPanel Mail
-                                </FormLabel>
-                              </FormItem>
-                              <FormItem className="flex items-center space-x-3 space-y-0">
-                                <FormControl>
-                                  <RadioGroupItem value="titan" />
-                                </FormControl>
-                                <FormLabel className="font-normal">
-                                  Titan Mail
-                                </FormLabel>
-                              </FormItem>
-                              <FormItem className="flex items-center space-x-3 space-y-0">
-                                <FormControl>
-                                  <RadioGroupItem value="sendgrid" />
-                                </FormControl>
-                                <FormLabel className="font-normal">
-                                  SendGrid
-                                </FormLabel>
-                              </FormItem>
-                            </RadioGroup>
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
                         control={form.control}
-                        name="fromEmail"
+                        name="emailEnabled"
                         render={({ field }) => (
-                            <FormItem>
-                            <FormLabel>From Email Address</FormLabel>
+                            <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4 bg-background">
+                            <div className="space-y-0.5">
+                                <FormLabel className="text-base">Enable All Email Notifications</FormLabel>
+                                <FormDescription>
+                                This is the master switch for all emails sent by the platform.
+                                </FormDescription>
+                            </div>
                             <FormControl>
-                                <Input placeholder="noreply@yourdomain.com" {...field} />
+                                <Switch
+                                checked={field.value}
+                                onCheckedChange={field.onChange}
+                                />
                             </FormControl>
-                             <FormDescription>
-                                The default email address that appears in the 'From' field. This must be a verified sender in SendGrid if you are using it.
-                            </FormDescription>
-                            <FormMessage />
                             </FormItem>
                         )}
                     />
+                    <fieldset disabled={!emailEnabled} className="space-y-6">
+                        <FormField
+                        control={form.control}
+                        name="emailProvider"
+                        render={({ field }) => (
+                            <FormItem className="space-y-3">
+                            <FormLabel className="text-base">Active Email Provider</FormLabel>
+                            <FormDescription>
+                                Select the service that will be used to send all transactional emails.
+                            </FormDescription>
+                            <FormControl>
+                                <RadioGroup
+                                onValueChange={field.onChange}
+                                value={field.value}
+                                className="flex flex-col space-y-1"
+                                >
+                                <FormItem className="flex items-center space-x-3 space-y-0">
+                                    <FormControl>
+                                    <RadioGroupItem value="cpanel" />
+                                    </FormControl>
+                                    <FormLabel className="font-normal">
+                                    cPanel Mail
+                                    </FormLabel>
+                                </FormItem>
+                                <FormItem className="flex items-center space-x-3 space-y-0">
+                                    <FormControl>
+                                    <RadioGroupItem value="titan" />
+                                    </FormControl>
+                                    <FormLabel className="font-normal">
+                                    Titan Mail
+                                    </FormLabel>
+                                </FormItem>
+                                <FormItem className="flex items-center space-x-3 space-y-0">
+                                    <FormControl>
+                                    <RadioGroupItem value="sendgrid" />
+                                    </FormControl>
+                                    <FormLabel className="font-normal">
+                                    SendGrid
+                                    </FormLabel>
+                                </FormItem>
+                                </RadioGroup>
+                            </FormControl>
+                            <FormMessage />
+                            </FormItem>
+                        )}
+                        />
+                        <Separator />
+                        <FormField
+                            control={form.control}
+                            name="fromEmail"
+                            render={({ field }) => (
+                                <FormItem>
+                                <FormLabel>From Email Address</FormLabel>
+                                <FormControl>
+                                    <Input placeholder="noreply@yourdomain.com" {...field} />
+                                </FormControl>
+                                <FormDescription>
+                                    The default email address that appears in the 'From' field. This must be a verified sender in SendGrid if you are using it.
+                                </FormDescription>
+                                <FormMessage />
+                                </FormItem>
+                            )}
+                        />
+                        <Separator />
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <FormField
+                                control={form.control}
+                                name="sendToCustomer"
+                                render={({ field }) => (
+                                    <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
+                                    <div className="space-y-0.5">
+                                        <FormLabel className="text-base">Send to Customer</FormLabel>
+                                        <FormDescription>
+                                        Enable or disable invoice emails to customers.
+                                        </FormDescription>
+                                    </div>
+                                    <FormControl>
+                                        <Switch
+                                        checked={field.value}
+                                        onCheckedChange={field.onChange}
+                                        />
+                                    </FormControl>
+                                    </FormItem>
+                                )}
+                            />
+                            <FormField
+                                control={form.control}
+                                name="sendToMerchant"
+                                render={({ field }) => (
+                                    <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
+                                    <div className="space-y-0.5">
+                                        <FormLabel className="text-base">Send to Merchant</FormLabel>
+                                        <FormDescription>
+                                        Enable or disable new order notifications to merchants.
+                                        </FormDescription>
+                                    </div>
+                                    <FormControl>
+                                        <Switch
+                                        checked={field.value}
+                                        onCheckedChange={field.onChange}
+                                        />
+                                    </FormControl>
+                                    </FormItem>
+                                )}
+                            />
+                        </div>
+                    </fieldset>
                 </CardContent>
             </Card>
 
-            <Card>
-                <CardHeader>
-                    <CardTitle>cPanel SMTP Configuration</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                     <FormField control={form.control} name="cpanelSmtp.host" render={({ field }) => ( <FormItem><FormLabel>Host</FormLabel><FormControl><Input placeholder="mail.yourdomain.com" {...field} /></FormControl><FormMessage /></FormItem> )} />
-                     <FormField control={form.control} name="cpanelSmtp.port" render={({ field }) => ( <FormItem><FormLabel>Port</FormLabel><FormControl><Input type="number" placeholder="465" {...field} /></FormControl><FormMessage /></FormItem> )} />
-                     <FormField control={form.control} name="cpanelSmtp.user" render={({ field }) => ( <FormItem><FormLabel>Username</FormLabel><FormControl><Input placeholder="you@yourdomain.com" {...field} /></FormControl><FormMessage /></FormItem> )} />
-                     <FormField control={form.control} name="cpanelSmtp.pass" render={({ field }) => ( <FormItem><FormLabel>Password</FormLabel><FormControl><Input type="password" placeholder="••••••••" {...field} /></FormControl><FormMessage /></FormItem> )} />
-                </CardContent>
-            </Card>
+            <fieldset disabled={!emailEnabled}>
+                <Card>
+                    <CardHeader>
+                        <CardTitle>cPanel SMTP Configuration</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                        <FormField control={form.control} name="cpanelSmtp.host" render={({ field }) => ( <FormItem><FormLabel>Host</FormLabel><FormControl><Input placeholder="mail.yourdomain.com" {...field} /></FormControl><FormMessage /></FormItem> )} />
+                        <FormField control={form.control} name="cpanelSmtp.port" render={({ field }) => ( <FormItem><FormLabel>Port</FormLabel><FormControl><Input type="number" placeholder="465" {...field} /></FormControl><FormMessage /></FormItem> )} />
+                        <FormField control={form.control} name="cpanelSmtp.user" render={({ field }) => ( <FormItem><FormLabel>Username</FormLabel><FormControl><Input placeholder="you@yourdomain.com" {...field} /></FormControl><FormMessage /></FormItem> )} />
+                        <FormField control={form.control} name="cpanelSmtp.pass" render={({ field }) => ( <FormItem><FormLabel>Password</FormLabel><FormControl><Input type="password" placeholder="••••••••" {...field} /></FormControl><FormMessage /></FormItem> )} />
+                    </CardContent>
+                </Card>
 
-             <Card>
-                <CardHeader>
-                    <CardTitle>Titan Mail SMTP Configuration</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                     <FormField control={form.control} name="titanSmtp.host" render={({ field }) => ( <FormItem><FormLabel>Host</FormLabel><FormControl><Input placeholder="smtp.titan.email" {...field} /></FormControl><FormMessage /></FormItem> )} />
-                     <FormField control={form.control} name="titanSmtp.port" render={({ field }) => ( <FormItem><FormLabel>Port</FormLabel><FormControl><Input type="number" placeholder="465" {...field} /></FormControl><FormMessage /></FormItem> )} />
-                     <FormField control={form.control} name="titanSmtp.user" render={({ field }) => ( <FormItem><FormLabel>Username</FormLabel><FormControl><Input placeholder="you@yourdomain.com" {...field} /></FormControl><FormMessage /></FormItem> )} />
-                     <FormField control={form.control} name="titanSmtp.pass" render={({ field }) => ( <FormItem><FormLabel>Password</FormLabel><FormControl><Input type="password" placeholder="••••••••" {...field} /></FormControl><FormMessage /></FormItem> )} />
-                </CardContent>
-            </Card>
-            
-            <Card>
-                <CardHeader>
-                    <CardTitle>SendGrid Configuration</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                     <FormField control={form.control} name="sendgrid.apiKey" render={({ field }) => ( <FormItem><FormLabel>API Key</FormLabel><FormControl><Input type="password" placeholder="SG.••••••••" {...field} /></FormControl><FormMessage /></FormItem> )} />
-                </CardContent>
-            </Card>
+                <Card>
+                    <CardHeader>
+                        <CardTitle>Titan Mail SMTP Configuration</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                        <FormField control={form.control} name="titanSmtp.host" render={({ field }) => ( <FormItem><FormLabel>Host</FormLabel><FormControl><Input placeholder="smtp.titan.email" {...field} /></FormControl><FormMessage /></FormItem> )} />
+                        <FormField control={form.control} name="titanSmtp.port" render={({ field }) => ( <FormItem><FormLabel>Port</FormLabel><FormControl><Input type="number" placeholder="465" {...field} /></FormControl><FormMessage /></FormItem> )} />
+                        <FormField control={form.control} name="titanSmtp.user" render={({ field }) => ( <FormItem><FormLabel>Username</FormLabel><FormControl><Input placeholder="you@yourdomain.com" {...field} /></FormControl><FormMessage /></FormItem> )} />
+                        <FormField control={form.control} name="titanSmtp.pass" render={({ field }) => ( <FormItem><FormLabel>Password</FormLabel><FormControl><Input type="password" placeholder="••••••••" {...field} /></FormControl><FormMessage /></FormItem> )} />
+                    </CardContent>
+                </Card>
+                
+                <Card>
+                    <CardHeader>
+                        <CardTitle>SendGrid Configuration</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                        <FormField control={form.control} name="sendgrid.apiKey" render={({ field }) => ( <FormItem><FormLabel>API Key</FormLabel><FormControl><Input type="password" placeholder="SG.••••••••" {...field} /></FormControl><FormMessage /></FormItem> )} />
+                    </CardContent>
+                </Card>
+            </fieldset>
 
              <Alert variant="destructive">
                 <Terminal className="h-4 w-4" />
@@ -361,10 +457,21 @@ function EmailSettingsTab() {
                 </AlertDescription>
             </Alert>
             
-            <div className="flex justify-end gap-2">
-                 <Button type="button" variant="outline" onClick={handleTestEmail} disabled={isSaving || isTesting}>
+            <div className="flex justify-end gap-2 items-end">
+                <div className="flex-1 grid gap-2">
+                    <Label htmlFor="test-email">Test Recipient Email</Label>
+                    <Input
+                        id="test-email"
+                        type="email"
+                        placeholder="recipient@example.com"
+                        value={testEmailRecipient}
+                        onChange={(e) => setTestEmailRecipient(e.target.value)}
+                        disabled={isSaving || isTesting || !emailEnabled}
+                    />
+                </div>
+                 <Button type="button" variant="outline" onClick={handleTestEmail} disabled={isSaving || isTesting || !emailEnabled}>
                     {isTesting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Mail className="mr-2 h-4 w-4" />}
-                    Send Test Email
+                    Send Test
                 </Button>
                 <Button type="submit" disabled={isSaving || isTesting}>
                     {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
@@ -386,10 +493,10 @@ export default function EmailPage() {
                     Configure email services and preview transactional email templates.
                 </p>
             </div>
-            <Tabs defaultValue="templates">
+            <Tabs defaultValue="settings">
                 <TabsList>
-                    <TabsTrigger value="templates">Templates</TabsTrigger>
                     <TabsTrigger value="settings">Settings</TabsTrigger>
+                    <TabsTrigger value="templates">Templates</TabsTrigger>
                 </TabsList>
                 <TabsContent value="templates" className="mt-4">
                     <EmailTemplatesTab />
@@ -401,5 +508,3 @@ export default function EmailPage() {
         </div>
     )
 }
-
-    

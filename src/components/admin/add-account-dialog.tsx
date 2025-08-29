@@ -41,16 +41,36 @@ const accountFormSchema = z.object({
   type: z.enum(["Stripe", "Square", "Zelle"]),
   dailyLimit: z.coerce.number().positive("Daily limit must be a positive number."),
   prefix_order_name: z.string().optional(),
-  websiteUrl: z.string().url("Please enter a valid URL."),
+  websiteUrl: z.string().optional().or(z.literal('')),
   accountEmail: z.string().email("Please enter a valid email for Zelle.").optional().or(z.literal('')),
-}).refine(data => {
+  qrCode: z.any().optional(),
+}).superRefine((data, ctx) => {
     if (data.type === "Zelle") {
-        return !!data.accountEmail;
+        if (!data.accountEmail) {
+             ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                message: "Zelle account email is required.",
+                path: ["accountEmail"],
+            });
+        }
+        if (data.qrCode && data.qrCode instanceof File) {
+            if (!data.qrCode.type.startsWith("image/")) {
+                ctx.addIssue({
+                    code: z.ZodIssueCode.custom,
+                    message: "Please upload a valid image file.",
+                    path: ["qrCode"],
+                });
+            }
+        }
+    } else { // Stripe or Square
+        if (!data.websiteUrl || !z.string().url().safeParse(data.websiteUrl).success) {
+            ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                message: "Please enter a valid URL.",
+                path: ["websiteUrl"],
+            });
+        }
     }
-    return true;
-}, {
-    message: "Zelle account email is required.",
-    path: ["accountEmail"],
 });
 
 
@@ -61,6 +81,15 @@ interface AddAccountDialogProps {
   onOpenChange: (open: boolean) => void;
   onAccountAdded: () => void;
 }
+
+// Helper to read file as Base64
+const toBase64 = (file: File): Promise<string> => new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = error => reject(error);
+});
+
 
 export function AddAccountDialog({ open, onOpenChange, onAccountAdded }: AddAccountDialogProps) {
   const { toast } = useToast();
@@ -74,17 +103,23 @@ export function AddAccountDialog({ open, onOpenChange, onAccountAdded }: AddAcco
       type: "Stripe",
       dailyLimit: 10000,
       prefix_order_name: "",
-      websiteUrl: "https://comfortcommerce.cc",
+      websiteUrl: "",
       accountEmail: "",
+      qrCode: null,
     },
   });
 
    useEffect(() => {
     const subscription = form.watch((value, { name }) => {
       if (name === 'type' && value.type) {
-        setSelectedType(value.type as PaymentAccountType);
-        if (value.type !== 'Zelle') {
-             form.clearErrors('accountEmail');
+        const newType = value.type as PaymentAccountType;
+        setSelectedType(newType);
+        // Clear conditional errors when type changes
+        if (newType !== 'Zelle') {
+            form.clearErrors('accountEmail');
+        }
+        if (newType === 'Zelle') {
+            form.clearErrors('websiteUrl');
         }
       }
     })
@@ -94,14 +129,23 @@ export function AddAccountDialog({ open, onOpenChange, onAccountAdded }: AddAcco
   const onSubmit = async (values: AccountFormValues) => {
     setIsLoading(true);
     try {
+      const dataToSubmit: any = { ...values };
+
+      if (values.qrCode && values.qrCode instanceof File) {
+        dataToSubmit.qrCode = await toBase64(values.qrCode);
+      } else {
+        delete dataToSubmit.qrCode;
+      }
+
       const response = await fetch('/api/payments/accounts', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(values),
+        body: JSON.stringify(dataToSubmit),
       });
 
       if (!response.ok) {
-        throw new Error('Failed to create account');
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to create account');
       }
       
       const newAccount = await response.json();
@@ -116,11 +160,11 @@ export function AddAccountDialog({ open, onOpenChange, onAccountAdded }: AddAcco
       form.reset({ ...form.formState.defaultValues, type: values.type });
       onAccountAdded();
 
-    } catch (error) {
+    } catch (error: any) {
       toast({
         variant: "destructive",
         title: "Uh oh! Something went wrong.",
-        description: "There was a problem creating the account. Please try again.",
+        description: error.message || "There was a problem creating the account. Please try again.",
       });
     } finally {
       setIsLoading(false);
@@ -183,6 +227,7 @@ export function AddAccountDialog({ open, onOpenChange, onAccountAdded }: AddAcco
               )}
             />
             {selectedType === 'Zelle' && (
+                <>
                  <FormField
                     control={form.control}
                     name="accountEmail"
@@ -196,6 +241,20 @@ export function AddAccountDialog({ open, onOpenChange, onAccountAdded }: AddAcco
                         </FormItem>
                     )}
                  />
+                 <FormField
+                    control={form.control}
+                    name="qrCode"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Zelle QR Code (Optional)</FormLabel>
+                        <FormControl>
+                          <Input type="file" accept="image/*" onChange={(e) => field.onChange(e.target.files?.[0])} disabled={isLoading} />
+                        </FormControl>
+                         <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </>
             )}
              <FormField
               control={form.control}
@@ -228,7 +287,7 @@ export function AddAccountDialog({ open, onOpenChange, onAccountAdded }: AddAcco
               name="websiteUrl"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Source Website URL</FormLabel>
+                  <FormLabel>Source Website URL {selectedType !== 'Zelle' && <span className="text-destructive">*</span>}</FormLabel>
                   <FormControl>
                     <Input placeholder="https://your-source-website.com" {...field} disabled={isLoading} />
                   </FormControl>
@@ -245,8 +304,8 @@ export function AddAccountDialog({ open, onOpenChange, onAccountAdded }: AddAcco
                         <div>
                         After creating this account, add the following to your environment variables. Replace `[ID]` with the generated Account ID.
                         <ul className="list-disc list-inside pl-2 font-mono text-xs mt-2">
-                            <li>SECRET_KEY_[ID]=sk_...</li>
-                            <li>PUBLIC_KEY_[ID]=pk_...</li>
+                            <li>STRIPE_SECRET_KEY_[ID]=sk_...</li>
+                            <li>STRIPE_PUBLIC_KEY_[ID]=pk_...</li>
                             <li>STRIPE_WEBHOOK_SECRET_[ID]=whsec_...</li>
                         </ul>
                         </div>

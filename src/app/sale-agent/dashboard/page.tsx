@@ -1,7 +1,7 @@
 
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import {
   Card,
   CardContent,
@@ -21,40 +21,51 @@ interface AgentStats {
 export default function SaleAgentDashboard() {
   const [stats, setStats] = useState<AgentStats | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [agentId, setAgentId] = useState<string | null>(null);
 
   useEffect(() => {
-    const fetchStats = async () => {
-        const userRole = localStorage.getItem('userRole');
-        let agentId;
-        if (userRole === 'Admin') {
-            agentId = localStorage.getItem('impersonatingUserId');
-        } else {
-            agentId = localStorage.getItem('userId');
-        }
-
-        if (!agentId) {
-            setIsLoading(false);
-            return;
-        }
-
-        setIsLoading(true);
-        try {
-            const response = await fetch(`/api/dashboard/sale-agent-stats/${agentId}`);
-            if(response.ok) {
-                const data = await response.json();
-                setStats(data);
-            } else {
-                setStats(null);
-            }
-        } catch (error) {
-            console.error("Failed to fetch agent stats:", error);
-            setStats(null);
-        } finally {
-            setIsLoading(false);
-        }
-    };
-    fetchStats();
+    const userRole = localStorage.getItem('userRole');
+    let id;
+    if (userRole === 'Admin') {
+        agentId = localStorage.getItem('impersonatingUserId');
+    } else {
+        agentId = localStorage.getItem('userId');
+    }
+    setAgentId(agentId);
   }, []);
+
+  const fetchStats = useCallback(async (isInitialLoad = false) => {
+    if (!agentId) return;
+
+    if (isInitialLoad) {
+        setIsLoading(true);
+    }
+    
+    try {
+        const response = await fetch(`/api/dashboard/sale-agent-stats/${agentId}`);
+        if(response.ok) {
+            const data = await response.json();
+            setStats(data);
+        } else {
+            setStats(null);
+        }
+    } catch (error) {
+        console.error("Failed to fetch agent stats:", error);
+        setStats(null);
+    } finally {
+        if (isInitialLoad) {
+            setIsLoading(false);
+        }
+    }
+  }, [agentId]);
+
+  useEffect(() => {
+    if (agentId) {
+        fetchStats(true); // Initial fetch
+        const intervalId = setInterval(() => fetchStats(false), 30000); // Refresh every 30 seconds
+        return () => clearInterval(intervalId); // Cleanup on unmount
+    }
+  }, [agentId, fetchStats]);
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat("en-US", {

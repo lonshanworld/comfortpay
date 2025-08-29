@@ -4,13 +4,13 @@ import { executeQuery } from '@/lib/db';
 
 export async function GET(
   request: Request,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
-  const { id } = params;
+  const { id } = await context.params;
   const numericId = id.includes('_') ? id.split('_')[1] : id;
 
   try {
-    const query = "SELECT name, email FROM merchants WHERE id = ?";
+    const query = "SELECT name, email FROM users WHERE id = ? AND role = 'Merchant'";
     const merchants: any[] = await executeQuery(query, [numericId]);
 
     if (merchants.length === 0) {

@@ -112,9 +112,11 @@ export default function MerchantTransactionsPage() {
     setMerchantId(id);
   }, []);
 
-  const fetchTransactions = useCallback(async (filtersToApply: typeof appliedFilters) => {
+  const fetchTransactions = useCallback(async (filtersToApply: typeof appliedFilters, isInitialLoad = false) => {
     if (!merchantId) return;
-    setIsLoading(true);
+    if (isInitialLoad) {
+      setIsLoading(true);
+    }
     
     try {
       const params = new URLSearchParams({ merchantId });
@@ -132,13 +134,17 @@ export default function MerchantTransactionsPage() {
     } catch (error) {
       console.error("Failed to fetch transactions", error);
     } finally {
-      setIsLoading(false);
+      if (isInitialLoad) {
+        setIsLoading(false);
+      }
     }
   }, [merchantId]);
 
   useEffect(() => {
     if (merchantId) {
-      fetchTransactions(appliedFilters);
+      fetchTransactions(appliedFilters, true);
+      const intervalId = setInterval(() => fetchTransactions(appliedFilters, false), 30000);
+      return () => clearInterval(intervalId);
     }
   }, [merchantId, appliedFilters, fetchTransactions]);
 

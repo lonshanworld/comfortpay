@@ -7,19 +7,24 @@ export async function GET(request: Request) {
   const group = searchParams.get('group');
 
   try {
-    let query = "SELECT key, value FROM settings";
+    let query = "SELECT `key`, `value` FROM settings";
     const params: string[] = [];
 
     if (group === 'email') {
-      query += " WHERE key LIKE '%Email%' OR key LIKE '%Smtp%' OR key LIKE 'emailProvider' OR key = 'sendgrid'";
+      query += " WHERE `key` LIKE '%Email%' OR `key` LIKE '%Smtp%' OR `key` = 'emailProvider' OR `key` = 'sendgrid' OR `key` = 'sendToCustomer' OR `key` = 'sendToMerchant' OR `key` = 'emailEnabled'";
     }
     
     const settings = await executeQuery(query, params);
     
     const settingsObject = settings.reduce((acc, { key, value }) => {
         try {
-            // Attempt to parse JSON strings
-            acc[key] = JSON.parse(value);
+            // Check for booleans first
+             if (value === 'true' || value === 'false') {
+                acc[key] = value === 'true';
+            } else {
+                 // Attempt to parse JSON strings
+                acc[key] = JSON.parse(value);
+            }
         } catch (e) {
             // If not JSON, just assign the string value
             acc[key] = value;
@@ -40,14 +45,14 @@ export async function POST(request: Request) {
     const body = await request.json();
 
     // Begin a transaction
-    await runQuery('BEGIN TRANSACTION');
+    await runQuery('START TRANSACTION');
 
     for (const [key, value] of Object.entries(body)) {
       const stringValue = typeof value === 'object' ? JSON.stringify(value) : String(value);
       const query = `
-        INSERT INTO settings (key, value)
+        INSERT INTO settings (\`key\`, \`value\`)
         VALUES (?, ?)
-        ON CONFLICT(key) DO UPDATE SET value = excluded.value;
+        ON DUPLICATE KEY UPDATE \`value\` = VALUES(\`value\`);
       `;
       await runQuery(query, [key, stringValue]);
     }
@@ -61,8 +66,6 @@ export async function POST(request: Request) {
     // Rollback the transaction in case of an error
     await runQuery('ROLLBACK');
     console.error("Failed to update settings:", error);
-    return NextResponse.json({ message: 'Failed to update settings' }, { status: 500 });
+    return NextResponse.json({ message: `Failed to update settings: ${error.message}` }, { status: 500 });
   }
 }
-
-    

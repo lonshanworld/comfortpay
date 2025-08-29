@@ -57,26 +57,26 @@ export default function AdminLayout({
 
 
   const fetchNotifications = async () => {
-    if (!adminUserId) return;
-    try {
-        const response = await fetch(`/api/notifications?userId=${adminUserId}`);
-        if(response.ok) {
-            const data = await response.json();
-            setNotifications(data);
-            setUnreadCount(data.filter((n: Notification) => !n.isRead).length);
-        }
-    } catch (error) {
-        console.error("Failed to fetch notifications:", error);
-    }
+    // if (!adminUserId) return;
+    // try {
+    //     const response = await fetch(`/api/notifications?userId=${adminUserId}`);
+    //     if(response.ok) {
+    //         const data = await response.json();
+    //         setNotifications(data);
+    //         setUnreadCount(data.filter((n: Notification) => !n.isRead).length);
+    //     }
+    // } catch (error) {
+    //     console.error("Failed to fetch notifications:", error);
+    // }
   };
 
-  useEffect(() => {
-    if (adminUserId) {
-        fetchNotifications();
-        const intervalId = setInterval(fetchNotifications, 10000); // Poll every 10 seconds
-        return () => clearInterval(intervalId);
-    }
-  }, [adminUserId]);
+  // useEffect(() => {
+  //   if (adminUserId) {
+  //       fetchNotifications();
+  //       const intervalId = setInterval(fetchNotifications, 10000); // Poll every 10 seconds
+  //       return () => clearInterval(intervalId);
+  //   }
+  // }, [adminUserId]);
 
   const handleLogout = () => {
     localStorage.removeItem('userRole');
@@ -93,13 +93,13 @@ export default function AdminLayout({
   }
 
   const handleMarkAllAsRead = async () => {
-      if (!adminUserId) return;
-      try {
-        await fetch(`/api/notifications?userId=${adminUserId}`, { method: 'PUT' });
-        fetchNotifications(); // Refresh notifications
-      } catch (error) {
-        console.error("Failed to mark notifications as read:", error);
-      }
+    //   if (!adminUserId) return;
+    //   try {
+    //     await fetch(`/api/notifications?userId=${adminUserId}`, { method: 'PUT' });
+    //     fetchNotifications(); // Refresh notifications
+    //   } catch (error) {
+    //     console.error("Failed to mark notifications as read:", error);
+    //   }
   }
 
   return (
@@ -158,7 +158,7 @@ export default function AdminLayout({
           </div>
           <DropdownMenu onOpenChange={(open) => open && unreadCount > 0 && handleMarkAllAsRead()}>
             <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="icon" className="relative">
+              <Button variant="outline" size="icon" className="relative hidden">
                 <Bell className="h-4 w-4"/>
                 <span className="sr-only">Toggle notifications</span>
                  {unreadCount > 0 && (

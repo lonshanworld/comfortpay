@@ -1,81 +1,92 @@
 
+'use server';
+
 import { NextResponse } from 'next/server';
 import { initialPaymentAccounts } from '@/lib/in-memory-db';
 import { executeQuery, runQuery } from '@/lib/db';
+import { promises as fs } from 'fs';
+import path from 'path';
+import crypto from 'crypto';
 
 // In-memory data - this will be used as a fallback if the database is not connected.
 let paymentAccounts = initialPaymentAccounts;
 
 const parseDbAccount = (dbAccount: any) => {
     if (!dbAccount) return null;
-    return {
-        ...dbAccount,
-        id: `pa_${dbAccount.id}`
-    }
-}
+        return {
+                ...dbAccount,
+                        id: `pa_${dbAccount.id}`
+                            }
+                            }
 
-export async function GET(request: Request) {
-  const { searchParams } = new URL(request.url);
-  const type = searchParams.get('type');
+                            export async function GET(request: Request) {
+                              const { searchParams } = new URL(request.url);
+                                const type = searchParams.get('type');
 
-  // =================================================================
-  // REAL DATABASE LOGIC
-  // =================================================================
-  try {
-    let query = "SELECT * FROM payment_accounts";
-    const params = [];
-    if (type) {
-        query += " WHERE type = ?";
-        params.push(type);
-    }
-    const dbAccounts = await executeQuery(query, params);
-    return NextResponse.json(dbAccounts.map(parseDbAccount));
-  } catch (error) {
-    console.error("Failed to fetch payment accounts from DB:", error);
-    // Fallback to in-memory data
-    let filteredAccounts = paymentAccounts;
-    if (type) {
-      filteredAccounts = paymentAccounts.filter(acc => acc.type.toLowerCase() === type.toLowerCase());
-    }
-    
-    return NextResponse.json(filteredAccounts);
-  }
-}
+                                  // =================================================================
+                                    // REAL DATABASE LOGIC
+                                      // =================================================================
+                                        try {
+                                            let query = "SELECT * FROM payment_accounts";
+                                                const params = [];
+                                                    if (type) {
+                                                            query += " WHERE type = ?";
+                                                                    params.push(type);
+                                                                        }
+                                                                            const dbAccounts = await executeQuery(query, params);
+                                                                                return NextResponse.json(dbAccounts.map(parseDbAccount));
+                                                                                  } catch (error) {
+                                                                                      console.error("Failed to fetch payment accounts from DB:", error);
+                                                                                          // Fallback to in-memory data
+                                                                                              let filteredAccounts = paymentAccounts;
+                                                                                                  if (type) {
+                                                                                                        filteredAccounts = paymentAccounts.filter(acc => acc.type.toLowerCase() === type.toLowerCase());
+                                                                                                            }
+                                                                                                                
+                                                                                                                    return NextResponse.json(filteredAccounts);
+                                                                                                                      }
+                                                                                                                      }
 
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { name, type, dailyLimit, prefix_order_name, websiteUrl, accountEmail } = body;
+    const { name, type, dailyLimit, prefix_order_name, websiteUrl, accountEmail, qrCode } = body;
     
-    // =================================================================
-    // REAL DATABASE LOGIC
-    // =================================================================
-    try {
-      const query = `
-        INSERT INTO payment_accounts 
-        (name, type, dailyLimit, prefix_order_name, currentVolume, status, websiteUrl, accountEmail) 
-        VALUES (?, ?, ?, ?, 0, 'Active', ?, ?)
-      `;
-      const params = [name, type, Number(dailyLimit), prefix_order_name, websiteUrl, accountEmail];
-      const result: any = await runQuery(query, params);
-      
-      const newAccount = { id: `pa_${result.id}`, ...body };
-      return NextResponse.json(newAccount, { status: 201 });
-    } catch (error) {
-      console.error("Failed to create payment account in DB:", error);
-      // Fallback to in-memory data
-      const newAccount = {
-        id: `pa_${Date.now()}`,
-        currentVolume: 0,
-        status: 'Active', // Default status
-        ...body,
-        dailyLimit: Number(body.dailyLimit) // Ensure dailyLimit is a number
-      };
-      paymentAccounts.unshift(newAccount); // Add to the beginning of the array
-      return NextResponse.json(newAccount, { status: 201 });
+    let qrCodeUrl = null;
+
+    if (qrCode && typeof qrCode === 'string') {
+        const base64Data = qrCode.split(',')[1];
+        const imageBuffer = Buffer.from(base64Data, 'base64');
+        const fileExtension = qrCode.substring(qrCode.indexOf('/') + 1, qrCode.indexOf(';'));
+        const fileName = `${crypto.randomBytes(16).toString('hex')}.${fileExtension}`;
+        
+        const uploadDir = path.join(process.cwd(), 'public', 'uploads', 'qrcodes');
+        await fs.mkdir(uploadDir, { recursive: true });
+        const filePath = path.join(uploadDir, fileName);
+
+        await fs.writeFile(filePath, imageBuffer);
+        qrCodeUrl = `/uploads/qrcodes/${fileName}`;
     }
-  } catch (error) {
-     console.error("Failed to create payment account:", error);
-    return NextResponse.json({ message: 'Failed to create payment account' }, { status: 500 });
+
+    try {
+        const query = `
+            INSERT INTO payment_accounts 
+            (name, type, dailyLimit, prefix_order_name, currentVolume, status, websiteUrl, accountEmail, qrCodeUrl) 
+            VALUES (?, ?, ?, ?, 0, 'Active', ?, ?, ?)
+        `;
+        const params = [name, type, Number(dailyLimit), prefix_order_name, websiteUrl, accountEmail, qrCodeUrl];
+        const result: any = await runQuery(query, params);
+        
+        const newAccount = { id: `pa_${result.id}`, ...body, qrCodeUrl };
+        delete newAccount.qrCode; // Don't send back the base64 data
+        return NextResponse.json(newAccount, { status: 201 });
+    } catch (error: any) {
+        console.error("Failed to create payment account in DB:", error);
+        return NextResponse.json({ message: `Failed to create payment account in DB: ${error.message}` }, { status: 500 });
+    }
+  } catch (error: any) {
+      console.error("Failed to create payment account:", error);
+      return NextResponse.json({ message: `Failed to create payment account: ${error.message}` }, { status: 500 });
   }
 }
+                                                                                                                                                                                                                                               

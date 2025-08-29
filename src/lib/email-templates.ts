@@ -27,18 +27,29 @@ const styles = {
 
 export const getCustomerEmailContent = (input: SendOrderNotificationInput) => {
     const { orderDetails, merchantName } = input;
-    const { visualOrderId, totalAmount, billingDetails, items } = orderDetails;
+    const { visualOrderId, totalAmount, billingDetails, items, customerName } = orderDetails;
 
     const subject = `Invoice for Transaction ${visualOrderId} from ${merchantName}`;
     
-    const itemsHtml = items.map(item => `
+    const itemsHtml = (items || []).map(item => `
         <tr>
             <td style="${styles.td}">${item.name}</td>
             <td style="${styles.td}">${item.quantity}</td>
-            <td style="${styles.td}">$${item.price.toFixed(2)}</td>
-            <td style="${styles.td}">$${(item.quantity * item.price).toFixed(2)}</td>
+            <td style="${styles.td}">$${Number(item.price).toFixed(2)}</td>
+            <td style="${styles.td}">$${(Number(item.quantity) * Number(item.price)).toFixed(2)}</td>
         </tr>
     `).join('');
+    
+    const billingInfoHtml = billingDetails ? `
+        ${billingDetails.firstName} ${billingDetails.lastName}<br>
+        ${billingDetails.address1}${billingDetails.address2 ? `, ${billingDetails.address2}` : ''}<br>
+        ${billingDetails.city}, ${billingDetails.state} ${billingDetails.postcode}<br>
+        ${billingDetails.country}<br>
+        Email: ${billingDetails.email}<br>
+        Phone: ${billingDetails.phone || 'N/A'}
+    ` : `
+        ${customerName}
+    `;
 
     const body = `
 <body style="${styles.body}">
@@ -47,13 +58,13 @@ export const getCustomerEmailContent = (input: SendOrderNotificationInput) => {
             <h1 style="${styles.headerTitle}">Thank You For Your Transaction!</h1>
         </div>
         <div style="${styles.content}">
-            <p style="${styles.p}">Dear ${billingDetails.firstName},</p>
+            <p style="${styles.p}">Dear ${billingDetails?.firstName || customerName},</p>
             <p style="${styles.p}">This email confirms your payment processed by ComfortPay on behalf of <strong>${merchantName}</strong>.</p>
             
             <h3 style="${styles.h3}">Invoice Summary</h3>
             <p style="${styles.p}">
                 <strong>Transaction ID:</strong> ${visualOrderId}<br>
-                <strong>Total Amount:</strong> $${totalAmount.toFixed(2)}<br>
+                <strong>Total Amount:</strong> $${Number(totalAmount).toFixed(2)}<br>
                 <strong>Payment Method:</strong> ${orderDetails.paymentMethod}
             </p>
 
@@ -71,19 +82,14 @@ export const getCustomerEmailContent = (input: SendOrderNotificationInput) => {
                     ${itemsHtml}
                      <tr>
                         <td colspan="3" style="${styles.td} text-align: right; font-weight: bold;"><strong>Grand Total</strong></td>
-                        <td style="${styles.td} font-weight: bold;"><strong>$${totalAmount.toFixed(2)}</strong></td>
+                        <td style="${styles.td} font-weight: bold;"><strong>$${Number(totalAmount).toFixed(2)}</strong></td>
                     </tr>
                 </tbody>
             </table>
             
             <h3 style="${styles.h3}">Billing Information</h3>
             <p style="${styles.p}">
-                ${billingDetails.firstName} ${billingDetails.lastName}<br>
-                ${billingDetails.address1}${billingDetails.address2 ? `, ${billingDetails.address2}` : ''}<br>
-                ${billingDetails.city}, ${billingDetails.state} ${billingDetails.postcode}<br>
-                ${billingDetails.country}<br>
-                Email: ${billingDetails.email}<br>
-                Phone: ${billingDetails.phone || 'N/A'}
+                ${billingInfoHtml}
             </p>
             
             <p style="${styles.p}">If you have any questions about your transaction, please contact ${merchantName} directly.</p>
@@ -100,18 +106,29 @@ export const getCustomerEmailContent = (input: SendOrderNotificationInput) => {
 
 export const getMerchantEmailContent = (input: SendOrderNotificationInput) => {
     const { orderDetails, merchantName } = input;
-    const { visualOrderId, totalAmount, billingDetails, items } = orderDetails;
+    const { visualOrderId, totalAmount, billingDetails, items, customerName } = orderDetails;
 
     const subject = `New Transaction Notification: ${visualOrderId}`;
     
-    const itemsHtml = items.map(item => `
+    const itemsHtml = (items || []).map(item => `
         <tr>
             <td style="${styles.td}">${item.name}</td>
             <td style="${styles.td}">${item.quantity}</td>
-            <td style="${styles.td}">$${item.price.toFixed(2)}</td>
-            <td style="${styles.td}">$${(item.quantity * item.price).toFixed(2)}</td>
+            <td style="${styles.td}">$${Number(item.price).toFixed(2)}</td>
+            <td style="${styles.td}">$${(Number(item.quantity) * Number(item.price)).toFixed(2)}</td>
         </tr>
     `).join('');
+
+    const billingInfoHtml = billingDetails ? `
+        ${billingDetails.firstName} ${billingDetails.lastName}<br>
+        ${billingDetails.address1}${billingDetails.address2 ? `, ${billingDetails.address2}` : ''}<br>
+        ${billingDetails.city}, ${billingDetails.state} ${billingDetails.postcode}<br>
+        ${billingDetails.country}<br>
+        Email: ${billingDetails.email}<br>
+        Phone: ${billingDetails.phone || 'N/A'}
+    ` : `
+        ${customerName}
+    `;
 
     const body = `
 <body style="${styles.body}">
@@ -121,7 +138,7 @@ export const getMerchantEmailContent = (input: SendOrderNotificationInput) => {
         </div>
         <div style="${styles.content}">
             <p style="${styles.p}">Hello ${merchantName},</p>
-            <p style="${styles.p}">A payment of <strong style="${styles.strong}">$${totalAmount.toFixed(2)}</strong> for transaction <strong style="${styles.strong}">${visualOrderId}</strong> has been successfully processed by ComfortPay. Please prepare for fulfillment.</p>
+            <p style="${styles.p}">A payment of <strong style="${styles.strong}">$${Number(totalAmount).toFixed(2)}</strong> for transaction <strong style="${styles.strong}">${visualOrderId}</strong> has been successfully processed by ComfortPay. Please prepare for fulfillment.</p>
             
             <h3 style="${styles.h3}">Transaction & Customer Details</h3>
              <p style="${styles.p}">
@@ -144,19 +161,14 @@ export const getMerchantEmailContent = (input: SendOrderNotificationInput) => {
                     ${itemsHtml}
                      <tr>
                         <td colspan="3" style="${styles.td} text-align: right; font-weight: bold;"><strong>Grand Total</strong></td>
-                        <td style="${styles.td} font-weight: bold;"><strong>$${totalAmount.toFixed(2)}</strong></td>
+                        <td style="${styles.td} font-weight: bold;"><strong>$${Number(totalAmount).toFixed(2)}</strong></td>
                     </tr>
                 </tbody>
             </table>
             
             <h3 style="${styles.h3}">Customer Billing Information</h3>
             <p style="${styles.p}">
-                ${billingDetails.firstName} ${billingDetails.lastName}<br>
-                ${billingDetails.address1}${billingDetails.address2 ? `, ${billingDetails.address2}` : ''}<br>
-                ${billingDetails.city}, ${billingDetails.state} ${billingDetails.postcode}<br>
-                ${billingDetails.country}<br>
-                Email: ${billingDetails.email}<br>
-                Phone: ${billingDetails.phone || 'N/A'}
+                ${billingInfoHtml}
             </p>
         </div>
         <div style="${styles.footer}">

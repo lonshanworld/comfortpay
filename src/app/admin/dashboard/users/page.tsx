@@ -1,5 +1,4 @@
 
-
 "use client"
 
 import {
@@ -7,7 +6,7 @@ import {
   PlusCircle,
   Loader2,
 } from "lucide-react"
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import {
@@ -24,7 +23,7 @@ import {
   TabsList,
   TabsTrigger,
 } from "@/components/ui/tabs"
-import { DataTable } from "@/components/admin/data-table"
+import { DataTable } from "@/components/admin/data-tabel"
 import { columns as userColumnsDefinition } from "./columns"
 import { columns as merchantColumnsDefinition } from "../merchants/columns"
 import type { User, Merchant, UserRole } from "@/lib/types"
@@ -47,7 +46,8 @@ const roleDashboardPaths: Record<UserRole, string> = {
 
 export default function UsersPage() {
   const router = useRouter();
-  const [users, setUsers] = useState<User[]>([])
+  const [allUsers, setAllUsers] = useState<User[]>([])
+  const [allMerchants, setAllMerchants] = useState<Merchant[]>([]);
   const [isLoading, setIsLoading] = useState(true)
   const [isExporting, setIsExporting] = useState(false);
   const [isDeleting, setIsDeleting] = useState<string | null>(null);
@@ -64,49 +64,51 @@ export default function UsersPage() {
   const [selectedMerchant, setSelectedMerchant] = useState<Merchant | null>(null)
   const { toast } = useToast()
 
-  const fetchUsers = async (role?: string) => {
-    setIsLoading(true)
+  const fetchData = async () => {
+    setIsLoading(true);
     try {
-      let url;
-      if (role === 'Merchant') {
-          url = '/api/merchants'
-      } else if (role && role !== "all") {
-        url = `/api/users?role=${role}`
-      } else {
-         url = "/api/users?role=all"
-      }
+      const [merchantsRes, usersRes] = await Promise.all([
+        fetch('/api/merchants?status=all'),
+        fetch('/api/users?role=all')
+      ]);
+
+      const merchantsData = await merchantsRes.json();
+      const allUsersData = await usersRes.json();
       
-      const response = await fetch(url)
-      const data = await response.json()
-      setUsers(data)
+      setAllMerchants(merchantsData);
+
+      // Filter out merchants from the allUsersData to avoid duplicates and ensure non-merchants are handled correctly
+      const nonMerchantUsers = allUsersData.filter((u: User) => u.role !== 'Merchant');
+      setAllUsers([...merchantsData, ...nonMerchantUsers]);
+
     } catch (error) {
-      console.error("Failed to fetch users", error)
+      console.error("Failed to fetch data", error);
+      setAllUsers([]);
+      setAllMerchants([]);
     } finally {
-      setIsLoading(false)
+      setIsLoading(false);
     }
   }
 
   useEffect(() => {
-    let roleToFetch = activeTab;
-    if (activeTab === "sale-agents") roleToFetch = "Sale Agent";
-    fetchUsers(roleToFetch)
-  }, [activeTab])
+    fetchData();
+  }, [])
   
-  const handleUserAdded = () => {
-    fetchUsers(activeTab);
-  }
+  const displayedUsers = useMemo(() => {
+    if (activeTab === 'all') return allUsers;
+    if (activeTab === 'Merchant') return allMerchants;
+    if (activeTab === 'sale-agents') return allUsers.filter(u => u.role === 'Sale Agent');
+    return allUsers.filter(u => u.role === activeTab);
+  }, [activeTab, allUsers, allMerchants]);
 
-  const handleUserUpdated = () => {
-    fetchUsers(activeTab);
+  
+  const handleUserAddedOrUpdated = () => {
+    fetchData();
     setSelectedUser(null);
   }
 
-  const handleMerchantAdded = () => {
-    fetchUsers(activeTab);
-  }
-
-  const handleMerchantUpdated = () => {
-    fetchUsers(activeTab)
+  const handleMerchantAddedOrUpdated = () => {
+    fetchData()
     setSelectedMerchant(null)
   }
 
@@ -120,8 +122,12 @@ export default function UsersPage() {
   }
   
   const handleEditUserClick = (user: User) => {
-    setSelectedUser(user);
-    setIsEditUserDialogOpen(true);
+    if (user.role === 'Merchant') {
+        handleEditMerchantClick(user as Merchant);
+    } else {
+        setSelectedUser(user);
+        setIsEditUserDialogOpen(true);
+    }
   }
 
   const handlePermissionsClick = (user: User) => {
@@ -133,9 +139,9 @@ export default function UsersPage() {
     if (confirm(`Are you sure you want to delete user ${user.name}? This cannot be undone.`)) {
         setIsDeleting(user.id);
         try {
-            const response = await fetch(`/api/users/${user.id}`, {
-                method: 'DELETE',
-            });
+            const url = user.role === 'Merchant' ? `/api/merchants/${user.id}` : `/api/users/${user.id}`;
+            const response = await fetch(url, { method: 'DELETE' });
+
             if (!response.ok) {
                  throw new Error('Failed to delete user');
             }
@@ -143,7 +149,7 @@ export default function UsersPage() {
                 title: "User Deleted",
                 description: `${user.name} has been successfully deleted.`,
             });
-            fetchUsers(activeTab);
+            fetchData();
         } catch (error) {
             toast({
                 variant: "destructive",
@@ -169,33 +175,6 @@ export default function UsersPage() {
   const handleManageTokenClick = (merchant: Merchant) => {
     setSelectedMerchant(merchant);
     setIsManageTokenDialogOpen(true);
-  }
-
-  const handleDeleteMerchant = async (merchant: Merchant) => {
-     if (confirm(`Are you sure you want to delete merchant ${merchant.name}? This will also delete their user account.`)) {
-        setIsDeleting(merchant.id);
-        try {
-             const response = await fetch(`/api/merchants/${merchant.id}`, {
-                method: 'DELETE',
-            });
-             if (!response.ok) {
-                throw new Error('Failed to delete merchant');
-            }
-             toast({
-                title: "Merchant Deleted",
-                description: `${merchant.name} has been successfully deleted.`,
-            });
-            fetchUsers(activeTab);
-        } catch (error) {
-             toast({
-                variant: "destructive",
-                title: "Deletion Failed",
-                description: "There was a problem deleting the merchant.",
-            });
-        } finally {
-            setIsDeleting(null);
-        }
-     }
   }
   
   const handleViewDashboard = (user: User) => {
@@ -243,7 +222,7 @@ export default function UsersPage() {
   const merchantColumns = merchantColumnsDefinition({
       onView: handleViewMerchantClick,
       onEdit: handleEditMerchantClick,
-      onDelete: handleDeleteMerchant,
+      onDelete: handleDeleteUser, // Use the unified delete handler
       onViewDashboard: handleViewDashboard,
       onManageToken: handleManageTokenClick,
       isDeletingId: isDeleting,
@@ -251,19 +230,19 @@ export default function UsersPage() {
 
   const isMerchantTab = activeTab === 'Merchant';
   const currentColumns = isMerchantTab ? merchantColumns : userColumns;
-  // Cast is safe because fetchUsers gets the right data type for the tab
-  const currentData = isMerchantTab ? (users as unknown as Merchant[]) : users;
+  // Cast is safe because displayedUsers is already filtered by role
+  const currentData = displayedUsers;
 
   return (
     <div className="grid flex-1 items-start gap-4 sm:py-0 md:gap-8">
-      <AddUserDialog open={isAddUserDialogOpen} onOpenChange={setIsAddUserDialogOpen} onUserAdded={handleUserAdded} />
-      <AddMerchantDialog open={isAddMerchantDialogOpen} onOpenChange={setIsAddMerchantDialogOpen} onMerchantAdded={handleMerchantAdded} />
+      <AddUserDialog open={isAddUserDialogOpen} onOpenChange={setIsAddUserDialogOpen} onUserAdded={handleUserAddedOrUpdated} />
+      <AddMerchantDialog open={isAddMerchantDialogOpen} onOpenChange={setIsAddMerchantDialogOpen} onMerchantAdded={handleMerchantAddedOrUpdated} />
       {selectedUser && (
         <EditUserDialog 
             open={isEditUserDialogOpen} 
             onOpenChange={setIsEditUserDialogOpen} 
             user={selectedUser} 
-            onUserUpdated={handleUserUpdated}
+            onUserUpdated={handleUserAddedOrUpdated}
         />
       )}
       {selectedUser && (
@@ -278,7 +257,7 @@ export default function UsersPage() {
           open={isPermissionsDialogOpen}
           onOpenChange={setIsPermissionsDialogOpen}
           user={selectedUser}
-          onPermissionsUpdated={handleUserUpdated}
+          onPermissionsUpdated={handleUserAddedOrUpdated}
         />
       )}
       {selectedMerchant && (
@@ -293,7 +272,7 @@ export default function UsersPage() {
             open={isEditMerchantDialogOpen}
             onOpenChange={setIsEditMerchantDialogOpen}
             merchant={selectedMerchant}
-            onMerchantUpdated={handleMerchantUpdated}
+            onMerchantUpdated={handleMerchantAddedOrUpdated}
         />
        )}
        {selectedMerchant && (
@@ -301,10 +280,10 @@ export default function UsersPage() {
             open={isManageTokenDialogOpen}
             onOpenChange={setIsManageTokenDialogOpen}
             merchant={selectedMerchant}
-            onTokenUpdated={handleMerchantUpdated}
+            onTokenUpdated={handleMerchantAddedOrUpdated}
         />
       )}
-      <Tabs defaultValue="all" onValueChange={setActiveTab}>
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
         <div className="flex items-center">
           <TabsList>
             <TabsTrigger value="all">All</TabsTrigger>
@@ -347,8 +326,8 @@ export default function UsersPage() {
                 </CardContent>
                  <CardFooter>
                     <div className="text-xs text-muted-foreground">
-                        Showing <strong>{users.length}</strong> of <strong>{users.length}</strong>{" "}
-                        {activeTab === 'Merchant' ? 'merchants' : 'users'}
+                        Showing <strong>{currentData.length}</strong> of <strong>{currentData.length}</strong>{" "}
+                        {activeTab === 'Merchant' ? 'merchants' : (activeTab === 'all' ? 'users' : `${activeTab.toLowerCase()}s`)}
                     </div>
                 </CardFooter>
             </Card>

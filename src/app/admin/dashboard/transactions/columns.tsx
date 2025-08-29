@@ -134,7 +134,7 @@ export const columns = ({ onView, onEdit, onConfirmPayment, isConfirmingId }: Tr
     header: ({ column }) => (
         <div className="text-right">
             <Button variant="ghost" onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}>
-                Transaction Amount
+                Order Amount
                 <ArrowUpDown className="ml-2 h-4 w-4" />
             </Button>
         </div>
@@ -170,6 +170,7 @@ export const columns = ({ onView, onEdit, onConfirmPayment, isConfirmingId }: Tr
     cell: ({ row }) => {
       const { paidAmount, totalAmount, currency } = row.original;
       const isOverpaid = paidAmount > totalAmount;
+
       return (
         <div className="text-right space-y-1">
             <div>{formatCurrency(paidAmount, currency)}</div>

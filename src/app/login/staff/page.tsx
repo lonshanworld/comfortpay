@@ -17,15 +17,13 @@ import { Label } from '@/components/ui/label';
 import { Logo } from '@/components/icons/logo';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2 } from 'lucide-react';
-import { initialUsers } from '@/lib/in-memory-db';
-
-const staffUsers = initialUsers.filter(u => u.role === 'Staff');
+import { login } from '@/app/actions/auth';
 
 export default function StaffLoginPage() {
   const router = useRouter();
   const { toast } = useToast();
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [email, setEmail] = useState('support@comfortpay.com');
+  const [password, setPassword] = useState('password');
   const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
@@ -34,30 +32,31 @@ export default function StaffLoginPage() {
     localStorage.removeItem('userId');
   }, []);
 
-  const handleSignIn = (e: React.FormEvent) => {
+  const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
     
-    // Simulate API call
-    setTimeout(() => {
-      const user = staffUsers.find(u => u.email === email && u.password === password);
-      if (user) {
+    try {
+      const result = await login({ email, password, role: 'Staff' });
+      if (result.success && result.user) {
         toast({
           title: "Login Successful",
           description: "Redirecting to staff dashboard...",
         });
-        localStorage.setItem('userRole', 'Staff');
-        localStorage.setItem('userId', user.id); 
+        localStorage.setItem('userRole', result.user.role);
+        localStorage.setItem('userId', result.user.id);
         router.push('/staff/dashboard');
       } else {
+        throw new Error(result.message);
+      }
+    } catch (error: any) {
         toast({
           variant: "destructive",
           title: "Login Failed",
-          description: "Invalid credentials for a staff account.",
+          description: error.message || "An unknown error occurred.",
         });
         setIsLoading(false);
-      }
-    }, 1000);
+    }
   };
 
   return (

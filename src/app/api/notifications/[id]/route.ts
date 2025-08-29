@@ -4,9 +4,9 @@ import { runQuery } from '@/lib/db';
 
 export async function PUT(
   request: Request,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
-  const { id } = params;
+  const { id } = await context.params;
   const numericId = id; // Assuming ID is already numeric
 
   try {

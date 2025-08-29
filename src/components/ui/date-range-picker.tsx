@@ -3,8 +3,8 @@
 
 import * as React from "react"
 import { Calendar as CalendarIcon } from "lucide-react"
-import { addDays, format } from "date-fns"
-import { DateRange } from "react-day-picker"
+import { format } from "date-fns"
+import { type DateRange } from "react-day-picker"
 
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
@@ -16,10 +16,9 @@ import {
 } from "@/components/ui/popover"
 import { Label } from "@/components/ui/label"
 
-
 interface DatePickerWithRangeProps extends React.HTMLAttributes<HTMLDivElement> {
-    date: DateRange | undefined;
-    setDate: (date: DateRange | undefined) => void;
+  date: DateRange | undefined;
+  setDate: (date: DateRange | undefined) => void;
 }
 
 export function DatePickerWithRange({
@@ -27,6 +26,15 @@ export function DatePickerWithRange({
   date,
   setDate
 }: DatePickerWithRangeProps) {
+  const [isClient, setIsClient] = React.useState(false);
+
+  React.useEffect(() => {
+    setIsClient(true);
+  }, []);
+
+  if (!isClient) {
+    return null;
+  }
 
   return (
     <div className={cn("grid gap-1", className)}>

@@ -17,9 +17,10 @@ const calculateCommission = (transaction: Order, merchant: Merchant) => {
 
 export async function GET(
   request: Request,
-  { params }: { params: { agentId: string } }
+  context: { params: Promise<{ agentId: string }> }
 ) {
-  const agentId = params.agentId.split('_')[1];
+  const { agentId: agentIdWithPrefix } = await context.params;
+  const agentId = agentIdWithPrefix.split('_')[1];
 
   if (!agentId) {
     return NextResponse.json({ message: 'Agent ID is required' }, { status: 400 });
@@ -31,7 +32,7 @@ export async function GET(
     const lastDayOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).toISOString().split('T')[0];
     
     // Get all merchants assigned to this agent
-    const merchants: Merchant[] = await executeQuery("SELECT * FROM merchants WHERE salesAgentId = ?", [agentId]);
+    const merchants: Merchant[] = await executeQuery("SELECT * FROM users WHERE salesAgentId = ? AND role = 'Merchant'", [agentId]);
     if (merchants.length === 0) {
         return NextResponse.json({
             commissionStatement: [],
@@ -65,7 +66,7 @@ export async function GET(
             merchant: merchant.name,
             volume: volume,
             // A representative rate for display. Could be more complex if needed.
-            rate: `${stripeRate || 'N/A'}%`, 
+            rate: `${stripeRate?.value || 'N/A'}%`, 
             commission: commission
         };
     });
@@ -75,7 +76,7 @@ export async function GET(
 
     const historicalTransactions: any[] = await executeQuery(`
         SELECT
-            strftime('%Y-%m', orderDate) as month,
+            DATE_FORMAT(orderDate, '%Y-%m') as month,
             SUM(totalAmount) as volume
         FROM orders
         WHERE merchantId IN (${placeholders}) AND status = 'Completed' AND date(orderDate) >= ?

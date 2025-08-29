@@ -4,3 +4,7 @@ import { twMerge } from "tailwind-merge"
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
+
+export function formatDateForMySQL(date: Date): string {
+  return date.toISOString().slice(0, 19).replace('T', ' ');
+}

@@ -68,13 +68,13 @@ export function ContactSupportDialog({ open, onOpenChange }: ContactSupportDialo
         onOpenChange(false);
         form.reset();
       } else {
-        throw new Error("Failed to send email.");
+        throw new Error(result.message || "Failed to send email.");
       }
-    } catch (error) {
+    } catch (error: any) {
       toast({
         variant: "destructive",
         title: "Uh oh! Something went wrong.",
-        description: "There was a problem sending your request. Please try again.",
+        description: error.message || "There was a problem sending your request. Please try again.",
       });
     } finally {
       setIsLoading(false);

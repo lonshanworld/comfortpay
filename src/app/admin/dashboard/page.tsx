@@ -1,6 +1,6 @@
 
 "use client"
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import {
   Activity,
   ArrowUpRight,
@@ -36,21 +36,28 @@ export default function AdminDashboard() {
     const [stats, setStats] = useState<DashboardStats | null>(null);
     const [isLoading, setIsLoading] = useState(true);
 
-    useEffect(() => {
-        const fetchStats = async () => {
+    const fetchStats = useCallback(async (isInitialLoad = false) => {
+        if (isInitialLoad) {
             setIsLoading(true);
-            try {
-                const response = await fetch('/api/dashboard/stats');
-                const data = await response.json();
-                setStats(data);
-            } catch (error) {
-                console.error("Failed to fetch dashboard stats", error);
-            } finally {
+        }
+        try {
+            const response = await fetch('/api/dashboard/stats');
+            const data = await response.json();
+            setStats(data);
+        } catch (error) {
+            console.error("Failed to fetch dashboard stats", error);
+        } finally {
+            if (isInitialLoad) {
                 setIsLoading(false);
             }
-        };
-        fetchStats();
+        }
     }, []);
+
+    useEffect(() => {
+        fetchStats(true); // Initial fetch
+        const intervalId = setInterval(() => fetchStats(false), 30000); // Refresh every 30 seconds
+        return () => clearInterval(intervalId); // Cleanup on unmount
+    }, [fetchStats]);
 
     if (isLoading || !stats) {
         return (
@@ -71,7 +78,7 @@ export default function AdminDashboard() {
               <DollarSign className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">${stats.totalRevenue.value.toFixed(2)}</div>
+              <div className="text-2xl font-bold">${Number(stats.totalRevenue.value).toFixed(2)}</div>
               <p className="text-xs text-muted-foreground">
                 {stats.totalRevenue.change}
               </p>
@@ -171,7 +178,7 @@ export default function AdminDashboard() {
                     <TableCell className="hidden md:table-cell lg:hidden xl:table-column">
                       {tx.date}
                     </TableCell>
-                    <TableCell className="text-right">${tx.amount.toFixed(2)}</TableCell>
+                    <TableCell className="text-right">${Number(tx.amount).toFixed(2)}</TableCell>
                   </TableRow>
                   ))}
                 </TableBody>

@@ -11,8 +11,9 @@
 import { z } from 'zod';
 import { CreateCheckoutSessionInputSchema } from '@/lib/schemas';
 import { executeQuery, runQuery } from '@/lib/db';
-import type { PaymentAccount, User } from '@/lib/types';
+import type { GatewayFee, PaymentAccount, User } from '@/lib/types';
 import { sendOrderNotification } from '@/app/actions/send-order-notification';
+import { formatDateForMySQL } from '@/lib/utils';
 
 
 export type CreateCheckoutSessionInput = z.infer<typeof CreateCheckoutSessionInputSchema>;
@@ -25,59 +26,106 @@ const CreateCheckoutSessionOutputSchema = z.object({
 });
 export type CreateCheckoutSessionOutput = z.infer<typeof CreateCheckoutSessionOutputSchema>;
 
-export async function createCheckoutSession(input: CreateCheckoutSessionInput): Promise<CreateCheckoutSessionOutput> {
-    const numericMerchantId = input.merchantId.split('_')[1];
-    const merchantResult: User[] = await executeQuery("SELECT * FROM users WHERE id = ? AND role = 'Merchant'", [numericMerchantId]);
-    const merchant = merchantResult[0];
 
-    if (!merchant) {
+export async function createCheckoutSession(input: CreateCheckoutSessionInput): Promise<CreateCheckoutSessionOutput> {
+    console.log("==========================================");
+    console.log("🚀 Starting createCheckoutSession...");
+    console.log("Input Data:", JSON.stringify(input, null, 2));
+
+    if (!input.merchantId) {
+        console.error("❌ Error: Merchant ID is required.");
+        return { error: "Merchant ID is required." };
+    }
+    const numericMerchantId = input.merchantId.split('_')[1];
+    const merchantResult: any[] = await executeQuery("SELECT * FROM users WHERE id = ? AND role = 'Merchant'", [numericMerchantId]);
+    
+    if (merchantResult.length === 0) {
+        console.error(`❌ Error: Merchant not found with ID ${numericMerchantId}.`);
         return { error: "Merchant not found." };
     }
+    const merchant: User = merchantResult[0];
+    console.log(`✅ Found Merchant: ${merchant.name} (ID: ${merchant.id})`);
     
-    let paymentAccount: PaymentAccount | null = null;
+    if (!input.wooCommerceOrderReceivedUrl && !input.redirectUrl) {
+        console.error("❌ Error: A redirect URL was not provided by the merchant's site.");
+        return { error: "A redirect URL was not provided by the merchant's site." };
+    }
     
+    // 1. Determine which processors are allowed for this payment method based on merchant settings
     const merchantGatewayFees = typeof merchant.paymentGatewayFees === 'string'
         ? JSON.parse(merchant.paymentGatewayFees)
         : merchant.paymentGatewayFees;
         
-    let availableProcessors: string[] = [];
-
+    let availableProcessorsForMethod: string[] = [];
     if (input.paymentMethod === 'card') {
-        availableProcessors = ['Stripe', 'Square'];
+        availableProcessorsForMethod = ['Stripe', 'Square'];
     } else if (input.paymentMethod === 'zelle') {
-        availableProcessors = ['Zelle'];
+        availableProcessorsForMethod = ['Zelle'];
     } else {
+        console.error(`❌ Error: Unsupported payment method: ${input.paymentMethod}`);
         return { error: `Unsupported payment method: ${input.paymentMethod}`};
     }
+    console.log(`Initial processors for method '${input.paymentMethod}':`, availableProcessorsForMethod);
     
-    // Filter processors that are actually enabled for the merchant
-    const enabledProcessors = availableProcessors.filter(proc => {
+    // Filter down to only the processors the merchant has explicitly enabled
+    const enabledProcessors = availableProcessorsForMethod.filter(proc => {
         const gatewayConfig = merchantGatewayFees?.[proc.toLowerCase() as 'stripe' | 'square' | 'zelle'];
         return gatewayConfig?.enabled;
     });
 
+    console.log(`Merchant's enabled processors for this method:`, enabledProcessors);
+
     if (enabledProcessors.length === 0) {
+        console.error(`❌ Error: No payment processors enabled for this merchant for the '${input.paymentMethod}' method.`);
         return { error: `No payment processors enabled for this merchant for the '${input.paymentMethod}' method.` };
     }
-
-    const placeholders = enabledProcessors.map(() => '?').join(',');
-    const paymentAccountResult: any[] = await executeQuery(
-        `SELECT *, (dailyLimit - currentVolume) as remainingVolume FROM payment_accounts WHERE type IN (${placeholders}) AND status = 'Active' ORDER BY remainingVolume DESC`,
-        enabledProcessors
-    );
     
-    if (paymentAccountResult.length === 0) {
-         return { error: `No active payment account found for the requested payment method.` };
+    // 2. Query for all active, available payment accounts of the enabled types that can handle the transaction amount.
+    const placeholders = enabledProcessors.map(() => '?').join(',');
+    const paymentAccountResults: PaymentAccount[] = await executeQuery(
+        `SELECT * FROM payment_accounts WHERE type IN (${placeholders}) AND status = 'Active' AND (currentVolume + ?) <= dailyLimit`,
+        [...enabledProcessors, input.totalAmount]
+    );
+
+    console.log(`Found ${paymentAccountResults.length} payment accounts with capacity:`, paymentAccountResults.map(p => ({id: p.id, type: p.type, currentVolume: p.currentVolume, dailyLimit: p.dailyLimit})));
+    
+    if (paymentAccountResults.length === 0) {
+        console.error(`❌ Error: No active and available payment account found with enough capacity.`);
+         return { error: `No active and available payment account found with enough capacity for the requested payment method.` };
     }
-    // The query sorts by the highest remaining volume, so we pick the first one.
-    paymentAccount = paymentAccountResult[0] as PaymentAccount;
-    const selectedGateway = paymentAccount.type;
 
-    const redirectUrl = merchant.websiteUrl || paymentAccount.websiteUrl || 'https://comfortpay.com/checkout/thank-you';
+    // 3. Implement the refined selection logic.
+    let selectedAccount: PaymentAccount | null = null;
+    
+    if (paymentAccountResults.length === 1) {
+        selectedAccount = paymentAccountResults[0];
+        console.log(`Only one account available. Selected:`, {id: selectedAccount.id, type: selectedAccount.type});
+    } else {
+        console.log("Multiple Payment Accounts Found, applying selection logic.");
+        const minCurrentVolume = Math.min(...paymentAccountResults.map(acc => Number(acc.currentVolume)));
+        console.log(`Minimum current volume found: ${minCurrentVolume}`);
+        
+        const bestAccounts = paymentAccountResults.filter(acc => Number(acc.currentVolume) === minCurrentVolume);
+        console.log(`Found ${bestAccounts.length} best accounts with that volume:`, bestAccounts.map(p => ({id: p.id, type: p.type})));
+        
+        if (bestAccounts.length > 0) {
+            const randomIndex = Math.floor(Math.random() * bestAccounts.length);
+            console.log(`randomIndex: ${randomIndex}`);
+            selectedAccount = bestAccounts[randomIndex];
+        }
+    }
+    
+    if (!selectedAccount) {
+        console.error(`❌ Error: Could not select a payment account after filtering.`);
+        return { error: `Could not select a payment account.` };
+    }
+    console.log(`✅ Final Selected Account:`, {id: selectedAccount.id, type: selectedAccount.type});
 
-    // --- Visual ID Logic ---
+    const selectedGateway = selectedAccount.type;
+    const paymentAccountId = selectedAccount.id; // This is now correct, e.g. 3
+
     let visualId = '';
-    const paymentPrefix = paymentAccount.prefix_order_name;
+    const paymentPrefix = selectedAccount.prefix_order_name;
     const merchantPrefix = merchant.orderIdPrefix;
 
     if (paymentPrefix === 'USE_COMFORTPAY_ID') {
@@ -90,41 +138,51 @@ export async function createCheckoutSession(input: CreateCheckoutSessionInput): 
     } else {
         visualId = input.merchantOrderId;
     }
+    console.log(`Generated Visual ID: ${visualId}`);
+    
+    const orderAmount = (input.items || []).reduce((acc, item) => acc + (item.price * item.quantity), 0);
 
-    // Insert the initial order record with a "Pending" status
     const orderInsertQuery = `
       INSERT INTO orders 
-      (merchantId, merchantOrderId, visualOrderId, orderDate, customerName, customerEmail, status, paymentMethod, orderAmount, totalAmount, paidAmount, currency, paymentType, billingDetails) 
+      (merchantId, merchantOrderId, visualOrderId, orderDate, customerName, customerEmail, status, paymentMethod, orderAmount, totalAmount, paidAmount, currency, paymentType, paymentAccountId) 
       VALUES (?, ?, ?, ?, ?, ?, 'Pending', ?, ?, ?, 0, ?, ?, ?)
     `;
     const orderParams = [
-        numericMerchantId, input.merchantOrderId, visualId, new Date().toISOString(),
+        numericMerchantId, input.merchantOrderId, visualId, formatDateForMySQL(new Date()),
         `${input.billingDetails.firstName} ${input.billingDetails.lastName}`, input.billingDetails.email,
-        input.paymentMethod,
-        input.totalAmount, input.totalAmount, // Assuming orderAmount and totalAmount are the same initially
+        input.paymentMethod === 'card' ? 'Credit Card' : 'Zelle',
+        orderAmount, // Pure item subtotal
+        input.totalAmount, // from WooCommerce (subtotal + shipping/tax)
         input.currency || 'USD',
-        selectedGateway,
-        JSON.stringify(input.billingDetails)
+        selectedGateway, // e.g. "Stripe", "Square"
+        selectedAccount.id // Save the numeric ID to the database
     ];
 
     const orderResult = await runQuery(orderInsertQuery, orderParams);
     const newOrderId = `CP${orderResult.id}`;
+    console.log(`📝 Order created in DB with ComfortPay ID: ${newOrderId}`);
 
-    // Add the determined redirectUrl, visualId, and internal orderId to the session data
     const sessionDataWithDetails = { 
-        ...input, 
-        redirectUrl, 
+        ...input,
+        wooCommerceOrderReceivedUrl: input.wooCommerceOrderReceivedUrl || input.redirectUrl,
         visualOrderId: visualId,
-        comfortPayOrderId: newOrderId, // Add our internal ID to the session
-        merchantOrigin: merchant.websiteUrl, // Add merchant origin for secure postMessage
-        processor: selectedGateway, // Explicitly set the chosen processor
+        comfortPayOrderId: newOrderId,
+        merchantOrigin: merchant.websiteUrl,
+        processor: selectedGateway,
+        paymentDetails: {
+            ...input.paymentDetails, // Spread incoming details first
+            paymentAccountId: `pa_${paymentAccountId}`, // Then overwrite/add our secure details
+            qrCodeUrl: selectedAccount.qrCodeUrl,
+            accountEmail: selectedAccount.accountEmail
+        }
     };
     const sessionData = JSON.stringify(sessionDataWithDetails);
     const sessionToken = Buffer.from(sessionData).toString('base64');
     
-    // Construct the checkout URL reliably on the server
-    const appUrl = process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:9002';
+    const appUrl = process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000';
     const checkoutUrl = `${appUrl}/checkout/new?session=${sessionToken}`;
+    console.log(`✅ Session created successfully. Checkout URL: ${checkoutUrl}`);
+    console.log("==========================================");
 
     return { sessionToken, checkoutUrl };
 }

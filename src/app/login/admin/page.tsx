@@ -17,6 +17,7 @@ import { Label } from '@/components/ui/label';
 import { Logo } from '@/components/icons/logo';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2 } from 'lucide-react';
+import { login } from '@/app/actions/auth';
 
 export default function AdminLoginPage() {
   const router = useRouter();
@@ -31,30 +32,32 @@ export default function AdminLoginPage() {
     localStorage.removeItem('userId');
   }, []);
 
-  const handleSignIn = (e: React.FormEvent) => {
+  const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
     
-    // Simulate API call
-    setTimeout(() => {
-      if (email === 'admin@comfortpay.com' && password === 'password') {
+    try {
+      const result = await login({ email, password, role: 'Admin' });
+
+      if (result.success && result.user) {
         toast({
           title: "Login Successful",
           description: "Redirecting to admin dashboard...",
         });
-        localStorage.setItem('userRole', 'Admin');
-        localStorage.setItem('userId', 'user_1');
+        localStorage.setItem('userRole', result.user.role);
+        localStorage.setItem('userId', result.user.id);
         router.push('/admin/dashboard');
       } else {
-        toast({
+        throw new Error(result.message);
+      }
+    } catch (error: any) {
+       toast({
           variant: "destructive",
           title: "Login Failed",
-          description: "Invalid credentials for an admin account.",
+          description: error.message || "An unknown error occurred.",
         });
-         setIsLoading(false);
-      }
-      // No need to set isLoading to false on success because we are navigating away
-    }, 1000);
+       setIsLoading(false);
+    }
   };
 
   return (

@@ -71,13 +71,16 @@ const DocumentRow = ({ label, url, type }: { label: string, url?: string, type: 
   )
 }
 
-const FeeDetailRow = ({ label, fee }: { label: string, fee?: Fee }) => {
-    if (!fee || typeof fee.value === 'undefined') return <DetailRow label={label} value="N/A" />;
-    
-    const value = fee.type === 'percentage' 
-        ? `${fee.value}%` 
-        : `$${fee.value.toFixed(2)}`;
+const FeeDetailRow = ({ label, fee, isPercentage = false, isFixed = false }: { label: string, fee?: Fee, isPercentage?: boolean, isFixed?: boolean }) => {
+    if (!fee || typeof fee.value === 'undefined' || fee.value === null) return <DetailRow label={label} value="N/A" />;
 
+    let value;
+    if (isPercentage) {
+        value = `${fee.value}%`;
+    } else { // Flat fee or fixed amount
+        value = `$${Number(fee.value).toFixed(2)}`;
+    }
+    
     return <DetailRow label={label} value={value} />;
 }
 
@@ -98,9 +101,10 @@ const GatewayFeeDetails = ({ name, fees }: { name: string, fees?: GatewayFee }) 
             </h5>
             {fees.enabled ? (
                  <div className="space-y-1 pl-6">
-                    <FeeDetailRow label="Transaction Fee" fee={fees.transactionFee} />
-                    <FeeDetailRow label="Refund Fee" fee={fees.refundFee} />
-                    <FeeDetailRow label="Chargeback Fee" fee={fees.chargebackFee} />
+                    <FeeDetailRow label="Transaction Fee (%)" fee={fees.transactionFee} isPercentage />
+                    <FeeDetailRow label="Transaction Fixed Fee" fee={fees.transactionFeeFixed} isFixed />
+                    <FeeDetailRow label="Refund Fee" fee={fees.refundFee} isFixed />
+                    <FeeDetailRow label="Chargeback Fee" fee={fees.chargebackFee} isFixed />
                 </div>
             ) : (
                 <p className="text-sm text-muted-foreground pl-6">This gateway is disabled for the merchant.</p>
@@ -218,9 +222,9 @@ export function ViewMerchantDialog({ open, onOpenChange, merchant }: ViewMerchan
                 <section>
                     <h4 className="text-sm font-semibold text-primary mb-2">Settlement Fees</h4>
                     <div className="space-y-1">
-                      <FeeDetailRow label="Domestic Transfer" fee={merchant.settlementFees?.domesticTransferFee} />
-                      <FeeDetailRow label="International Transfer" fee={merchant.settlementFees?.internationalTransferFee} />
-                      <FeeDetailRow label="Crypto Transfer" fee={merchant.settlementFees?.cryptoTransferFee} />
+                      <FeeDetailRow label="Domestic Transfer" fee={merchant.settlementFees?.domesticTransferFee} isFixed />
+                      <FeeDetailRow label="International Transfer" fee={merchant.settlementFees?.internationalTransferFee} isFixed />
+                      <FeeDetailRow label="Crypto Transfer" fee={merchant.settlementFees?.cryptoTransferFee} isPercentage />
                     </div>
                 </section>
                  <Separator />
@@ -237,9 +241,9 @@ export function ViewMerchantDialog({ open, onOpenChange, merchant }: ViewMerchan
                     <h4 className="text-sm font-semibold text-primary mb-2">Sales & Commission</h4>
                     <div className="space-y-1">
                       <DetailRow label="Assigned Agent" value={salesAgent?.name || 'N/A'} />
-                      <FeeDetailRow label="Stripe Commission" fee={merchant.commissionRates?.stripe} />
-                      <FeeDetailRow label="Square Commission" fee={merchant.commissionRates?.square} />
-                      <FeeDetailRow label="Zelle Commission" fee={merchant.commissionRates?.zelle} />
+                      <FeeDetailRow label="Stripe Commission" fee={merchant.commissionRates?.stripe} isPercentage />
+                      <FeeDetailRow label="Square Commission" fee={merchant.commissionRates?.square} isPercentage />
+                      <FeeDetailRow label="Zelle Commission" fee={merchant.commissionRates?.zelle} isPercentage />
                     </div>
                 </section>
             </div>

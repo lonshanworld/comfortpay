@@ -1,5 +1,4 @@
 
-
 "use client"
 import { useState, useEffect, useCallback } from "react"
 import {
@@ -130,7 +129,7 @@ export default function TransactionsPage() {
       
       const transactionsWithDetails = ordersData.map((transaction: Order) => {
           const merchant = merchantsData.find((m: Merchant) => m.id === transaction.merchantId);
-          const account = accountsData.find((acc: PaymentAccount) => acc.type === transaction.paymentType);
+          const account = accountsData.find((acc: PaymentAccount) => acc.id === `pa_${transaction.paymentAccountId}`);
           return {
               ...transaction,
               merchantName: merchant?.name || 'N/A',
@@ -169,13 +168,13 @@ export default function TransactionsPage() {
   }
 
   const handleConfirmPayment = async (transaction: Order) => {
+    console.log("DEBUG: [1] handleConfirmPayment called with transaction:", transaction);
     setIsConfirming(transaction.id);
     try {
         const response = await fetch(`/api/orders/${transaction.id}`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ 
-                ...transaction, // pass the whole transaction
                 status: 'Completed', 
                 paidAmount: transaction.totalAmount,
                 paymentReceivedDate: new Date().toISOString()
@@ -187,48 +186,36 @@ export default function TransactionsPage() {
         }
         
         const updatedTransaction = await response.json();
+        console.log("DEBUG: [2] Order status updated in DB:", updatedTransaction);
 
-        const merchantRes = await fetch(`/api/merchants/${updatedTransaction.merchantId}/details`);
-        if (!merchantRes.ok) {
-            throw new Error('Merchant details not found for sending email.');
+        // Update payment account volume
+        if (updatedTransaction.paymentAccountId) {
+            console.log("DEBUG: [3] Payment Account ID found:", updatedTransaction.paymentAccountId);
+            const paymentAccount = paymentAccounts.find(pa => pa.id === `pa_${updatedTransaction.paymentAccountId}`);
+            console.log("DEBUG: [4] Searching for account in this list:", paymentAccounts);
+            console.log("DEBUG: [5] Found payment account:", paymentAccount);
+            
+            if (paymentAccount) {
+                 const payload = { amount: Number(updatedTransaction.totalAmount) };
+                 console.log("DEBUG: [6] Sending this payload to update-volume:", payload);
+                 const volumeResponse = await fetch(`/api/payments/accounts/${paymentAccount.id}/update-volume`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload),
+                });
+                 if (!volumeResponse.ok) {
+                    console.error("DEBUG: [7] Failed to update volume, server responded with:", await volumeResponse.text());
+                    throw new Error('Failed to update payment account volume.');
+                 }
+                 console.log("DEBUG: [7] Successfully updated volume.");
+            } else {
+                 console.warn(`DEBUG: [6] Could not find payment account with ID pa_${updatedTransaction.paymentAccountId} to update volume.`);
+            }
         }
-        const merchant = await merchantRes.json();
-        
-        // Send emails
-        await Promise.all([
-             sendOrderNotification({
-                recipientType: 'customer',
-                customerEmail: updatedTransaction.customerEmail,
-                merchantName: merchant.name,
-                orderDetails: {
-                    ...updatedTransaction,
-                    merchantId: updatedTransaction.merchantId,
-                    totalAmount: updatedTransaction.totalAmount,
-                    merchantOrderId: updatedTransaction.merchantOrderId,
-                    paymentMethod: 'zelle',
-                    billingDetails: updatedTransaction.billingDetails!,
-                    items: [], // Items are not stored in transaction for this prototype
-                }
-            }),
-             sendOrderNotification({
-                recipientType: 'merchant',
-                merchantEmail: merchant.email,
-                merchantName: merchant.name,
-                orderDetails: {
-                    ...updatedTransaction,
-                    merchantId: updatedTransaction.merchantId,
-                    totalAmount: updatedTransaction.totalAmount,
-                    merchantOrderId: updatedTransaction.merchantOrderId,
-                    paymentMethod: 'zelle',
-                    billingDetails: updatedTransaction.billingDetails!,
-                    items: [],
-                }
-            })
-        ]);
         
         toast({
             title: "Payment Confirmed",
-            description: `Transaction ${transaction.id} has been marked as Completed. Emails have been sent.`
+            description: `Transaction ${transaction.id} has been marked as Completed.`
         });
         
         await fetchTransactions(appliedFilters);
@@ -430,7 +417,7 @@ export default function TransactionsPage() {
                   <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
                 </div>
               ) : (
-                <DataTable columns={transactionColumns} data={transactions} filterColumnId="merchantName" filterPlaceholder="Filter by merchant..."/>
+                <DataTable columns={transactionColumns} data={transactions} />
               )}
             </CardContent>
             <CardFooter>

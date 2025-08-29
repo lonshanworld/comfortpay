@@ -24,6 +24,11 @@ interface DateTimePickerProps {
 
 export function DateTimePicker({ date, setDate, label }: DateTimePickerProps) {
   const [time, setTime] = React.useState(date ? format(date, "HH:mm") : "00:00");
+  const [isClient, setIsClient] = React.useState(false);
+
+  React.useEffect(() => {
+    setIsClient(true);
+  }, []);
 
   const handleDateSelect = (selectedDate: Date | undefined) => {
     if (!selectedDate) {
@@ -45,6 +50,10 @@ export function DateTimePicker({ date, setDate, label }: DateTimePickerProps) {
     const newDate = new Date(date);
     newDate.setHours(hours, minutes);
     setDate(newDate);
+  }
+
+  if (!isClient) {
+    return null;
   }
 
   return (

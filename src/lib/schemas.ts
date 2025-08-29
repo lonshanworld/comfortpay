@@ -32,20 +32,24 @@ const BillingDetailsSchema = z.object({
 // Schema for payment details, which can include the prefix
 const PaymentDetailsSchema = z.object({
   prefix_order_name: z.string().optional().describe('The prefix for the transaction name sent to the payment processor.'),
+  qrCodeUrl: z.string().url().optional().nullable().describe('The URL for the Zelle QR code image.'),
+  accountEmail: z.string().email().optional().describe('The email address for the Zelle account.'),
 });
 
 // Schema for creating a checkout session
 export const CreateCheckoutSessionInputSchema = z.object({
   totalAmount: z.number().positive().describe('The total transaction amount.'),
-  merchantId: z.string().describe("The ID of the merchant for this transaction."),
+  merchantId: z.string().optional().describe("The ID of the merchant for this transaction."),
   merchantOrderId: z.string().describe("The merchant's unique transaction identifier."),
   visualOrderId: z.string().optional().describe('The transaction ID that is shown to the customer and sent to the payment processor.'),
   redirectUrl: z.string().url().optional().describe('The URL to redirect the user to after payment completion.'),
+  wooCommerceOrderReceivedUrl: z.string().url().optional().describe('The standard WooCommerce thank you page URL.'),
   paymentMethod: z.enum(['card', 'zelle']).describe('The selected payment method.'),
   processor: z.enum(['Stripe', 'Square', 'Zelle']).optional().describe('The specific payment processor to use.'),
   billingDetails: BillingDetailsSchema.describe('The customer\'s billing information.'),
   items: z.array(OrderItemSchema).describe('The list of items in the transaction.'),
   paymentDetails: PaymentDetailsSchema.optional().describe('Details specific to the payment processor account.'),
+  currency: z.string().optional().describe('The currency of the transaction.'),
 });
 
 // Schema for the transaction notification action
