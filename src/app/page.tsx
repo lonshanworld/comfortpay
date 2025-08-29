@@ -160,7 +160,7 @@ export default function HomePage() {
     <div className="flex min-h-screen flex-col items-center justify-center bg-background p-4">
         <div className="mb-8 flex flex-col items-center text-center">
             <Logo className="h-12 w-auto text-primary" />
-            <h1 className="mt-4 text-3xl font-bold">ComfortPay Gateway</h1>
+            {/* <h1 className="mt-4 text-3xl font-bold">ComfortPay Gateway</h1> */}
             {/* <p className="mt-2 text-muted-foreground">This page demonstrates both a redirect and a modal checkout flow.</p> */}
         </div>
         <div className=" gap-8 w-full max-w-4xl">
@@ -182,7 +182,7 @@ export default function HomePage() {
                            <User className="mr-2 h-4 w-4"/> Merchant Login
                         </Button>
                     </Link>
-                    <Link href="/login/staff" passHref>
+                    {/* <Link href="/login/staff" passHref>
                         <Button className="w-full" variant="outline">
                            <UserCheck className="mr-2 h-4 w-4"/> Staff Login
                         </Button>
@@ -191,7 +191,7 @@ export default function HomePage() {
                         <Button className="w-full" variant="outline">
                             <Briefcase className="mr-2 h-4 w-4"/> Sales Login
                         </Button>
-                    </Link>
+                    </Link> */}
                 </CardContent>
             </Card>
              {/* <Card className="w-full hidden">
