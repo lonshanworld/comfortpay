@@ -41,6 +41,7 @@ import type { User, Fee } from "@/lib/types";
 
 const feeSchema = z.object({
   value: z.coerce.number().optional(),
+  type: z.enum(["percentage", "flat"]).optional(),
 });
 
 const gatewayFeeSchema = z.object({
@@ -65,7 +66,7 @@ const merchantFormSchema = z.object({
   bankName: z.string().optional(),
   bankAccountNumber: z.string().optional(),
   bankAccountType: z.string().optional(),
-  bankEmail: z.string().email("Please enter a valid bank email.").optional().or(z.literal('')),
+  bankEmail: z.string().optional(),
 
   walletAddress: z.string().optional(),
   network: z.string().optional(),

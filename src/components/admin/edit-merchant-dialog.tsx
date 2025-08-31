@@ -56,20 +56,20 @@ const merchantFormSchema = z.object({
   name: z.string().min(3, "Full name must be at least 3 characters."),
   email: z.string().email("Please enter a valid email address."),
   password: z.string().min(8, "Password must be at least 8 characters.").optional().or(z.literal('')),
-  websiteUrl: z.string().url("Please enter a valid URL.").optional().or(z.literal('')),
-  orderIdPrefix: z.string().optional(),
+  websiteUrl: z.string().url("Please enter a valid URL.").nullable().optional().or(z.literal('')),
+  orderIdPrefix: z.string().nullable().optional(),
   status: z.enum(["Active", "Inactive"]),
-  nationality: z.string().min(2, "Please enter a valid nationality.").optional().or(z.literal('')),
-  dateOfBirth: z.string().optional(),
-  idType: z.enum(["Passport", "Driver License", "ID Card"]).optional(),
+  nationality: z.string().min(2, "Please enter a valid nationality.").nullable().optional(),
+  dateOfBirth: z.string().nullable().optional(),
+  idType: z.enum(["Passport", "Driver License", "ID Card"]).nullable().optional(),
   
-  bankName: z.string().optional(),
-  bankAccountNumber: z.string().optional(),
-  bankAccountType: z.string().optional(),
-  bankEmail: z.string().email("Please enter a valid bank email.").optional().or(z.literal('')),
+  bankName: z.string().nullable().optional(),
+  bankAccountNumber: z.string().nullable().optional(),
+  bankAccountType: z.string().nullable().optional(),
+  bankEmail: z.string().email().nullable().optional().or(z.literal('')),
 
-  walletAddress: z.string().optional(),
-  network: z.string().optional(),
+  walletAddress: z.string().nullable().optional(),
+  network: z.string().nullable().optional(),
   
   photoId: z.any().optional(),
   businessDocument: z.any().optional(),
@@ -236,23 +236,24 @@ export function EditMerchantDialog({ open, onOpenChange, onMerchantUpdated, merc
 
   useEffect(() => {
     if (merchant && open) {
-        // Deep merge the merchant data with default structure to prevent errors
         const defaultGatewayFees = {
             stripe: { enabled: false, transactionFee: {}, transactionFeeFixed: {}, refundFee: {}, chargebackFee: {} },
             square: { enabled: false, transactionFee: {}, transactionFeeFixed: {}, refundFee: {}, chargebackFee: {} },
             zelle: { enabled: false, transactionFee: {}, transactionFeeFixed: {}, refundFee: {}, chargebackFee: {} },
         };
 
+        const paymentGatewayFees = {
+          stripe: { ...defaultGatewayFees.stripe, ...(merchant.paymentGatewayFees?.stripe || {}) },
+          square: { ...defaultGatewayFees.square, ...(merchant.paymentGatewayFees?.square || {}) },
+          zelle: { ...defaultGatewayFees.zelle, ...(merchant.paymentGatewayFees?.zelle || {}) },
+        };
+
         const formValues = {
             ...merchant,
-            password: "", // Always clear password field
+            password: "",
             dateOfBirth: merchant.dateOfBirth ? new Date(merchant.dateOfBirth).toISOString().split('T')[0] : "",
             salesAgentId: merchant.salesAgentId || "none",
-            paymentGatewayFees: {
-              stripe: { ...defaultGatewayFees.stripe, ...(merchant.paymentGatewayFees?.stripe || {}) },
-              square: { ...defaultGatewayFees.square, ...(merchant.paymentGatewayFees?.square || {}) },
-              zelle: { ...defaultGatewayFees.zelle, ...(merchant.paymentGatewayFees?.zelle || {}) },
-            },
+            paymentGatewayFees: paymentGatewayFees,
         };
         form.reset(formValues);
     }
@@ -404,7 +405,7 @@ export function EditMerchantDialog({ open, onOpenChange, onMerchantUpdated, merc
                   <FormItem>
                     <FormLabel>Website URL</FormLabel>
                     <FormControl>
-                      <Input placeholder="https://example.com" {...field} disabled={isLoading} />
+                      <Input placeholder="https://example.com" {...field} value={field.value ?? ""} disabled={isLoading} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -417,7 +418,7 @@ export function EditMerchantDialog({ open, onOpenChange, onMerchantUpdated, merc
                   <FormItem>
                     <FormLabel>Order ID Prefix (Optional)</FormLabel>
                     <FormControl>
-                      <Input placeholder="e.g., GADGETS" {...field} disabled={isLoading} />
+                      <Input placeholder="e.g., GADGETS" {...field} value={field.value ?? ""} disabled={isLoading} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -430,7 +431,7 @@ export function EditMerchantDialog({ open, onOpenChange, onMerchantUpdated, merc
                   <FormItem>
                     <FormLabel>Nationality</FormLabel>
                     <FormControl>
-                      <Input placeholder="e.g., American" {...field} disabled={isLoading} />
+                      <Input placeholder="e.g., American" {...field} value={field.value ?? ""} disabled={isLoading} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -443,7 +444,7 @@ export function EditMerchantDialog({ open, onOpenChange, onMerchantUpdated, merc
                   <FormItem>
                     <FormLabel>Date of Birth</FormLabel>
                     <FormControl>
-                      <Input type="date" {...field} disabled={isLoading} />
+                      <Input type="date" {...field} value={field.value ?? ""} disabled={isLoading} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -455,7 +456,7 @@ export function EditMerchantDialog({ open, onOpenChange, onMerchantUpdated, merc
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>ID Type</FormLabel>
-                    <Select onValueChange={field.onChange} value={field.value} disabled={isLoading}>
+                    <Select onValueChange={field.onChange} value={field.value ?? ""} disabled={isLoading}>
                       <FormControl>
                         <SelectTrigger>
                           <SelectValue placeholder="Select ID Type" />
@@ -508,7 +509,7 @@ export function EditMerchantDialog({ open, onOpenChange, onMerchantUpdated, merc
                     <FormItem>
                       <FormLabel>Bank Name</FormLabel>
                       <FormControl>
-                        <Input placeholder="e.g., Chase Bank" {...field} disabled={isLoading} />
+                        <Input placeholder="e.g., Chase Bank" {...field} value={field.value ?? ""} disabled={isLoading} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -521,7 +522,7 @@ export function EditMerchantDialog({ open, onOpenChange, onMerchantUpdated, merc
                     <FormItem>
                       <FormLabel>Bank Account Number</FormLabel>
                       <FormControl>
-                        <Input placeholder="e.g., 123456789" {...field} disabled={isLoading}/>
+                        <Input placeholder="e.g., 123456789" {...field} value={field.value ?? ""} disabled={isLoading}/>
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -534,7 +535,7 @@ export function EditMerchantDialog({ open, onOpenChange, onMerchantUpdated, merc
                     <FormItem>
                       <FormLabel>Account Type</FormLabel>
                       <FormControl>
-                        <Input placeholder="e.g., Business Checking" {...field} disabled={isLoading}/>
+                        <Input placeholder="e.g., Business Checking" {...field} value={field.value ?? ""} disabled={isLoading}/>
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -547,7 +548,7 @@ export function EditMerchantDialog({ open, onOpenChange, onMerchantUpdated, merc
                     <FormItem>
                       <FormLabel>Bank Email (for notifications)</FormLabel>
                       <FormControl>
-                        <Input type="email" placeholder="e.g., billing@example.com" {...field} disabled={isLoading}/>
+                        <Input type="email" placeholder="e.g., billing@example.com" {...field} value={field.value ?? ""} disabled={isLoading}/>
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -565,7 +566,7 @@ export function EditMerchantDialog({ open, onOpenChange, onMerchantUpdated, merc
                     <FormItem>
                       <FormLabel>Wallet Address</FormLabel>
                       <FormControl>
-                        <Input placeholder="e.g., 0x..." {...field} disabled={isLoading} />
+                        <Input placeholder="e.g., 0x..." {...field} value={field.value ?? ""} disabled={isLoading} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -578,7 +579,7 @@ export function EditMerchantDialog({ open, onOpenChange, onMerchantUpdated, merc
                     <FormItem>
                       <FormLabel>Network</FormLabel>
                       <FormControl>
-                        <Input placeholder="e.g., Ethereum (ERC-20)" {...field} disabled={isLoading} />
+                        <Input placeholder="e.g., Ethereum (ERC-20)" {...field} value={field.value ?? ""} disabled={isLoading} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
