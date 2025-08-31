@@ -39,15 +39,24 @@ const parseDbUserAsMerchant = (dbUser: any): User | null => {
     const merchant = { ...dbUser };
     merchant.id = `user_${merchant.id}`;
     merchant.salesAgentId = merchant.salesAgentId ? `user_${merchant.salesAgentId}` : undefined;
-    try {
-        merchant.settlementFees = JSON.parse(merchant.settlementFees || '{}');
-    } catch(e) { merchant.settlementFees = {}; }
-    try {
-        merchant.paymentGatewayFees = JSON.parse(merchant.paymentGatewayFees || '{}');
-    } catch(e) { merchant.paymentGatewayFees = {}; }
-    try {
-        merchant.commissionRates = JSON.parse(merchant.commissionRates || '{}');
-    } catch(e) { merchant.commissionRates = {}; }
+
+    // Safely handle JSON fields that might already be objects
+    const safeParseJson = (field: any) => {
+        if (typeof field === 'string') {
+            try {
+                return JSON.parse(field || '{}');
+            } catch {
+                return {};
+            }
+        }
+        return field || {};
+    };
+    
+    merchant.settlementFees = safeParseJson(merchant.settlementFees);
+    merchant.paymentGatewayFees = safeParseJson(merchant.paymentGatewayFees);
+    merchant.commissionRates = safeParseJson(merchant.commissionRates);
+    merchant.permissions = safeParseJson(merchant.permissions);
+
     return merchant;
 }
 

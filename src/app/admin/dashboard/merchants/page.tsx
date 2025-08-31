@@ -114,9 +114,22 @@ export default function MerchantsPage() {
     fetchMerchants(appliedFilters)
   }
 
-  const handleMerchantUpdated = () => {
-    fetchMerchants(appliedFilters)
-    setSelectedMerchant(null)
+  const handleMerchantUpdated = async (updatedMerchantId: string) => {
+    await fetchMerchants(appliedFilters); // Refresh the list in the background
+    // Fetch the single updated merchant to refresh the dialog instantly
+    try {
+        const response = await fetch(`/api/merchants/${updatedMerchantId}`);
+        if (response.ok) {
+            const freshMerchantData = await response.json();
+            setSelectedMerchant(freshMerchantData); // Update the state that is passed to the dialog
+        } else {
+            setSelectedMerchant(null);
+            setIsEditDialogOpen(false);
+        }
+    } catch (error) {
+         setSelectedMerchant(null);
+         setIsEditDialogOpen(false);
+    }
   }
 
  const handleViewClick = (merchant: Merchant) => {
@@ -234,7 +247,7 @@ export default function MerchantsPage() {
                 open={isManageTokenDialogOpen}
                 onOpenChange={setIsManageTokenDialogOpen}
                 merchant={selectedMerchant}
-                onTokenUpdated={handleMerchantUpdated}
+                onTokenUpdated={() => handleMerchantUpdated(selectedMerchant.id)}
             />
         )}
 

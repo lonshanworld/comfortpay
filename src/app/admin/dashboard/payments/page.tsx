@@ -27,66 +27,72 @@ import { Terminal } from "lucide-react"
 import Link from "next/link"
 import Image from "next/image"
 import { useToast } from "@/hooks/use-toast"
+import { cn } from "@/lib/utils"
 
-const AccountCard = ({ account, onManage }: { account: PaymentAccount, onManage: (account: PaymentAccount) => void }) => (
-  <Card>
-    <CardHeader>
-      <div className="flex items-start justify-between">
-        <div>
-          <CardTitle>{account.name}</CardTitle>
-          <CardDescription>{account.type} Account</CardDescription>
-        </div>
-        <Badge variant={account.status === 'Active' ? "secondary" : "destructive"}>{account.status}</Badge>
-      </div>
-    </CardHeader>
-    <CardContent className="space-y-4">
-       <div>
-        <p className="text-sm font-medium text-muted-foreground">Account ID</p>
-        <p className="text-sm font-mono bg-muted/50 px-2 py-1 rounded-md">{account.id}</p>
-      </div>
-       {account.websiteUrl && (
-        <div>
-            <p className="text-sm font-medium text-muted-foreground">Source Website</p>
-            <Link href={account.websiteUrl} target="_blank" className="text-sm flex items-center gap-1.5 hover:underline text-primary">
-                {new URL(account.websiteUrl).hostname} <ExternalLink className="h-3 w-3" />
-            </Link>
-        </div>
-       )}
-       {account.type === 'Zelle' && account.accountEmail && (
-        <div>
-            <p className="text-sm font-medium text-muted-foreground">Zelle Email</p>
-            <p className="text-sm">{account.accountEmail}</p>
-        </div>
-       )}
-        {account.type === 'Zelle' && account.qrCodeUrl && (
+const AccountCard = ({ account, onManage }: { account: PaymentAccount, onManage: (account: PaymentAccount) => void }) => {
+    const isOverLimit = account.currentVolume > account.dailyLimit;
+    const progressValue = isOverLimit ? 100 : (account.currentVolume / account.dailyLimit) * 100;
+  
+    return (
+      <Card>
+        <CardHeader>
+          <div className="flex items-start justify-between">
             <div>
-                <p className="text-sm font-medium text-muted-foreground mb-2">QR Code</p>
-                <div className="relative w-32 h-32">
-                    <Image
-                        src={account.qrCodeUrl}
-                        alt="Zelle QR Code"
-                        layout="fill"
-                        objectFit="contain"
-                        className="rounded-md border p-1"
-                    />
-                </div>
+              <CardTitle>{account.name}</CardTitle>
+              <CardDescription>{account.type} Account</CardDescription>
             </div>
-        )}
-      <div>
-        <p className="text-sm font-medium text-muted-foreground">Order Prefix</p>
-        <p className="text-sm font-semibold">{account.prefix_order_name || "Not Set"}</p>
-      </div>
-      <div>
-        <div className="flex justify-between text-sm text-muted-foreground mb-1">
-            <span>Daily Volume</span>
-            <span>${account.currentVolume.toLocaleString()} / ${account.dailyLimit.toLocaleString()}</span>
-        </div>
-        <Progress value={(account.currentVolume / account.dailyLimit) * 100} />
-      </div>
-      <Button variant="outline" size="sm" onClick={() => onManage(account)}>Manage Account</Button>
-    </CardContent>
-  </Card>
-)
+            <Badge variant={account.status === 'Active' ? "secondary" : "destructive"}>{account.status}</Badge>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-4">
+           <div>
+            <p className="text-sm font-medium text-muted-foreground">Account ID</p>
+            <p className="text-sm font-mono bg-muted/50 px-2 py-1 rounded-md">{account.id}</p>
+          </div>
+           {account.websiteUrl && (
+            <div>
+                <p className="text-sm font-medium text-muted-foreground">Source Website</p>
+                <Link href={account.websiteUrl} target="_blank" className="text-sm flex items-center gap-1.5 hover:underline text-primary">
+                    {new URL(account.websiteUrl).hostname} <ExternalLink className="h-3 w-3" />
+                </Link>
+            </div>
+           )}
+           {account.type === 'Zelle' && account.accountEmail && (
+            <div>
+                <p className="text-sm font-medium text-muted-foreground">Zelle Email</p>
+                <p className="text-sm">{account.accountEmail}</p>
+            </div>
+           )}
+            {account.type === 'Zelle' && account.qrCodeUrl && (
+                <div>
+                    <p className="text-sm font-medium text-muted-foreground mb-2">QR Code</p>
+                    <div className="relative w-32 h-32">
+                        <Image
+                            src={account.qrCodeUrl}
+                            alt="Zelle QR Code"
+                            layout="fill"
+                            objectFit="contain"
+                            className="rounded-md border p-1"
+                        />
+                    </div>
+                </div>
+            )}
+          <div>
+            <p className="text-sm font-medium text-muted-foreground">Order Prefix</p>
+            <p className="text-sm font-semibold">{account.prefix_order_name || "Not Set"}</p>
+          </div>
+          <div>
+            <div className={cn("flex justify-between text-sm mb-1", isOverLimit ? "text-destructive font-semibold" : "text-muted-foreground")}>
+                <span>Daily Volume</span>
+                <span>${account.currentVolume.toLocaleString()} / ${account.dailyLimit.toLocaleString()}</span>
+            </div>
+            <Progress value={progressValue} className={cn(isOverLimit && "[&>div]:bg-destructive")} />
+          </div>
+          <Button variant="outline" size="sm" onClick={() => onManage(account)}>Manage Account</Button>
+        </CardContent>
+      </Card>
+    )
+}
 
 const AccountGrid = ({ accounts, type, onManage }: { accounts: PaymentAccount[], type: PaymentAccountType, onManage: (account: PaymentAccount) => void }) => {
   const filteredAccounts = accounts.filter((acc) => acc.type === type)

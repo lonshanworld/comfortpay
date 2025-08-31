@@ -65,30 +65,35 @@ function SquarePaymentForm({ sessionData, onPaymentSuccess, setParentProcessing 
     const [isProcessing, setIsProcessing] = useState(false);
     
     useEffect(() => {
-        if (!sessionData.paymentDetails?.paymentAccountId || !cardRef.current) {
+        if (!sessionData.paymentDetails?.paymentAccountId) {
+            return;
+        }
+        if (!cardRef.current) {
             return;
         }
 
         let isMounted = true;
         
         const initializeSquare = async () => {
-             // If form is already there, do nothing.
-            if (cardInstance.current || (cardRef.current && cardRef.current.childElementCount > 0)) {
+            if (cardInstance.current) {
                 setIsCardReady(true);
                 return;
             }
 
             try {
                 const appIdRes = await fetch(`/api/payments/public-key/${sessionData.paymentDetails!.paymentAccountId}`);
-                if (!appIdRes.ok) throw new Error("Could not fetch Square App ID.");
+                if (!appIdRes.ok) throw new Error(`Could not fetch Square App ID. Status: ${appIdRes.status}`);
                 const { applicationId, locationId } = await appIdRes.json();
+
 
                 if (!applicationId || !locationId) {
                     throw new Error("Square Application ID or Location ID not configured.");
                 }
 
                 const initCard = async (payments: any) => {
-                    if (!isMounted) return;
+                    if (!isMounted) {
+                        return;
+                    }
                     try {
                         const squareCard = await payments.card();
                         if (cardRef.current) {
@@ -97,7 +102,8 @@ function SquarePaymentForm({ sessionData, onPaymentSuccess, setParentProcessing 
                             setIsCardReady(true);
                         }
                     } catch (e) {
-                         console.error("Failed to attach square card", e);
+                        console.error("Failed to attach square card", e);
+                        toast({ variant: "destructive", title: "Payment Form Error", description: "Could not render the payment form." });
                     }
                 };
                 
@@ -115,9 +121,11 @@ function SquarePaymentForm({ sessionData, onPaymentSuccess, setParentProcessing 
                     script.src = "https://sandbox.web.squarecdn.com/v1/square.js";
                     script.id = "square-sdk";
                     script.async = true;
-                    script.onload = loadAndInit;
+                    script.onload = () => {
+                        loadAndInit();
+                    };
                     script.onerror = () => {
-                        throw new Error("Square SDK script failed to load.");
+                        throw new Error("Square SDK script could not be loaded from the CDN.");
                     };
                     document.head.appendChild(script);
                 } else if (window.Square) {
@@ -152,7 +160,7 @@ function SquarePaymentForm({ sessionData, onPaymentSuccess, setParentProcessing 
                 throw new Error(result.errors?.map(e => e.message).join(', ') || "Failed to tokenize card.");
             }
         } catch (error: any) {
-            console.error("Square payment error:", error);
+            console.error("Square Payment error:", error);
             toast({ variant: "destructive", title: "Payment Failed", description: error.message });
             setIsProcessing(false);
             setParentProcessing(false);
@@ -162,11 +170,11 @@ function SquarePaymentForm({ sessionData, onPaymentSuccess, setParentProcessing 
     return (
       <>
         <div ref={cardRef} style={{ minHeight: !isCardReady ? '50px' : 'auto' }}>
-            {!isCardReady && <Loader2 className="animate-spin h-5 w-5 mx-auto" />}
+          {!isCardReady && <Loader2 className="animate-spin h-5 w-5 mx-auto" />}
         </div>
         <Button onClick={handlePayment} disabled={isProcessing || !isCardReady} className="w-full">
-            {isProcessing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CreditCard className="mr-2 h-4 w-4" />}
-            Pay ${sessionData.totalAmount?.toFixed(2)}
+          {isProcessing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CreditCard className="mr-2 h-4 w-4" />}
+          Pay ${sessionData.totalAmount?.toFixed(2)}
         </Button>
       </>
     )
@@ -203,11 +211,11 @@ function StripePaymentForm({ sessionData, onPaymentSuccess, setParentProcessing 
     }
 
     try {
-        await onPaymentSuccess(paymentMethod.id);
+      await onPaymentSuccess(paymentMethod.id);
     } catch (e: any) {
-        toast({ variant: "destructive", title: "Payment Error", description: e.message || 'An unknown error occurred' });
-        setIsProcessing(false);
-        setParentProcessing(false);
+      toast({ variant: "destructive", title: "Payment Error", description: e.message || 'An unknown error occurred' });
+      setIsProcessing(false);
+      setParentProcessing(false);
     }
   };
 
@@ -233,7 +241,7 @@ function CheckoutForm({ sessionData }: { sessionData: CreateCheckoutSessionInput
   useEffect(() => {
     // Check if running in an iframe (modal)
     if (window.self !== window.top) {
-        setIsModal(true);
+      setIsModal(true);
     }
     
     if (sessionData.processor === 'Stripe' && sessionData.paymentDetails?.paymentAccountId) {
@@ -243,7 +251,7 @@ function CheckoutForm({ sessionData }: { sessionData: CreateCheckoutSessionInput
           if(data.publicKey) {
             setStripePromise(loadStripe(data.publicKey));
           } else {
-             toast({ variant: "destructive", title: "Configuration Error", description: data.message || "Stripe public key is not configured for this account." });
+            toast({ variant: "destructive", title: "Configuration Error", description: data.message || "Stripe public key is not configured for this account." });
           }
         })
         .catch(err => toast({ variant: "destructive", title: "Stripe Error", description: "Could not load Stripe. Please contact support." }))
@@ -261,76 +269,76 @@ function CheckoutForm({ sessionData }: { sessionData: CreateCheckoutSessionInput
 
   const handlePaymentSuccess = async (paymentMethodId: string) => {
     if (!sessionData.comfortPayOrderId || typeof sessionData.totalAmount === 'undefined') {
-        toast({ variant: "destructive", title: "Payment Error", description: "Internal order ID or final amount is missing." });
-        return;
+      toast({ variant: "destructive", title: "Payment Error", description: "Internal order ID or final amount is missing." });
+      return;
     }
     const paymentResult = await processPayment({
-        processor: sessionData.processor as 'Stripe' | 'Square',
-        paymentMethodId: paymentMethodId,
-        comfortPayOrderId: sessionData.comfortPayOrderId,
-        amount: sessionData.totalAmount,
-        currency: sessionData.currency || 'USD',
+      processor: sessionData.processor as 'Stripe' | 'Square',
+      paymentMethodId: paymentMethodId,
+      comfortPayOrderId: sessionData.comfortPayOrderId,
+      amount: sessionData.totalAmount,
+      currency: sessionData.currency || 'USD',
     });
 
     if (paymentResult.success && paymentResult.transactionId) {
-        await updateOrderStatus('Completed', paymentResult.transactionId);
-        
-        if (isModal) {
-            window.parent.postMessage({ type: 'comfortPay:success', data: { orderId: sessionData.comfortPayOrderId, status: 'Completed' }}, '*');
-        } else if(sessionData.wooCommerceOrderReceivedUrl) {
-            window.location.href = sessionData.wooCommerceOrderReceivedUrl;
-        }
+      await updateOrderStatus('Completed', paymentResult.transactionId);
+      
+      if (isModal) {
+        window.parent.postMessage({ type: 'comfortPay:success', data: { orderId: sessionData.comfortPayOrderId, status: 'Completed' }}, '*');
+      } else if(sessionData.wooCommerceOrderReceivedUrl) {
+        window.location.href = sessionData.wooCommerceOrderReceivedUrl;
+      }
 
     } else {
-        throw new Error(paymentResult.error || "Payment processing failed.");
+      throw new Error(paymentResult.error || "Payment processing failed.");
     }
   };
   
   const updateOrderStatus = async (status: 'Completed' | 'Requires Confirmation', transactionId?: string) => {
     if (!sessionData.comfortPayOrderId) return;
     try {
-        const payload: Partial<Order> = { status };
-        if (transactionId) payload.paymentGatewayTransactionId = transactionId;
-        if (status === 'Completed' && typeof sessionData.totalAmount !== 'undefined') {
-            payload.paidAmount = sessionData.totalAmount;
-            payload.paymentReceivedDate = new Date().toISOString();
-        }
-        
-        const response = await fetch(`/api/orders/${sessionData.comfortPayOrderId}`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload),
+      const payload: Partial<Order> = { status };
+      if (transactionId) payload.paymentGatewayTransactionId = transactionId;
+      if (status === 'Completed' && typeof sessionData.totalAmount !== 'undefined') {
+        payload.paidAmount = sessionData.totalAmount;
+        payload.paymentReceivedDate = new Date().toISOString();
+      }
+      
+      const response = await fetch(`/api/orders/${sessionData.comfortPayOrderId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to update order status.");
+      }
+      
+      const updatedOrder = await response.json();
+      
+      // Update payment account volume
+      if (updatedOrder.paymentAccountId && typeof sessionData.totalAmount !== 'undefined') {
+        await fetch(`/api/payments/accounts/${updatedOrder.paymentAccountId}/update-volume`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ amount: Number(sessionData.totalAmount) }),
         });
+      }
+      
+      // Only send email notifications if the payment is fully completed.
+      if (status === 'Completed') {
+        const merchantDetailsRes = await fetch(`/api/merchants/${sessionData.merchantId}/details`);
+        const merchantDetails = await merchantDetailsRes.json();
+        const merchantName = merchantDetails?.name || 'Your Merchant';
 
-        if (!response.ok) {
-            throw new Error("Failed to update order status.");
-        }
-        
-        const updatedOrder = await response.json();
-        
-        // Update payment account volume
-        if (updatedOrder.paymentAccountId && typeof sessionData.totalAmount !== 'undefined') {
-            await fetch(`/api/payments/accounts/${updatedOrder.paymentAccountId}/update-volume`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ amount: Number(sessionData.totalAmount) }),
-            });
-        }
-        
-        // Only send email notifications if the payment is fully completed.
-        if (status === 'Completed') {
-          const merchantDetailsRes = await fetch(`/api/merchants/${sessionData.merchantId}/details`);
-          const merchantDetails = await merchantDetailsRes.json();
-          const merchantName = merchantDetails?.name || 'Your Merchant';
-
-          // Send emails but don't wait for them
-          sendOrderNotification({ recipientType: 'customer', customerEmail: sessionData.billingDetails.email, merchantName, orderDetails: sessionData, items: sessionData.items });
-          sendOrderNotification({ recipientType: 'merchant', merchantEmail: merchantDetails.email, merchantName, orderDetails: sessionData, items: sessionData.items });
-        }
+        // Send emails but don't wait for them
+        sendOrderNotification({ recipientType: 'customer', customerEmail: sessionData.billingDetails.email, merchantName, orderDetails: sessionData, items: sessionData.items });
+        sendOrderNotification({ recipientType: 'merchant', merchantEmail: merchantDetails.email, merchantName, orderDetails: sessionData, items: sessionData.items });
+      }
 
     } catch (error: any) {
-        console.error("Status update/notification error:", error);
-        toast({ variant: "destructive", title: "Post-Payment Error", description: error.message });
+      console.error("Status update/notification error:", error);
+      toast({ variant: "destructive", title: "Post-Payment Error", description: error.message });
     }
   }
   
@@ -366,34 +374,34 @@ function CheckoutForm({ sessionData }: { sessionData: CreateCheckoutSessionInput
               <StripePaymentForm sessionData={sessionData} onPaymentSuccess={handlePaymentSuccess} setParentProcessing={setIsProcessing} />
             </Elements>
           )}
-           {sessionData.processor === 'Square' && (
+          {sessionData.processor === 'Square' && (
             <SquarePaymentForm sessionData={sessionData} onPaymentSuccess={handlePaymentSuccess} setParentProcessing={setIsProcessing} />
           )}
           {sessionData.processor === 'Zelle' && (
-             <div className="space-y-6 text-center">
-                <div>
-                    <p className="text-sm text-muted-foreground">Send payment to:</p>
-                    <p className="text-2xl lg:text-4xl font-semibold text-primary">{sessionData.paymentDetails?.accountEmail}</p>
+            <div className="space-y-6 text-center">
+              <div>
+                <p className="text-sm text-muted-foreground">Send payment to:</p>
+                <p className="text-2xl lg:text-4xl font-semibold text-primary">{sessionData.paymentDetails?.accountEmail}</p>
+              </div>
+              {sessionData.paymentDetails?.qrCodeUrl && (
+                <div className="flex justify-center">
+                  <Image src={sessionData.paymentDetails.qrCodeUrl} alt="Zelle QR Code" width={200} height={200} className="rounded-lg border shadow-sm" />
                 </div>
-                {sessionData.paymentDetails?.qrCodeUrl && (
-                    <div className="flex justify-center">
-                        <Image src={sessionData.paymentDetails.qrCodeUrl} alt="Zelle QR Code" width={200} height={200} className="rounded-lg border shadow-sm" />
-                    </div>
-                )}
-                <div>
-                     <p className="text-lg text-muted-foreground">Memo = <span className="text-2xl lg:text-4xl font-bold text-primary">{visualOrderId}</span></p>
-                </div>
-                <Alert>
-                    <AlertTitle>Important!</AlertTitle>
-                    <AlertDescription>
-                        You must include the exact memo shown above with your Zelle payment. After sending, click the button below to confirm.
-                    </AlertDescription>
-                </Alert>
-                <Button onClick={handleZelleConfirmation} className="w-full" disabled={isProcessing}>
-                    {isProcessing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                    I Have Sent The Zelle Payment
-                </Button>
-             </div>
+              )}
+              <div>
+                <p className="text-lg text-muted-foreground">Memo = <span className="text-2xl lg:text-4xl font-bold text-primary">{visualOrderId}</span></p>
+              </div>
+              <Alert>
+                <AlertTitle>Important!</AlertTitle>
+                <AlertDescription>
+                  You must include the exact memo shown above with your Zelle payment. After sending, click the button below to confirm.
+                </AlertDescription>
+              </Alert>
+              <Button onClick={handleZelleConfirmation} className="w-full" disabled={isProcessing}>
+                {isProcessing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                I Have Sent The Zelle Payment
+              </Button>
+            </div>
           )}
         </CardContent>
       </Card>
@@ -403,27 +411,27 @@ function CheckoutForm({ sessionData }: { sessionData: CreateCheckoutSessionInput
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-2">
-             <h3 className="font-semibold">Items</h3>
-             {(items || []).map((item, index) => (
-                <div key={index} className="flex justify-between text-sm">
-                    <p>{item.name} x {item.quantity}</p>
-                    <p>${(item.price * item.quantity).toFixed(2)}</p>
-                </div>
-             ))}
+            <h3 className="font-semibold">Items</h3>
+            {(items || []).map((item, index) => (
+              <div key={index} className="flex justify-between text-sm">
+                <p>{item.name} x {item.quantity}</p>
+                <p>${(item.price * item.quantity).toFixed(2)}</p>
+              </div>
+            ))}
           </div>
           <Separator />
           <div className="space-y-1 text-sm">
-             <div className="flex justify-between">
-                <p>Subtotal</p>
-                <p>${orderAmount.toFixed(2)}</p>
+            <div className="flex justify-between">
+              <p>Subtotal</p>
+              <p>${orderAmount.toFixed(2)}</p>
             </div>
-             <div className="flex justify-between">
-                <p>Shipping & Taxes</p>
-                <p>${(totalAmount - orderAmount).toFixed(2)}</p>
+            <div className="flex justify-between">
+              <p>Shipping & Taxes</p>
+              <p>${(totalAmount - orderAmount).toFixed(2)}</p>
             </div>
-             <div className="flex justify-between font-bold text-base">
-                <p>Total</p>
-                <p>${totalAmount.toFixed(2)}</p>
+            <div className="flex justify-between font-bold text-base">
+              <p>Total</p>
+              <p>${totalAmount.toFixed(2)}</p>
             </div>
           </div>
           <Separator />
@@ -462,18 +470,18 @@ function CheckoutPage() {
     <div className="min-h-screen bg-background flex flex-col items-center justify-center p-4">
       <div className="w-full max-w-5xl mx-auto">
         <div className="mb-8 text-center">
-            <Logo className="h-10 w-auto mx-auto text-primary" />
+          <Logo className="h-10 w-auto mx-auto text-primary" />
         </div>
         {sessionData ? <CheckoutForm sessionData={sessionData} /> : (
           <Card className="w-full max-w-md mx-auto">
             <CardHeader className="text-center">
-                <CardTitle>Loading Checkout...</CardTitle>
-                <CardDescription>Please wait while we load your secure payment session.</CardDescription>
+              <CardTitle>Loading Checkout...</CardTitle>
+              <CardDescription>Please wait while we load your secure payment session.</CardDescription>
             </CardHeader>
             <CardContent>
-                <div className="flex justify-center items-center py-8">
-                    <Loader2 className="h-10 w-10 animate-spin text-primary" />
-                </div>
+              <div className="flex justify-center items-center py-8">
+                <Loader2 className="h-10 w-10 animate-spin text-primary" />
+              </div>
             </CardContent>
           </Card>
         )}

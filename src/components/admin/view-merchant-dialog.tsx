@@ -26,7 +26,7 @@ interface ViewMerchantDialogProps {
 }
 
 const DetailRow = ({ label, value, isCopyable = false, onCopy, children }: { label: string, value?: string | number | null, isCopyable?: boolean, onCopy?: (value: string) => void, children?: React.ReactNode }) => {
-    if (!value && value !== 0 && !children) return null;
+    if ((value === null || value === undefined || value === '') && !children) return null;
     const displayValue = typeof value === 'number' ? value.toString() : value;
     return (
         <div className="grid grid-cols-3 gap-2 text-sm items-center py-1.5">
@@ -72,20 +72,27 @@ const DocumentRow = ({ label, url, type }: { label: string, url?: string, type: 
 }
 
 const FeeDetailRow = ({ label, fee, isPercentage = false, isFixed = false }: { label: string, fee?: Fee, isPercentage?: boolean, isFixed?: boolean }) => {
-    if (!fee || typeof fee.value === 'undefined' || fee.value === null) return <DetailRow label={label} value="N/A" />;
+    // A fee is considered not set if the fee object itself is missing, or if its value is undefined or null.
+    if (!fee || typeof fee.value !== 'number') {
+        return <DetailRow label={label} value="N/A" />;
+    }
 
-    let value;
+    const value = fee.value || 0;
+    let displayValue;
+
     if (isPercentage) {
-        value = `${fee.value}%`;
+        displayValue = `${value}%`;
     } else { // Flat fee or fixed amount
-        value = `$${Number(fee.value).toFixed(2)}`;
+        displayValue = `$${Number(value).toFixed(2)}`;
     }
     
-    return <DetailRow label={label} value={value} />;
+    return <DetailRow label={label} value={displayValue} />;
 }
 
+
 const GatewayFeeDetails = ({ name, fees }: { name: string, fees?: GatewayFee }) => {
-    if (!fees) {
+    // Check if the gateway object exists and has an 'enabled' property
+    if (!fees || typeof fees.enabled === 'undefined') {
         return (
              <div className="p-3 rounded-lg border bg-muted/50">
                  <h5 className="font-semibold capitalize flex items-center gap-2 mb-2"><XCircle className="h-4 w-4 text-destructive"/>{name}</h5>
@@ -170,7 +177,7 @@ export function ViewMerchantDialog({ open, onOpenChange, merchant }: ViewMerchan
                         <DetailRow label="API Token" value={merchant.token} isCopyable onCopy={(v) => handleCopy(v, 'API Token')} />
                         <DetailRow label="Order ID Prefix" value={merchant.orderIdPrefix || "Not Set"} />
                         <DetailRow label="Status"><Badge variant={merchant.status === 'Active' ? "secondary" : "destructive"}>{merchant.status}</Badge></DetailRow>
-                        <DetailRow label="Date Joined" value={new Date(merchant.dateJoined).toLocaleDateString()} />
+                        <DetailRow label="Date Joined" value={new Date(merchant.dateJoined || Date.now()).toLocaleDateString()} />
                         {merchant.websiteUrl && <DetailRow label="Website" value={merchant.websiteUrl} />}
                      </div>
                 </section>

@@ -23,16 +23,18 @@ export async function processPayment(input: PaymentInput): Promise<{ success: bo
     return { success: false, error: "Invalid payment input." };
   }
 
-  const { processor, paymentMethodId, comfortPayOrderId, amount, currency } = validation.data;
+  const { processor, paymentMethodId, comfortPayOrderId, currency } = validation.data;
   const numericOrderId = comfortPayOrderId.replace('CP', '');
 
   try {
-    const orderResult: any[] = await executeQuery("SELECT paymentAccountId FROM orders WHERE id = ?", [numericOrderId]);
+    const orderResult: any[] = await executeQuery("SELECT paymentAccountId, items, totalAmount FROM orders WHERE id = ?", [numericOrderId]);
     if (orderResult.length === 0) {
       throw new Error("Order not found.");
     }
     
     const paymentAccountId = orderResult[0]?.paymentAccountId; 
+    const totalAmountFromOrder = orderResult[0]?.totalAmount;
+
     if (!paymentAccountId) {
       throw new Error("Payment account not associated with this order.");
     }
@@ -47,7 +49,7 @@ export async function processPayment(input: PaymentInput): Promise<{ success: bo
       const stripe = new Stripe(secretKey, { apiVersion: '2025-07-30.basil' });
       
       const paymentIntent = await stripe.paymentIntents.create({
-        amount: Math.round(amount * 100),
+        amount: Math.round(totalAmountFromOrder * 100), // Use the authoritative amount from the database
         currency: currency.toLowerCase(),
         payment_method: paymentMethodId,
         confirmation_method: 'manual',
@@ -75,15 +77,37 @@ export async function processPayment(input: PaymentInput): Promise<{ success: bo
         accessToken: accessToken,
         environment: squareEnv,
       });
+      
+      const itemsData = orderResult[0]?.items;
+      const lineItems = typeof itemsData === 'string' ? JSON.parse(itemsData) : itemsData || [];
+
+      const orderResponse = await squareClient.ordersApi.createOrder({
+        order: {
+          locationId: process.env[`SQUARE_LOCATION_ID_${numericPaymentAccountId}`]!,
+          lineItems: lineItems.map((item: any) => ({
+            name: item.name,
+            quantity: item.quantity.toString(),
+            basePriceMoney: {
+              amount: BigInt(Math.round(item.price * 100)),
+              currency: currency.toUpperCase()
+            }
+          })),
+          referenceId: comfortPayOrderId,
+        },
+        idempotencyKey: randomUUID()
+      });
+
+      if (!orderResponse.result.order?.id || !orderResponse.result.order?.totalMoney) {
+          throw new Error("Failed to create Square order or retrieve order total.");
+      }
+      const squareOrderId = orderResponse.result.order.id;
+      const squareTotalMoney = orderResponse.result.order.totalMoney;
 
       const response = await squareClient.paymentsApi.createPayment({
         sourceId: paymentMethodId, // This is the nonce from the frontend
         idempotencyKey: randomUUID(),
-        amountMoney: {
-          amount: BigInt(Math.round(amount * 100)),
-          currency: currency.toUpperCase(),
-        },
-        orderId: numericOrderId, // Use our internal numeric order id
+        amountMoney: squareTotalMoney, // Use the total from the created Square order
+        orderId: squareOrderId,
       });
       
       const payment = response.result.payment;

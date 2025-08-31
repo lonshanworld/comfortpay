@@ -41,6 +41,7 @@ import { Switch } from "../ui/switch";
 
 const feeSchema = z.object({
   value: z.coerce.number().optional(),
+  type: z.enum(["percentage", "flat"]).optional(),
 });
 
 const gatewayFeeSchema = z.object({
@@ -100,7 +101,7 @@ type MerchantFormValues = z.infer<typeof merchantFormSchema>;
 interface EditMerchantDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onMerchantUpdated: () => void;
+  onMerchantUpdated: (merchantId: string) => void;
   merchant: Merchant | null;
 }
 
@@ -235,27 +236,25 @@ export function EditMerchantDialog({ open, onOpenChange, onMerchantUpdated, merc
 
   useEffect(() => {
     if (merchant && open) {
-        form.reset({
-          name: merchant.name || "",
-          email: merchant.email || "",
-          password: "", // Do not pre-fill password
-          websiteUrl: merchant.websiteUrl || "",
-          orderIdPrefix: merchant.orderIdPrefix || "",
-          status: merchant.status || "Active",
-          nationality: merchant.nationality || "",
-          dateOfBirth: merchant.dateOfBirth ? new Date(merchant.dateOfBirth).toISOString().split('T')[0] : "",
-          idType: merchant.idType,
-          bankName: merchant.bankName || "",
-          bankAccountNumber: merchant.bankAccountNumber || "",
-          bankAccountType: merchant.bankAccountType || "",
-          bankEmail: merchant.bankEmail || "",
-          walletAddress: merchant.walletAddress || "",
-          network: merchant.network || "",
-          settlementFees: merchant.settlementFees || {},
-          paymentGatewayFees: merchant.paymentGatewayFees || {},
-          salesAgentId: merchant.salesAgentId || "none",
-          commissionRates: merchant.commissionRates || {},
-        });
+        // Deep merge the merchant data with default structure to prevent errors
+        const defaultGatewayFees = {
+            stripe: { enabled: false, transactionFee: {}, transactionFeeFixed: {}, refundFee: {}, chargebackFee: {} },
+            square: { enabled: false, transactionFee: {}, transactionFeeFixed: {}, refundFee: {}, chargebackFee: {} },
+            zelle: { enabled: false, transactionFee: {}, transactionFeeFixed: {}, refundFee: {}, chargebackFee: {} },
+        };
+
+        const formValues = {
+            ...merchant,
+            password: "", // Always clear password field
+            dateOfBirth: merchant.dateOfBirth ? new Date(merchant.dateOfBirth).toISOString().split('T')[0] : "",
+            salesAgentId: merchant.salesAgentId || "none",
+            paymentGatewayFees: {
+              stripe: { ...defaultGatewayFees.stripe, ...(merchant.paymentGatewayFees?.stripe || {}) },
+              square: { ...defaultGatewayFees.square, ...(merchant.paymentGatewayFees?.square || {}) },
+              zelle: { ...defaultGatewayFees.zelle, ...(merchant.paymentGatewayFees?.zelle || {}) },
+            },
+        };
+        form.reset(formValues);
     }
   }, [merchant, open, form]);
 
@@ -294,13 +293,15 @@ export function EditMerchantDialog({ open, onOpenChange, onMerchantUpdated, merc
         throw new Error('Failed to update merchant');
       }
       
+      const updatedMerchant = await response.json();
+      
       toast({
         title: "Merchant Updated",
         description: `Merchant "${values.name}" has been updated successfully.`,
       });
 
+      onMerchantUpdated(updatedMerchant.id);
       onOpenChange(false);
-      onMerchantUpdated();
 
     } catch (error) {
       toast({
@@ -379,7 +380,7 @@ export function EditMerchantDialog({ open, onOpenChange, onMerchantUpdated, merc
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Status</FormLabel>
-                      <Select onValueChange={field.onChange} defaultValue={field.value} disabled={isLoading}>
+                      <Select onValueChange={field.onChange} value={field.value} disabled={isLoading}>
                         <FormControl>
                           <SelectTrigger>
                             <SelectValue placeholder="Select a status" />
@@ -454,7 +455,7 @@ export function EditMerchantDialog({ open, onOpenChange, onMerchantUpdated, merc
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>ID Type</FormLabel>
-                    <Select onValueChange={field.onChange} defaultValue={field.value} disabled={isLoading}>
+                    <Select onValueChange={field.onChange} value={field.value} disabled={isLoading}>
                       <FormControl>
                         <SelectTrigger>
                           <SelectValue placeholder="Select ID Type" />
@@ -608,7 +609,7 @@ export function EditMerchantDialog({ open, onOpenChange, onMerchantUpdated, merc
                       render={({ field }) => (
                         <FormItem>
                           <FormLabel>Assigned Sales Agent</FormLabel>
-                          <Select onValueChange={field.onChange} value={field.value} defaultValue={field.value} disabled={isLoading}>
+                          <Select onValueChange={field.onChange} value={field.value} disabled={isLoading}>
                             <FormControl>
                               <SelectTrigger>
                                 <SelectValue placeholder="No agent assigned" />

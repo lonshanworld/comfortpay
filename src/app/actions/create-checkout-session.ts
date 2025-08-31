@@ -46,7 +46,7 @@ export async function createCheckoutSession(input: CreateCheckoutSessionInput): 
     const merchant: User = merchantResult[0];
     console.log(`✅ Found Merchant: ${merchant.name} (ID: ${merchant.id})`);
     
-    if (!input.wooCommerceOrderReceivedUrl && !input.redirectUrl) {
+    if (!input.redirectUrl) {
         console.error("❌ Error: A redirect URL was not provided by the merchant's site.");
         return { error: "A redirect URL was not provided by the merchant's site." };
     }
@@ -80,32 +80,32 @@ export async function createCheckoutSession(input: CreateCheckoutSessionInput): 
         return { error: `No payment processors enabled for this merchant for the '${input.paymentMethod}' method.` };
     }
     
-    // 2. Query for all active, available payment accounts of the enabled types that can handle the transaction amount.
+    // 2. Query for all active payment accounts of the enabled types that are NOT already over their limit.
     const placeholders = enabledProcessors.map(() => '?').join(',');
-    const paymentAccountResults: PaymentAccount[] = await executeQuery(
-        `SELECT * FROM payment_accounts WHERE type IN (${placeholders}) AND status = 'Active' AND (currentVolume + ?) <= dailyLimit`,
-        [...enabledProcessors, input.totalAmount]
+    const eligiblePaymentAccounts: PaymentAccount[] = await executeQuery(
+        `SELECT * FROM payment_accounts WHERE type IN (${placeholders}) AND status = 'Active' AND currentVolume < dailyLimit`,
+        [...enabledProcessors]
     );
 
-    console.log(`Found ${paymentAccountResults.length} payment accounts with capacity:`, paymentAccountResults.map(p => ({id: p.id, type: p.type, currentVolume: p.currentVolume, dailyLimit: p.dailyLimit})));
-    
-    if (paymentAccountResults.length === 0) {
-        console.error(`❌ Error: No active and available payment account found with enough capacity.`);
-         return { error: `No active and available payment account found with enough capacity for the requested payment method.` };
+    if (eligiblePaymentAccounts.length === 0) {
+        console.error(`❌ Error: No payment accounts available for method '${input.paymentMethod}' that are under their daily processing limit.`);
+        return { error: `This payment method is temporarily unavailable due to high volume. Please try again later or contact support. (Ref: ALL_ACCOUNTS_AT_CAPACITY)` };
     }
+    console.log(`Found ${eligiblePaymentAccounts.length} eligible accounts under their limit.`);
 
-    // 3. Implement the refined selection logic.
+    // 3. From the eligible accounts, select the best one.
     let selectedAccount: PaymentAccount | null = null;
     
-    if (paymentAccountResults.length === 1) {
-        selectedAccount = paymentAccountResults[0];
+    if (eligiblePaymentAccounts.length === 1) {
+        selectedAccount = eligiblePaymentAccounts[0];
         console.log(`Only one account available. Selected:`, {id: selectedAccount.id, type: selectedAccount.type});
     } else {
         console.log("Multiple Payment Accounts Found, applying selection logic.");
-        const minCurrentVolume = Math.min(...paymentAccountResults.map(acc => Number(acc.currentVolume)));
+        // Find the account with the lowest current volume to balance the load.
+        const minCurrentVolume = Math.min(...eligiblePaymentAccounts.map(acc => Number(acc.currentVolume)));
         console.log(`Minimum current volume found: ${minCurrentVolume}`);
         
-        const bestAccounts = paymentAccountResults.filter(acc => Number(acc.currentVolume) === minCurrentVolume);
+        const bestAccounts = eligiblePaymentAccounts.filter(acc => Number(acc.currentVolume) === minCurrentVolume);
         console.log(`Found ${bestAccounts.length} best accounts with that volume:`, bestAccounts.map(p => ({id: p.id, type: p.type})));
         
         if (bestAccounts.length > 0) {
@@ -144,8 +144,8 @@ export async function createCheckoutSession(input: CreateCheckoutSessionInput): 
 
     const orderInsertQuery = `
       INSERT INTO orders 
-      (merchantId, merchantOrderId, visualOrderId, orderDate, customerName, customerEmail, status, paymentMethod, orderAmount, totalAmount, paidAmount, currency, paymentType, paymentAccountId) 
-      VALUES (?, ?, ?, ?, ?, ?, 'Pending', ?, ?, ?, 0, ?, ?, ?)
+      (merchantId, merchantOrderId, visualOrderId, orderDate, customerName, customerEmail, status, paymentMethod, orderAmount, totalAmount, paidAmount, currency, paymentType, paymentAccountId, items) 
+      VALUES (?, ?, ?, ?, ?, ?, 'Pending', ?, ?, ?, 0, ?, ?, ?, ?)
     `;
     const orderParams = [
         numericMerchantId, input.merchantOrderId, visualId, formatDateForMySQL(new Date()),
@@ -155,7 +155,8 @@ export async function createCheckoutSession(input: CreateCheckoutSessionInput): 
         input.totalAmount, // from WooCommerce (subtotal + shipping/tax)
         input.currency || 'USD',
         selectedGateway, // e.g. "Stripe", "Square"
-        selectedAccount.id // Save the numeric ID to the database
+        selectedAccount.id,
+        JSON.stringify(input.items || []) // Store items as a JSON string
     ];
 
     const orderResult = await runQuery(orderInsertQuery, orderParams);
@@ -179,7 +180,7 @@ export async function createCheckoutSession(input: CreateCheckoutSessionInput): 
     const sessionData = JSON.stringify(sessionDataWithDetails);
     const sessionToken = Buffer.from(sessionData).toString('base64');
     
-    const appUrl = process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000';
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
     const checkoutUrl = `${appUrl}/checkout/new?session=${sessionToken}`;
     console.log(`✅ Session created successfully. Checkout URL: ${checkoutUrl}`);
     console.log("==========================================");

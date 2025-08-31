@@ -39,24 +39,9 @@ async function initialize() {
         await connection.query(`USE \`${dbName}\`;`);
         console.log(`Using database "${dbName}".`);
 
-        console.log('Dropping existing tables...');
-        await connection.query('SET FOREIGN_KEY_CHECKS = 0;');
-        await connection.query('DROP TABLE IF EXISTS settings;');
-        await connection.query('DROP TABLE IF EXISTS notifications;');
-        await connection.query('DROP TABLE IF EXISTS payment_accounts;');
-        await connection.query('DROP TABLE IF EXISTS orders;');
-        await connection.query('DROP TABLE IF EXISTS users;');
-        await connection.query('SET FOREIGN_KEY_CHECKS = 1;');
-        console.log('Existing tables dropped.');
-        
-        console.log('Cleaning up old upload directories...');
-        const uploadsDir = path.join(process.cwd(), 'public', 'uploads');
-        await fs.rm(uploadsDir, { recursive: true, force: true });
-        console.log('Old upload directories cleaned.');
-
-        console.log('Creating tables...');
+        console.log('Creating tables if they do not exist...');
         await connection.query(`
-            CREATE TABLE users (
+            CREATE TABLE IF NOT EXISTS users (
                 id INT PRIMARY KEY AUTO_INCREMENT,
                 name VARCHAR(255) NOT NULL,
                 email VARCHAR(255) NOT NULL UNIQUE,
@@ -87,7 +72,7 @@ async function initialize() {
             ) ENGINE=InnoDB;
         `);
         await connection.query(`
-            CREATE TABLE orders (
+            CREATE TABLE IF NOT EXISTS orders (
                 id INT PRIMARY KEY AUTO_INCREMENT,
                 merchantId INT,
                 merchantOrderId VARCHAR(255) NOT NULL,
@@ -106,11 +91,12 @@ async function initialize() {
                 paymentAccountId INT,
                 paymentGatewayTransactionId VARCHAR(255),
                 billingDetails JSON,
+                items JSON,
                 FOREIGN KEY (merchantId) REFERENCES users(id) ON DELETE SET NULL
             ) ENGINE=InnoDB;
         `);
         await connection.query(`
-            CREATE TABLE payment_accounts (
+            CREATE TABLE IF NOT EXISTS payment_accounts (
                 id INT PRIMARY KEY AUTO_INCREMENT,
                 type VARCHAR(50) NOT NULL,
                 name VARCHAR(255) NOT NULL,
@@ -124,7 +110,7 @@ async function initialize() {
             ) ENGINE=InnoDB;
         `);
         await connection.query(`
-            CREATE TABLE notifications (
+            CREATE TABLE IF NOT EXISTS notifications (
                 id INT PRIMARY KEY AUTO_INCREMENT,
                 userId INT,
                 type VARCHAR(50) NOT NULL,
@@ -137,17 +123,27 @@ async function initialize() {
             ) ENGINE=InnoDB;
         `);
         await connection.query(`
-            CREATE TABLE settings (
+            CREATE TABLE IF NOT EXISTS settings (
                 \`key\` VARCHAR(255) PRIMARY KEY,
                 \`value\` TEXT
             ) ENGINE=InnoDB;
         `);
-        console.log('Tables created.');
+        console.log('Tables created or verified.');
+        
+        // Check and alter table for 'items' column
+        const [columns] = await connection.query(`SHOW COLUMNS FROM orders LIKE 'items'`);
+        if (columns.length === 0) {
+            console.log("Adding 'items' column to 'orders' table...");
+            await connection.query(`ALTER TABLE orders ADD COLUMN items JSON`);
+            console.log("'items' column added.");
+        } else {
+            console.log("'items' column already exists in 'orders' table.");
+        }
 
-        console.log('Inserting initial data...');
+
+        console.log('Inserting initial Super Admin user and settings if they do not exist...');
         await connection.beginTransaction();
         try {
-            // Define Super Admin details directly in the script
             const superAdminEmail = process.env.SUPER_ADMIN_EMAIL;
             const superAdminPassword = process.env.SUPER_ADMIN_PASSWORD;
 
@@ -155,25 +151,19 @@ async function initialize() {
                 throw new Error('SUPER_ADMIN_EMAIL and SUPER_ADMIN_PASSWORD environment variables must be set.');
             }
             
-            const hashedPassword = await bcrypt.hash(superAdminPassword, saltRounds);
-            const now = formatDateForMySQL(new Date());
+            const [existingAdmin] = await connection.query('SELECT id FROM users WHERE email = ?', [superAdminEmail]);
 
-            // Insert only the Super Admin
-            await connection.query(
-                `INSERT INTO users (
-                    name, email, password, role, createdAt, status, dateJoined
-                ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-                [
-                    'Admin User',
-                    superAdminEmail,
-                    hashedPassword,
-                    'Admin',
-                    now,
-                    'Active',
-                    now
-                ]
-            );
-            console.log('Super Admin user inserted.');
+            if (existingAdmin.length === 0) {
+                const hashedPassword = await bcrypt.hash(superAdminPassword, saltRounds);
+                const now = formatDateForMySQL(new Date());
+                await connection.query(
+                    `INSERT INTO users (name, email, password, role, createdAt, status, dateJoined) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+                    ['Admin User', superAdminEmail, hashedPassword, 'Admin', now, 'Active', now]
+                );
+                console.log('Super Admin user inserted.');
+            } else {
+                 console.log('Super Admin user already exists.');
+            }
 
             // Insert default settings
             const settings = [
@@ -187,9 +177,9 @@ async function initialize() {
                 { key: 'sendToMerchant', value: 'true' },
             ];
             for (const s of settings) {
-                await connection.query('INSERT INTO settings (`key`, `value`) VALUES (?, ?)', [s.key, s.value]);
+                await connection.query('INSERT IGNORE INTO settings (`key`, `value`) VALUES (?, ?)', [s.key, s.value]);
             }
-            console.log(`${settings.length} default settings inserted.`);
+            console.log('Default settings inserted or verified.');
 
             await connection.commit();
             console.log('Database initialization process finished.');

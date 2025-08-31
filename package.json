@@ -8,7 +8,8 @@
     "dev-noTurbo": "next dev",
     "start": "next start",
     "lint": "eslint",
-    "db:init": "node src/lib/init-db.js"
+    "db:init": "node src/lib/init-db.js",
+    "db:seed": "node src/lib/dev-db-seed.js"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.1",
