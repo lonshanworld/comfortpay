@@ -54,7 +54,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Webhook configuration error' }, { status: 500 });
   }
   
-  const stripe = new Stripe(process.env[`STRIPE_SECRET_KEY_${paymentAccountId}`]!, { apiVersion: '2024-06-20' });
+  const stripe = new Stripe(process.env[`STRIPE_SECRET_KEY_${paymentAccountId}`]!, { apiVersion: '2025-07-30.basil' });
 
   try {
     event = stripe.webhooks.constructEvent(body, signature, webhookSecret);
