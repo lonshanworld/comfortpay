@@ -128,16 +128,32 @@ async function initialize() {
                 \`value\` TEXT
             ) ENGINE=InnoDB;
         `);
+         await connection.query(`
+            CREATE TABLE IF NOT EXISTS daily_volume_history (
+                id INT PRIMARY KEY AUTO_INCREMENT,
+                paymentAccountId INT NOT NULL,
+                date DATE NOT NULL,
+                totalVolume DECIMAL(15, 2) NOT NULL,
+                createdAt DATETIME NOT NULL,
+                UNIQUE KEY (paymentAccountId, date)
+            ) ENGINE=InnoDB;
+        `);
         console.log('Tables created or verified.');
         
-        // Check and alter table for 'items' column
-        const [columns] = await connection.query(`SHOW COLUMNS FROM orders LIKE 'items'`);
-        if (columns.length === 0) {
-            console.log("Adding 'items' column to 'orders' table...");
-            await connection.query(`ALTER TABLE orders ADD COLUMN items JSON`);
-            console.log("'items' column added.");
+        // Before adding the unique constraint, clean up any existing empty strings
+        console.log("Cleaning up 'accountEmail' column in 'payment_accounts' table...");
+        await connection.query("UPDATE payment_accounts SET accountEmail = NULL WHERE accountEmail = ''");
+        console.log("Cleanup complete. Empty strings converted to NULL.");
+        
+        // Add unique constraint to accountEmail if it doesn't exist
+        const [indexes] = await connection.query(`SHOW INDEX FROM payment_accounts WHERE Key_name = 'accountEmail_unique'`);
+        if (indexes.length === 0) {
+            console.log("Adding UNIQUE constraint to 'accountEmail' in 'payment_accounts' table...");
+            // Giving the constraint a specific name 'accountEmail_unique' is good practice.
+            await connection.query(`ALTER TABLE payment_accounts ADD CONSTRAINT accountEmail_unique UNIQUE (accountEmail);`);
+            console.log("UNIQUE constraint added to 'accountEmail'.");
         } else {
-            console.log("'items' column already exists in 'orders' table.");
+            console.log("'accountEmail' column is already unique in 'payment_accounts' table.");
         }
 
 
