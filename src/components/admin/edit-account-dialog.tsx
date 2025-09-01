@@ -29,11 +29,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { Loader2, Trash } from "lucide-react";
+import { Loader2, Trash, Terminal } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import type { PaymentAccount, PaymentAccountType } from "@/lib/types";
+import { Alert, AlertDescription, AlertTitle } from "../ui/alert";
 
 const accountFormSchema = z.object({
   name: z.string().min(3, "Account name must be at least 3 characters."),
@@ -167,6 +168,7 @@ export function EditAccountDialog({ open, onOpenChange, onAccountUpdated, onAcco
 
   if (!account) return null;
   const selectedType = form.watch('type');
+  const accountId = String(account.id).replace('pa_', '');
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
@@ -174,7 +176,7 @@ export function EditAccountDialog({ open, onOpenChange, onAccountUpdated, onAcco
         <DialogHeader>
           <DialogTitle>Manage Payment Account</DialogTitle>
           <DialogDescription>
-            Update details for {account.name}.
+            Update details for {account.name} (ID: {accountId}).
           </DialogDescription>
         </DialogHeader>
         <Form {...form}>
@@ -307,6 +309,36 @@ export function EditAccountDialog({ open, onOpenChange, onAccountUpdated, onAcco
                 </FormItem>
               )}
             />
+             <Alert>
+                <Terminal className="h-4 w-4" />
+                <AlertTitle>Environment Variable Configuration</AlertTitle>
+                <AlertDescription>
+                    {selectedType === 'Stripe' && (
+                        <div>
+                        This account requires these .env variables, using the ID: <strong>{accountId}</strong>
+                        <ul className="list-disc list-inside pl-2 font-mono text-xs mt-2">
+                            <li>STRIPE_SECRET_KEY_{accountId}=sk_...</li>
+                            <li>STRIPE_PUBLIC_KEY_{accountId}=pk_...</li>
+                            <li>STRIPE_WEBHOOK_SECRET_{accountId}=whsec_...</li>
+                        </ul>
+                        </div>
+                    )}
+                    {selectedType === 'Square' && (
+                        <div>
+                        This account requires these .env variables, using the ID: <strong>{accountId}</strong>
+                        <ul className="list-disc list-inside pl-2 font-mono text-xs mt-2">
+                             <li>SQUARE_APP_ID_{accountId}=...</li>
+                             <li>SQUARE_LOCATION_ID_{accountId}=...</li>
+                             <li>SQUARE_ACCESS_TOKEN_{accountId}=...</li>
+                             <li>SQUARE_WEBHOOK_SIGNATURE_KEY_{accountId}=...</li>
+                        </ul>
+                        </div>
+                    )}
+                    {selectedType === 'Zelle' && (
+                       <p>Zelle accounts do not require API keys.</p>
+                    )}
+                </AlertDescription>
+            </Alert>
             <DialogFooter>
               <Button type="button" variant="destructive" onClick={handleDelete} disabled={isLoading || isDeleting} className="mr-auto">
                  {isDeleting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Trash className="mr-2 h-4 w-4" />}

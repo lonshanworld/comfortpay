@@ -144,8 +144,8 @@ export async function createCheckoutSession(input: CreateCheckoutSessionInput): 
 
     const orderInsertQuery = `
       INSERT INTO orders 
-      (merchantId, merchantOrderId, visualOrderId, orderDate, customerName, customerEmail, status, paymentMethod, orderAmount, totalAmount, paidAmount, currency, paymentType, paymentAccountId, items) 
-      VALUES (?, ?, ?, ?, ?, ?, 'Pending', ?, ?, ?, 0, ?, ?, ?, ?)
+      (merchantId, merchantOrderId, visualOrderId, orderDate, customerName, customerEmail, status, paymentMethod, orderAmount, totalAmount, paidAmount, currency, paymentType, paymentAccountId, items, billingDetails) 
+      VALUES (?, ?, ?, ?, ?, ?, 'Pending', ?, ?, ?, 0, ?, ?, ?, ?, ?)
     `;
     const orderParams = [
         numericMerchantId, input.merchantOrderId, visualId, formatDateForMySQL(new Date()),
@@ -156,7 +156,8 @@ export async function createCheckoutSession(input: CreateCheckoutSessionInput): 
         input.currency || 'USD',
         selectedGateway, // e.g. "Stripe", "Square"
         selectedAccount.id,
-        JSON.stringify(input.items || []) // Store items as a JSON string
+        JSON.stringify(input.items || []), // Store items as a JSON string
+        JSON.stringify(input.billingDetails || {}), // Store billing details as a JSON string
     ];
 
     const orderResult = await runQuery(orderInsertQuery, orderParams);

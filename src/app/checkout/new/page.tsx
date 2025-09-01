@@ -392,9 +392,9 @@ function CheckoutForm({ sessionData }: { sessionData: CreateCheckoutSessionInput
                 <p className="text-lg text-muted-foreground">Memo = <span className="text-2xl lg:text-4xl font-bold text-primary">{visualOrderId}</span></p>
               </div>
               <Alert>
-                <AlertTitle>Important!</AlertTitle>
+                {/* <AlertTitle>Important!</AlertTitle> */}
                 <AlertDescription>
-                  You must include the exact memo shown above with your Zelle payment. After sending, click the button below to confirm.
+                  Memo for zelle- Memo write order number only
                 </AlertDescription>
               </Alert>
               <Button onClick={handleZelleConfirmation} className="w-full" disabled={isProcessing}>

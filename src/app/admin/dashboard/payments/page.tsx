@@ -30,8 +30,11 @@ import { useToast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
 
 const AccountCard = ({ account, onManage }: { account: PaymentAccount, onManage: (account: PaymentAccount) => void }) => {
-    const isOverLimit = account.currentVolume > account.dailyLimit;
-    const progressValue = isOverLimit ? 100 : (account.currentVolume / account.dailyLimit) * 100;
+    const currentVolume = Number(account.currentVolume);
+    const dailyLimit = Number(account.dailyLimit);
+    
+    const isOverLimit = dailyLimit > 0 && currentVolume >= dailyLimit;
+    const progressValue = dailyLimit > 0 ? (currentVolume / dailyLimit) * 100 : 0;
   
     return (
       <Card>
@@ -84,7 +87,7 @@ const AccountCard = ({ account, onManage }: { account: PaymentAccount, onManage:
           <div>
             <div className={cn("flex justify-between text-sm mb-1", isOverLimit ? "text-destructive font-semibold" : "text-muted-foreground")}>
                 <span>Daily Volume</span>
-                <span>${account.currentVolume.toLocaleString()} / ${account.dailyLimit.toLocaleString()}</span>
+                <span>${currentVolume.toLocaleString()} / ${dailyLimit.toLocaleString()}</span>
             </div>
             <Progress value={progressValue} className={cn(isOverLimit && "[&>div]:bg-destructive")} />
           </div>

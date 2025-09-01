@@ -7,8 +7,6 @@ import type { Order } from '@/lib/types';
 const parseDbOrder = (dbOrder: any) => {
     if (!dbOrder) return null;
     try {
-      // The mysql2 driver might already parse the JSON string.
-      // We check if it's a string before attempting to parse.
       const billingDetails = typeof dbOrder.billingDetails === 'string' 
         ? JSON.parse(dbOrder.billingDetails) 
         : dbOrder.billingDetails;
@@ -17,7 +15,13 @@ const parseDbOrder = (dbOrder: any) => {
           ...dbOrder,
           id: `CP${dbOrder.id}`,
           merchantId: `user_${dbOrder.merchantId}`,
-          billingDetails: billingDetails || null
+          paymentAccountId: `pa_${dbOrder.paymentAccountId}`,
+          billingDetails: billingDetails || null,
+          customerFirstName: billingDetails?.firstName || '',
+          customerLastName: billingDetails?.lastName || '',
+          // Use billingDetails email if available, otherwise fallback to the top-level customerEmail
+          customerEmail: billingDetails?.email || dbOrder.customerEmail,
+          customerPhone: billingDetails?.phone || '',
       };
     } catch(e) {
       console.error(`Failed to parse billing details for order ${dbOrder.id}`, e);
@@ -25,7 +29,12 @@ const parseDbOrder = (dbOrder: any) => {
           ...dbOrder,
           id: `CP${dbOrder.id}`,
           merchantId: `user_${dbOrder.merchantId}`,
-          billingDetails: null // Gracefully handle parsing error
+          paymentAccountId: `pa_${dbOrder.paymentAccountId}`,
+          billingDetails: null,
+          customerFirstName: '',
+          customerLastName: '',
+          customerEmail: dbOrder.customerEmail,
+          customerPhone: '',
       };
     }
 }
@@ -33,64 +42,84 @@ const parseDbOrder = (dbOrder: any) => {
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
-  const merchantId = searchParams.get('merchantId');
-  const numericMerchantId = merchantId ? merchantId.split('_')[1] : null;
-  const status = searchParams.get('status');
-  const searchQuery = searchParams.get('q');
-  const currency = searchParams.get('currency');
-  const startDate = searchParams.get('startDate');
-  const endDate = searchParams.get('endDate');
-  const minAmount = searchParams.get('minAmount');
-  const maxAmount = searchParams.get('maxAmount');
-
-  // =================================================================
-  // REAL DATABASE LOGIC
-  // =================================================================
-  try {
-    let query = `
+  
+  let query = `
       SELECT o.*, u.name as merchantName, u.websiteUrl as merchantWebsiteUrl
       FROM orders o
       LEFT JOIN users u ON o.merchantId = u.id AND u.role = 'Merchant'
       WHERE 1=1
     `;
-    const params: (string | number)[] = [];
+  const params: (string | number)[] = [];
 
-    if (numericMerchantId) {
-      query += " AND o.merchantId = ?";
-      params.push(numericMerchantId);
-    }
-    if (status) {
-      query += " AND o.status = ?";
-      params.push(status.replace('-', ' ')); // e.g. requires-confirmation -> requires confirmation
-    }
-    if (searchQuery) {
-      query += " AND (o.id LIKE ? OR o.customerEmail LIKE ? OR o.customerName LIKE ?)";
-      const likeQuery = `%${searchQuery}%`;
-      params.push(likeQuery, likeQuery, likeQuery);
-    }
-    if (currency) {
-      query += " AND o.currency = ?";
-      params.push(currency);
-    }
-    if (startDate) {
-      query += " AND o.orderDate >= ?";
-      params.push(startDate);
-    }
-    if (endDate) {
-      query += " AND o.orderDate <= ?";
-      params.push(endDate);
-    }
-     if (minAmount) {
-      query += " AND o.totalAmount >= ?";
-      params.push(Number(minAmount));
-    }
-    if (maxAmount) {
-      query += " AND o.totalAmount <= ?";
-      params.push(Number(maxAmount));
-    }
-    query += " ORDER BY o.orderDate DESC";
+  searchParams.forEach((value, key) => {
+      if (value) {
+           switch (key) {
+                case 'id':
+                    query += " AND o.id LIKE ?";
+                    params.push(`%${value.replace('CP', '')}%`);
+                    break;
+                case 'merchantId':
+                    query += " AND o.merchantId = ?";
+                    params.push(value.replace('user_', ''));
+                    break;
+                case 'merchantName':
+                    query += " AND u.name LIKE ?";
+                    params.push(`%${value}%`);
+                    break;
+                case 'merchantWebsiteUrl':
+                    query += " AND u.websiteUrl LIKE ?";
+                    params.push(`%${value}%`);
+                    break;
+                case 'merchantOrderId':
+                    query += " AND o.merchantOrderId LIKE ?";
+                    params.push(`%${value}%`);
+                    break;
+                case 'customerFirstName':
+                    query += " AND JSON_UNQUOTE(JSON_EXTRACT(o.billingDetails, '$.firstName')) LIKE ?";
+                    params.push(`%${value}%`);
+                    break;
+                case 'customerLastName':
+                    query += " AND JSON_UNQUOTE(JSON_EXTRACT(o.billingDetails, '$.lastName')) LIKE ?";
+                    params.push(`%${value}%`);
+                    break;
+                 case 'customerEmail':
+                    query += " AND (o.customerEmail LIKE ? OR JSON_UNQUOTE(JSON_EXTRACT(o.billingDetails, '$.email')) LIKE ?)";
+                    params.push(`%${value}%`, `%${value}%`);
+                    break;
+                 case 'status':
+                    query += " AND o.status LIKE ?";
+                    params.push(`%${value}%`);
+                    break;
+                case 'orderAmount':
+                case 'totalAmount':
+                case 'paidAmount':
+                    query += ` AND o.${key} = ?`;
+                    params.push(Number(value));
+                    break;
+                case 'currency':
+                case 'paymentMethod':
+                case 'paymentType':
+                case 'paymentGatewayTransactionId':
+                    query += ` AND o.${key} LIKE ?`;
+                    params.push(`%${value}%`);
+                    break;
+                case 'paymentAccountId':
+                    query += ` AND o.paymentAccountId = ?`;
+                    params.push(value.replace('pa_', ''));
+                    break;
+                case 'orderDate':
+                case 'paymentReceivedDate':
+                    // This is a simplification; a real app would handle date ranges
+                    query += ` AND DATE(o.${key}) = ?`;
+                    params.push(value);
+                    break;
+            }
+      }
+  })
 
+  query += " ORDER BY o.orderDate DESC";
 
+  try {
     const dbOrders = await executeQuery(query, params);
     return NextResponse.json(dbOrders.map(parseDbOrder));
   } catch (error) {

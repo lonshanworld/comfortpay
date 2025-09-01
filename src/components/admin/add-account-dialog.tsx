@@ -302,7 +302,7 @@ export function AddAccountDialog({ open, onOpenChange, onAccountAdded }: AddAcco
                 <AlertDescription>
                     {selectedType === 'Stripe' && (
                         <div>
-                        After creating this account, add the following to your environment variables. Replace `[ID]` with the generated Account ID.
+                        After creating, add these to your .env file. Replace `[ID]` with the generated Account ID (e.g., 1, 2).
                         <ul className="list-disc list-inside pl-2 font-mono text-xs mt-2">
                             <li>STRIPE_SECRET_KEY_[ID]=sk_...</li>
                             <li>STRIPE_PUBLIC_KEY_[ID]=pk_...</li>
@@ -312,16 +312,17 @@ export function AddAccountDialog({ open, onOpenChange, onAccountAdded }: AddAcco
                     )}
                     {selectedType === 'Square' && (
                         <div>
-                        After creating this account, add the following to your environment variables. Replace `[ID]` with the generated Account ID.
+                        After creating, add these to your .env file. Replace `[ID]` with the generated Account ID.
                         <ul className="list-disc list-inside pl-2 font-mono text-xs mt-2">
                              <li>SQUARE_APP_ID_[ID]=...</li>
+                             <li>SQUARE_LOCATION_ID_[ID]=...</li>
                              <li>SQUARE_ACCESS_TOKEN_[ID]=...</li>
-                             <li>SQUARE_WEBHOOK_SIGNATURE_[ID]=...</li>
+                             <li>SQUARE_WEBHOOK_SIGNATURE_KEY_[ID]=...</li>
                         </ul>
                         </div>
                     )}
                     {selectedType === 'Zelle' && (
-                       <p>Zelle accounts do not require API keys. Ensure the email provided is correct.</p>
+                       <p>Zelle accounts do not require API keys.</p>
                     )}
                 </AlertDescription>
             </Alert>

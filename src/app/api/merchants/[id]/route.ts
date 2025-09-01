@@ -23,7 +23,10 @@ const saveFileFromBase64 = async (base64String: string, subfolder: 'avatars' | '
         const fileExtension = mimeType.split('/')[1];
         const fileName = `${crypto.randomBytes(16).toString('hex')}.${fileExtension}`;
         
-        const uploadDir = path.join(process.cwd(), 'public', 'uploads', subfolder);
+        // Use environment variable for base path, fallback to public/uploads for development
+        const baseUploadDir = process.env.UPLOADS_DIR || path.join(process.cwd(), 'public', 'uploads');
+        const uploadDir = path.join(baseUploadDir, subfolder);
+
         await fs.mkdir(uploadDir, { recursive: true });
         const filePath = path.join(uploadDir, fileName);
 

@@ -1,5 +1,4 @@
 
-
 "use client"
 
 import { ColumnDef } from "@tanstack/react-table"
@@ -47,68 +46,49 @@ const formatCurrency = (amount: number, currency: string) => {
 
 export const columns = ({ onView }: TransactionColumnsProps): ColumnDef<Order>[] => [
   {
-    accessorKey: "id",
-    header: "Transaction",
-    cell: ({ row }) => {
-        const transaction = row.original;
-        return (
-            <div className="font-medium">
-                <div>{transaction.id}</div>
-                <div className="text-sm text-muted-foreground hidden sm:block">
-                    {new Date(transaction.orderDate).toLocaleString()}
-                </div>
-            </div>
-        )
-    },
+    accessorKey: "merchantOrderId",
+    header: "Order Number",
   },
   {
-    accessorKey: "customerName",
-    header: "Customer",
+    accessorKey: "orderDate",
+    header: "Order Date",
+    cell: ({ row }) => new Date(row.original.orderDate).toLocaleString()
+  },
+   {
+    accessorKey: "paymentReceivedDate",
+    header: "Payment Date",
+    cell: ({ row }) => row.original.paymentReceivedDate ? new Date(row.original.paymentReceivedDate).toLocaleString() : "N/A"
+  },
+  {
+    accessorKey: "customerFirstName",
+    header: "Cust. First Name",
+  },
+  {
+    accessorKey: "customerLastName",
+    header: "Cust. Last Name",
+  },
+  {
+    accessorKey: "customerEmail",
+    header: "Customer Email",
   },
   {
     accessorKey: "status",
     header: "Status",
-    cell: ({ row }) => {
-      const status = row.original.status;
-      return (
-        <Badge variant={getStatusVariant(status)}>
-            {status}
-        </Badge>
-      )
-    },
+    cell: ({ row }) => <Badge variant={getStatusVariant(row.original.status)}>{row.original.status}</Badge>
   },
-  {
-    accessorKey: "paymentMethod",
-    header: "Payment Method",
-  },
-  {
+   {
     accessorKey: "orderAmount",
-    header: ({ column }) => (
-        <div className="text-right">
-            <Button variant="ghost" onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}>
-                Order Amount
-                <ArrowUpDown className="ml-2 h-4 w-4" />
-            </Button>
-        </div>
-    ),
-    cell: ({ row }) => (
-        <div className="text-right">{formatCurrency(row.original.orderAmount, row.original.currency)}</div>
-    )
+    header: "Order Amount",
+    cell: ({ row }) => formatCurrency(row.original.orderAmount, row.original.currency)
   },
   {
     accessorKey: "totalAmount",
-    header: ({ column }) => (
-        <div className="text-right">
-            <Button variant="ghost" onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}>
-                Total Amount
-                <ArrowUpDown className="ml-2 h-4 w-4" />
-            </Button>
-        </div>
-    ),
-    cell: ({ row }) => {
-      const { totalAmount, currency } = row.original;
-      return <div className="text-right">{formatCurrency(totalAmount, currency)}</div>
-    },
+    header: "Total Amount",
+    cell: ({ row }) => formatCurrency(row.original.totalAmount, row.original.currency)
+  },
+   {
+    accessorKey: "currency",
+    header: "Currency",
   },
   {
     id: "actions",

@@ -1,5 +1,4 @@
 
-
 "use client"
 
 import { ColumnDef } from "@tanstack/react-table"
@@ -12,9 +11,9 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuLabel,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import type { Order, OrderStatus } from "@/lib/types"
 import Link from "next/link"
 
@@ -24,6 +23,7 @@ const getStatusVariant = (status: OrderStatus) => {
     case 'Reconciled':
       return 'secondary';
     case 'Pending':
+      return 'outline';
     case 'Requires Confirmation':
       return 'default';
     case 'Failed':
@@ -52,177 +52,131 @@ const formatCurrency = (amount: number, currency: string) => {
 export const columns = ({ onView, onEdit, onConfirmPayment, isConfirmingId }: TransactionColumnsProps): ColumnDef<Order>[] => [
   {
     accessorKey: "id",
-    header: ({ column }) => {
-        return (
-            <Button
-            variant="ghost"
-            onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-            >
-            ID
-            <ArrowUpDown className="ml-2 h-4 w-4" />
-            </Button>
-        )
-    },
+    header: "ComfortPay ID",
     cell: ({ row }) => <div className="font-mono">{row.getValue("id")}</div>,
   },
-  {
-    accessorKey: "visualOrderId",
-    header: "Visual ID",
-    cell: ({ row }) => <div className="font-mono">{row.getValue("visualOrderId")}</div>
-  },
-  {
-    accessorKey: "merchantOrderId",
+   {
+    accessorKey: "merchantId",
     header: "Merchant ID",
-    cell: ({ row }) => <div className="font-mono">{row.getValue("merchantOrderId")}</div>
-  },
-  {
-    accessorKey: "paymentGatewayTransactionId",
-    header: "Gateway ID",
-    cell: ({ row }) => <div className="font-mono">{row.original.paymentGatewayTransactionId || "N/A"}</div>
   },
   {
     accessorKey: "merchantName",
-    header: "Merchant",
-     cell: ({ row }) => {
-        const transaction = row.original;
-        const websiteUrl = transaction.merchantWebsiteUrl || '#';
+    header: "Merchant Name",
+  },
+   {
+    accessorKey: "merchantWebsiteUrl",
+    header: "Merchant Website",
+    cell: ({ row }) => {
+        const websiteUrl = row.original.merchantWebsiteUrl;
+        if (!websiteUrl) return "N/A";
         return (
-            <Link href={websiteUrl} target="_blank" className="flex items-center gap-1.5 hover:underline">
-                {transaction.merchantName} <ExternalLink className="h-3 w-3" />
+             <Link href={websiteUrl} target="_blank" className="flex items-center gap-1.5 hover:underline">
+                {new URL(websiteUrl).hostname} <ExternalLink className="h-3 w-3" />
             </Link>
         )
     }
   },
-   {
-    accessorKey: "sourceWebsiteUrl",
-    header: "Source Website",
-    cell: ({ row }) => {
-      const sourceWebsiteUrl = row.getValue("sourceWebsiteUrl") as string | undefined
-      if (!sourceWebsiteUrl) {
-        return <span className="text-muted-foreground">N/A</span>
-      }
-      return (
-        <Link href={sourceWebsiteUrl} target="_blank" className="flex items-center gap-1.5 hover:underline">
-            {new URL(sourceWebsiteUrl).hostname} <ExternalLink className="h-3 w-3" />
-        </Link>
-      )
-    },
+  {
+    accessorKey: "merchantOrderId",
+    header: "Order Number",
+  },
+  {
+    accessorKey: "orderDate",
+    header: "Order Date",
+    cell: ({ row }) => new Date(row.original.orderDate).toLocaleString()
+  },
+  {
+    accessorKey: "paymentReceivedDate",
+    header: "Payment Date",
+    cell: ({ row }) => row.original.paymentReceivedDate ? new Date(row.original.paymentReceivedDate).toLocaleString() : "N/A"
+  },
+  {
+    accessorKey: "customerFirstName",
+    header: "Cust. First Name",
+  },
+  {
+    accessorKey: "customerLastName",
+    header: "Cust. Last Name",
+  },
+  {
+    accessorKey: "customerEmail",
+    header: "Customer Email",
   },
   {
     accessorKey: "status",
     header: "Status",
     cell: ({ row }) => {
-       const status = row.getValue("status") as OrderStatus;
-       return <Badge variant={getStatusVariant(status)}>{status}</Badge>
-    },
-  },
-  {
-    accessorKey: "paymentType",
-    header: "Payment Method",
-     cell: ({ row }) => {
-        const transaction = row.original;
+      const transaction = row.original;
+      const status = transaction.status;
+      const isConfirming = isConfirmingId === transaction.id;
+
+      if (status === 'Requires Confirmation') {
         return (
-            <div>
-                <div>{transaction.paymentType}</div>
-                <div className="text-sm text-muted-foreground">{transaction.paymentMethod}</div>
-            </div>
-        )
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="default" size="sm" className="h-auto py-0.5 px-2.5">
+                {isConfirming ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : null}
+                Requires Confirmation
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-2">
+              <div className="flex flex-col items-center gap-2">
+                <p className="text-sm font-medium">Confirm Payment?</p>
+                <Button
+                  size="sm"
+                  onClick={() => onConfirmPayment(transaction)}
+                  disabled={isConfirming}
+                >
+                  <Check className="mr-2 h-4 w-4" />
+                  Confirm
+                </Button>
+              </div>
+            </PopoverContent>
+          </Popover>
+        );
+      }
+      return <Badge variant={getStatusVariant(status)}>{status}</Badge>
     }
   },
   {
     accessorKey: "orderAmount",
-    header: ({ column }) => (
-        <div className="text-right">
-            <Button variant="ghost" onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}>
-                Order Amount
-                <ArrowUpDown className="ml-2 h-4 w-4" />
-            </Button>
-        </div>
-    ),
-    cell: ({ row }) => (
-        <div className="text-right">{formatCurrency(row.original.orderAmount, row.original.currency)}</div>
-    )
+    header: "Order Amount",
+    cell: ({ row }) => formatCurrency(row.original.orderAmount, row.original.currency)
   },
   {
     accessorKey: "totalAmount",
-    header: ({ column }) => (
-        <div className="text-right">
-            <Button variant="ghost" onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}>
-                Total Amount
-                <ArrowUpDown className="ml-2 h-4 w-4" />
-            </Button>
-        </div>
-    ),
-    cell: ({ row }) => (
-        <div className="text-right">{formatCurrency(row.original.totalAmount, row.original.currency)}</div>
-    )
+    header: "Total Amount",
+    cell: ({ row }) => formatCurrency(row.original.totalAmount, row.original.currency)
   },
   {
     accessorKey: "paidAmount",
-    header: ({ column }) => (
-        <div className="text-right">
-            <Button variant="ghost" onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}>
-                Paid Amount
-                <ArrowUpDown className="ml-2 h-4 w-4" />
-            </Button>
-        </div>
-    ),
-    cell: ({ row }) => {
-      const { paidAmount, totalAmount, currency } = row.original;
-      const isOverpaid = paidAmount > totalAmount;
-
-      return (
-        <div className="text-right space-y-1">
-            <div>{formatCurrency(paidAmount, currency)}</div>
-            {isOverpaid && <Badge variant="destructive">Refund Due</Badge>}
-        </div>
-      )
-    }
+    header: "Paid Amount",
+    cell: ({ row }) => formatCurrency(row.original.paidAmount, row.original.currency)
   },
-   {
+  {
     accessorKey: "currency",
     header: "Currency",
   },
   {
-    accessorKey: "orderDate",
-    header: ({ column }) => {
-      return (
-        <Button
-          variant="ghost"
-          onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-        >
-          Transaction Date (GMT)
-          <ArrowUpDown className="ml-2 h-4 w-4" />
-        </Button>
-      )
-    },
-    cell: ({ row }) => {
-        const date = new Date(row.getValue("orderDate"));
-        return <div>{date.toLocaleString()}</div>
-    },
+    accessorKey: "paymentMethod",
+    header: "Payment Method",
   },
   {
-    accessorKey: "paymentReceivedDate",
-    header: ({ column }) => {
-      return (
-        <Button
-          variant="ghost"
-          onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-        >
-          Payment Received (GMT)
-          <ArrowUpDown className="ml-2 h-4 w-4" />
-        </Button>
-      )
-    },
-    cell: ({ row }) => {
-        const date = row.getValue("paymentReceivedDate") as string;
-        if (!date) return <span className="text-muted-foreground">N/A</span>;
-        return <div>{new Date(date).toLocaleString()}</div>
-    },
+    accessorKey: "paymentType",
+    header: "Processor",
+  },
+  {
+    accessorKey: "paymentAccountId",
+    header: "Acct. ID",
+  },
+  {
+    accessorKey: "paymentGatewayTransactionId",
+    header: "Gateway ID",
   },
   {
     id: "actions",
-    enableHiding: false,
     cell: ({ row }) => {
       const transaction = row.original
       const isConfirming = isConfirmingId === transaction.id;
@@ -243,15 +197,6 @@ export const columns = ({ onView, onEdit, onConfirmPayment, isConfirmingId }: Tr
             <DropdownMenuItem onClick={() => onEdit(transaction)}>
               Edit Transaction
             </DropdownMenuItem>
-             {transaction.status === "Requires Confirmation" && (
-              <>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={() => onConfirmPayment(transaction)}>
-                    <Check className="mr-2 h-4 w-4" />
-                    <span>Confirm Payment</span>
-                </DropdownMenuItem>
-              </>
-            )}
           </DropdownMenuContent>
         </DropdownMenu>
       )

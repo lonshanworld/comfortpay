@@ -49,6 +49,10 @@ export interface Order {
   sourceWebsiteUrl?: string;
   billingDetails?: BillingDetails;
   items?: OrderItem[];
+  // Derived fields from API
+  customerFirstName?: string;
+  customerLastName?: string;
+  customerPhone?: string;
 }
 
 export type IdType = "Passport" | "Driver License" | "ID Card";

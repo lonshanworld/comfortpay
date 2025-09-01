@@ -27,6 +27,7 @@ const parseDbAccount = (dbAccount: any) => {
                                                             query += " WHERE type = ?";
                                                                     params.push(type);
                                                                         }
+                                                                        query += " ORDER BY id DESC";
                                                                             const dbAccounts = await executeQuery(query, params);
                                                                                 return NextResponse.json(dbAccounts.map(parseDbAccount));
                                                                                   } catch (error) {
@@ -38,7 +39,7 @@ const parseDbAccount = (dbAccount: any) => {
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { name, type, dailyLimit, prefix_order_name, websiteUrl, accountEmail, qrCode } = body;
+    let { name, type, dailyLimit, prefix_order_name, websiteUrl, accountEmail, qrCode } = body;
     
     let qrCodeUrl = null;
 
@@ -48,12 +49,20 @@ export async function POST(request: Request) {
         const fileExtension = qrCode.substring(qrCode.indexOf('/') + 1, qrCode.indexOf(';'));
         const fileName = `${crypto.randomBytes(16).toString('hex')}.${fileExtension}`;
         
-        const uploadDir = path.join(process.cwd(), 'public', 'uploads', 'qrcodes');
+        // Use environment variable for base path, fallback to public/uploads for development
+        const baseUploadDir = process.env.UPLOADS_DIR || path.join(process.cwd(), 'public', 'uploads');
+        const uploadDir = path.join(baseUploadDir, 'qrcodes');
+
         await fs.mkdir(uploadDir, { recursive: true });
         const filePath = path.join(uploadDir, fileName);
 
         await fs.writeFile(filePath, imageBuffer);
         qrCodeUrl = `/uploads/qrcodes/${fileName}`;
+    }
+
+    // Ensure that only Zelle accounts have an email.
+    if (type !== 'Zelle') {
+        accountEmail = null;
     }
 
     try {

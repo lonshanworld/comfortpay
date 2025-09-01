@@ -1,14 +1,14 @@
 
 "use client"
-import { useState, useEffect, useCallback } from "react"
+import React, { useState, useEffect, useCallback, useMemo } from "react"
 import {
   File,
   Loader2,
-  Filter,
   Search,
   X,
   ChevronDown,
 } from "lucide-react"
+import type { ColumnFiltersState } from "@tanstack/react-table"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -19,33 +19,20 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
-import type { Order, Merchant, PaymentAccount } from "@/lib/types"
-import { DataTable } from "@/components/admin/data-tabel"
+import type { Order, Merchant, PaymentAccount, OrderStatus } from "@/lib/types"
+import { DataTableWithColumnFilters } from "@/components/admin/data-table-with-column-filters"
 import { columns } from "./columns"
 import { ViewTransactionDialog } from "@/components/admin/view-transaction-dialog"
 import { EditOrderDialog } from "@/components/admin/edit-order-dialog"
 import {
   DropdownMenu,
-  DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import { useToast } from "@/hooks/use-toast"
-import { DateTimePicker } from "@/components/ui/datetime-picker"
 import { sendOrderNotification } from "@/app/actions/send-order-notification"
-
-const defaultFilters = {
-    currency: undefined,
-    startDate: undefined,
-    endDate: undefined,
-    minAmount: "",
-    maxAmount: "",
-}
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 
 // Helper to download files on the client side
 const downloadFile = (content: string, fileName: string, contentType: string) => {
@@ -86,11 +73,29 @@ const convertToHtmlTable = (data: Order[]): string => {
     return `<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:x='urn:schemas-microsoft-com:office:excel' xmlns='http://www.w3.org/TR/REC-html40'><head><meta charset='utf-8'/><style>table, th, td { border: 1px solid black; border-collapse: collapse; } th, td { padding: 5px; }</style></head><body><table><thead>${headerRow}</thead><tbody>${bodyRows}</tbody></table></body></html>`;
 };
 
+const StatusFilter = ({ column }: { column: any }) => {
+  const statuses: OrderStatus[] = ["Pending", "Completed", "Failed", "Requires Confirmation", "Refunded", "Reconciled"];
+  return (
+    <Select
+      value={(column.getFilterValue() ?? '') as string}
+      onValueChange={value => column.setFilterValue(value === 'all' ? '' : value)}
+    >
+      <SelectTrigger className="h-8 text-xs max-w-sm">
+        <SelectValue placeholder="Filter by status..." />
+      </SelectTrigger>
+      <SelectContent>
+        <SelectItem value="all">All Statuses</SelectItem>
+        {statuses.map(status => (
+          <SelectItem key={status} value={status}>{status}</SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
+};
+
 
 export default function TransactionsPage() {
   const [transactions, setTransactions] = useState<Order[]>([]);
-  const [merchants, setMerchants] = useState<Merchant[]>([]);
-  const [paymentAccounts, setPaymentAccounts] = useState<PaymentAccount[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isExporting, setIsExporting] = useState(false);
   const [isConfirming, setIsConfirming] = useState<string | null>(null);
@@ -98,56 +103,35 @@ export default function TransactionsPage() {
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [selectedTransaction, setSelectedTransaction] = useState<Order | null>(null);
   const { toast } = useToast();
-
-  // Filter states
-  const [currencyFilter, setCurrencyFilter] = useState<string | undefined>();
-  const [startDate, setStartDate] = useState<Date | undefined>();
-  const [endDate, setEndDate] = useState<Date | undefined>();
-  const [amountRange, setAmountRange] = useState<{ min?: string; max?: string }>({});
   
+  // State for temporary filters in inputs
+  const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([])
   // State for applied filters which triggers the fetch
-  const [appliedFilters, setAppliedFilters] = useState(defaultFilters);
+  const [appliedFilters, setAppliedFilters] = React.useState<ColumnFiltersState>([])
 
-  const fetchTransactions = useCallback(async (filters: typeof appliedFilters) => {
+  const fetchTransactions = useCallback(async (filters: ColumnFiltersState) => {
     setIsLoading(true);
     try {
       const params = new URLSearchParams();
-      if (filters.currency) params.append('currency', filters.currency);
-      if (filters.startDate) params.append('startDate', filters.startDate.toISOString());
-      if (filters.endDate) params.append('endDate', filters.endDate.toISOString());
-      if (filters.minAmount) params.append('minAmount', filters.minAmount);
-      if (filters.maxAmount) params.append('maxAmount', filters.maxAmount);
-
-      const [ordersRes, merchantsRes, accountsRes] = await Promise.all([
-        fetch(`/api/orders?${params.toString()}`),
-        fetch('/api/merchants'),
-        fetch('/api/payments/accounts')
-      ]);
-      const ordersData = await ordersRes.json();
-      const merchantsData = await merchantsRes.json();
-      const accountsData = await accountsRes.json();
-      
-      const transactionsWithDetails = ordersData.map((transaction: Order) => {
-          const merchant = merchantsData.find((m: Merchant) => m.id === transaction.merchantId);
-          const account = accountsData.find((acc: PaymentAccount) => acc.id === `pa_${transaction.paymentAccountId}`);
-          return {
-              ...transaction,
-              merchantName: merchant?.name || 'N/A',
-              merchantWebsiteUrl: merchant?.websiteUrl,
-              sourceWebsiteUrl: account?.websiteUrl,
+      // Add column filters to params
+      filters.forEach(filter => {
+         if (filter.value) {
+            params.append(String(filter.id), String(filter.value));
           }
-      });
-      
-      setTransactions(transactionsWithDetails);
-      setMerchants(merchantsData);
-      setPaymentAccounts(accountsData);
+      })
 
+      const response = await fetch(`/api/orders?${params.toString()}`);
+      if (!response.ok) throw new Error("Failed to fetch transactions");
+
+      const data = await response.json();
+      setTransactions(data);
     } catch (error) {
       console.error("Failed to fetch data", error);
+      toast({ variant: "destructive", title: "Fetch Error", description: "Could not fetch transactions."})
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [toast]);
 
   useEffect(() => {
     fetchTransactions(appliedFilters);
@@ -168,9 +152,11 @@ export default function TransactionsPage() {
   }
 
   const handleConfirmPayment = async (transaction: Order) => {
-    console.log("DEBUG: [1] handleConfirmPayment called with transaction:", transaction);
+    console.log("--- Starting Manual Payment Confirmation ---");
+    console.log("Transaction to confirm:", transaction);
     setIsConfirming(transaction.id);
     try {
+        console.log("Step 1: Updating order status to 'Completed'.");
         const response = await fetch(`/api/orders/${transaction.id}`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
@@ -182,73 +168,65 @@ export default function TransactionsPage() {
         });
 
         if (!response.ok) {
-            throw new Error('Failed to confirm payment');
+            const errorData = await response.json();
+            console.error("Error on Step 1:", errorData);
+            throw new Error('Failed to update order status');
         }
         
         const updatedTransaction = await response.json();
-        console.log("DEBUG: [2] Order status updated in DB:", updatedTransaction);
-
+        console.log("Step 1 successful. API returned updated transaction:", updatedTransaction);
+        
         // Update payment account volume
-        if (updatedTransaction.paymentAccountId) {
-            console.log("DEBUG: [3] Payment Account ID found:", updatedTransaction.paymentAccountId);
-            const paymentAccount = paymentAccounts.find(pa => pa.id === `pa_${updatedTransaction.paymentAccountId}`);
-            console.log("DEBUG: [4] Searching for account in this list:", paymentAccounts);
-            console.log("DEBUG: [5] Found payment account:", paymentAccount);
+        if (updatedTransaction.paymentAccountId && typeof updatedTransaction.totalAmount !== 'undefined') {
+            console.log(`Step 2: Updating volume for Payment Account ID: ${updatedTransaction.paymentAccountId}`);
+            const numericAccountId = String(updatedTransaction.paymentAccountId).replace('pa_','');
+            const payload = { amount: Number(updatedTransaction.totalAmount) };
+            console.log("Payload for volume update:", payload);
+
+            const volumeResponse = await fetch(`/api/payments/accounts/${numericAccountId}/update-volume`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload),
+            });
             
-            if (paymentAccount) {
-                 const payload = { amount: Number(updatedTransaction.totalAmount) };
-                 console.log("DEBUG: [6] Sending this payload to update-volume:", payload);
-                 const volumeResponse = await fetch(`/api/payments/accounts/${paymentAccount.id}/update-volume`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload),
-                });
-                 if (!volumeResponse.ok) {
-                    console.error("DEBUG: [7] Failed to update volume, server responded with:", await volumeResponse.text());
-                    throw new Error('Failed to update payment account volume.');
-                 }
-                 console.log("DEBUG: [7] Successfully updated volume.");
-            } else {
-                 console.warn(`DEBUG: [6] Could not find payment account with ID pa_${updatedTransaction.paymentAccountId} to update volume.`);
+            if (!volumeResponse.ok) {
+                const errorData = await volumeResponse.json();
+                console.error("Error on Step 2:", errorData);
+                throw new Error(errorData.message || 'Failed to update payment account volume.');
             }
+            console.log("Step 2 successful: Volume updated.");
+        } else {
+            console.warn("Skipping Step 2: No paymentAccountId or totalAmount on updated transaction object.", updatedTransaction);
         }
         
         toast({
             title: "Payment Confirmed",
             description: `Transaction ${transaction.id} has been marked as Completed.`
         });
-        
+        console.log("Step 3: Refreshing transaction list.");
         await fetchTransactions(appliedFilters);
+        console.log("--- Manual Payment Confirmation Finished Successfully ---");
 
-    } catch (error) {
-        console.error("Confirmation failed:", error);
+    } catch (error: any) {
+        console.error("--- Manual Payment Confirmation FAILED ---");
+        console.error("Full error object:", error);
         toast({
             variant: 'destructive',
             title: "Confirmation Failed",
-            description: `There was a problem confirming payment for transaction ${transaction.id}.`
+            description: error.message || `There was a problem confirming payment for transaction ${transaction.id}.`
         });
     } finally {
         setIsConfirming(null);
     }
   }
 
-
-  const handleApplyFilters = () => {
-    setAppliedFilters({
-        currency: currencyFilter,
-        startDate,
-        endDate,
-        minAmount: amountRange.min,
-        maxAmount: amountRange.max
-    })
+  const handleSearch = () => {
+    setAppliedFilters(columnFilters);
   }
 
   const handleClearFilters = () => {
-    setCurrencyFilter(undefined);
-    setStartDate(undefined);
-    setEndDate(undefined);
-    setAmountRange({});
-    setAppliedFilters(defaultFilters);
+    setColumnFilters([]);
+    setAppliedFilters([]);
   }
 
   const handleExport = (format: 'csv' | 'docs' | 'excel') => {
@@ -286,12 +264,12 @@ export default function TransactionsPage() {
     }, 1000); // Simulate processing time
   };
 
-  const transactionColumns = columns({
+  const transactionColumns = useMemo(() => columns({
     onView: handleViewClick,
     onEdit: handleEditClick,
     onConfirmPayment: handleConfirmPayment,
     isConfirmingId: isConfirming,
-  });
+  }), [isConfirming]);
 
 
   return (
@@ -319,80 +297,15 @@ export default function TransactionsPage() {
                   A list of all transactions on the platform.
                 </CardDescription>
               </div>
-               <div className="flex flex-wrap items-end gap-2 w-full md:w-auto">
-                 <div className="flex flex-col gap-2">
-                    <div className="grid gap-1">
-                      <Label htmlFor="min-amount" className="text-xs">Min Amount</Label>
-                      <Input 
-                        id="min-amount"
-                        type="number"
-                        placeholder="0.00"
-                        value={amountRange.min || ''}
-                        onChange={(e) => setAmountRange(prev => ({...prev, min: e.target.value}))}
-                        className="h-8 w-28"
-                      />
-                    </div>
-                     <div className="grid gap-1">
-                      <Label htmlFor="max-amount" className="text-xs">Max Amount</Label>
-                      <Input 
-                        id="max-amount"
-                        type="number"
-                        placeholder="1000.00"
-                        value={amountRange.max || ''}
-                        onChange={(e) => setAmountRange(prev => ({...prev, max: e.target.value}))}
-                        className="h-8 w-28"
-                      />
-                    </div>
-                  </div>
-                 <div className="grid gap-1.5 p-2 border rounded-md">
-                    <Label className="text-xs">Date Range</Label>
-                    <div className="flex flex-col items-start gap-2">
-                        <DateTimePicker date={startDate} setDate={setStartDate} label="Start Date & Time" />
-                        <DateTimePicker date={endDate} setDate={setEndDate} label="End Date & Time" />
-                    </div>
-                </div>
-                 <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                        <Button variant="outline" size="sm" className="h-8 gap-1">
-                            <Filter className="h-3.5 w-3.5" />
-                            <span className="sr-only sm:not-sr-only sm:whitespace-nowrap">
-                                Currency{currencyFilter ? `: ${currencyFilter}` : ''}
-                            </span>
-                        </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                        <DropdownMenuLabel>Filter by Currency</DropdownMenuLabel>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuCheckboxItem
-                        checked={currencyFilter === undefined}
-                        onCheckedChange={() => setCurrencyFilter(undefined)}
-                        >
-                        All
-                        </DropdownMenuCheckboxItem>
-                        <DropdownMenuCheckboxItem
-                        checked={currencyFilter === 'USD'}
-                        onCheckedChange={() => setCurrencyFilter('USD')}
-                        >
-                        USD
-                        </DropdownMenuCheckboxItem>
-                        <DropdownMenuCheckboxItem
-                        checked={currencyFilter === 'EUR'}
-                        onCheckedChange={() => setCurrencyFilter('EUR')}
-                        >
-                        EUR
-                        </DropdownMenuCheckboxItem>
-                    </DropdownMenuContent>
-                </DropdownMenu>
-                <div className="flex flex-col gap-2">
-                    <Button size="sm" className="h-8 gap-1" onClick={handleApplyFilters}>
-                        <Search className="h-3.5 w-3.5"/>
-                        <span className="sr-only sm:not-sr-only">Search</span>
-                    </Button>
-                    <Button size="sm" variant="ghost" className="h-8 gap-1" onClick={handleClearFilters}>
-                        <X className="h-3.5 w-3.5"/>
-                         <span className="sr-only sm:not-sr-only">Clear</span>
-                    </Button>
-                </div>
+               <div className="flex flex-wrap items-center gap-2">
+                 <Button size="sm" className="h-8 gap-1" onClick={handleSearch}>
+                    <Search className="h-3.5 w-3.5"/>
+                    <span className="sr-only sm:not-sr-only">Search</span>
+                </Button>
+                <Button size="sm" variant="ghost" className="h-8 gap-1" onClick={handleClearFilters}>
+                    <X className="h-3.5 w-3.5"/>
+                        <span className="sr-only sm:not-sr-only">Clear</span>
+                </Button>
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Button size="sm" variant="outline" className="h-8 gap-1" disabled={isExporting}>
@@ -417,12 +330,18 @@ export default function TransactionsPage() {
                   <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
                 </div>
               ) : (
-                <DataTable columns={transactionColumns} data={transactions} />
+                <DataTableWithColumnFilters 
+                  columns={transactionColumns} 
+                  data={transactions} 
+                  columnFilters={columnFilters}
+                  setColumnFilters={setColumnFilters}
+                  customFilterComponents={{ status: StatusFilter }}
+                />
               )}
             </CardContent>
             <CardFooter>
               <div className="text-xs text-muted-foreground">
-                Showing <strong>{transactions.length}</strong> of <strong>{transactions.length}</strong> transactions
+                Showing <strong>{transactions.length}</strong> transactions
               </div>
             </CardFooter>
           </Card>

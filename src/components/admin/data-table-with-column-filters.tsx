@@ -3,12 +3,15 @@
 
 import * as React from "react"
 import {
+  Column,
   ColumnDef,
   flexRender,
   getCoreRowModel,
   getPaginationRowModel,
   getSortedRowModel,
   useReactTable,
+  ColumnFiltersState,
+  ColumnSizingState,
 } from "@tanstack/react-table"
 import { SlidersHorizontal } from "lucide-react"
 
@@ -32,39 +35,48 @@ import { Input } from "@/components/ui/input"
 interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[]
   data: TData[]
-  columnFilters: Record<string, any>;
-  setColumnFilters: React.Dispatch<React.SetStateAction<Record<string, any>>>;
+  columnFilters: ColumnFiltersState;
+  setColumnFilters: React.Dispatch<React.SetStateAction<ColumnFiltersState>>;
+  customFilterComponents?: Record<string, React.ElementType<{ column: any }>>;
 }
 
-export function DataTable<TData, TValue>({
+
+export function DataTableWithColumnFilters<TData, TValue>({
   columns,
   data,
   columnFilters,
   setColumnFilters,
+  customFilterComponents = {},
 }: DataTableProps<TData, TValue>) {
   
   const [sorting, setSorting] = React.useState<any[]>([])
   const [columnVisibility, setColumnVisibility] =
     React.useState<Record<string, boolean>>({})
   const [rowSelection, setRowSelection] = React.useState({})
+  const [columnSizing, setColumnSizing] = React.useState<ColumnSizingState>({})
 
   const table = useReactTable({
     data,
     columns,
     onSortingChange: setSorting,
+    onColumnFiltersChange: setColumnFilters,
     getCoreRowModel: getCoreRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
     getSortedRowModel: getSortedRowModel(),
     onColumnVisibilityChange: setColumnVisibility,
     onRowSelectionChange: setRowSelection,
+    onColumnSizingChange: setColumnSizing,
+    columnResizeMode: "onChange",
     state: {
       sorting,
+      columnFilters,
       columnVisibility,
       rowSelection,
+      columnSizing,
     },
     initialState: {
         pagination: {
-            pageSize: 5,
+            pageSize: 10,
         },
     }
   })
@@ -103,45 +115,46 @@ export function DataTable<TData, TValue>({
         </DropdownMenu>
       </div>
       <div className="rounded-md border overflow-x-auto">
-        <Table>
+        <Table style={{ width: table.getTotalSize() }}>
           <TableHeader>
             {table.getHeaderGroups().map((headerGroup) => (
               <TableRow key={headerGroup.id}>
                 {headerGroup.headers.map((header) => {
+                  const CustomFilter = customFilterComponents[header.id];
                   return (
-                    <TableHead key={header.id}>
-                      {header.isPlaceholder
-                        ? null
-                        : flexRender(
-                            header.column.columnDef.header,
-                            header.getContext()
-                          )}
+                    <TableHead key={header.id} style={{ width: header.getSize() }} className="relative align-top">
+                      <div className="flex flex-col gap-2">
+                        {header.isPlaceholder
+                          ? null
+                          : flexRender(
+                              header.column.columnDef.header,
+                              header.getContext()
+                            )}
+                         {header.column.getCanFilter() ? (
+                            CustomFilter ? (
+                              <CustomFilter column={header.column} />
+                            ) : (
+                              <Input
+                                placeholder={`Filter...`}
+                                value={(header.column.getFilterValue() ?? '') as string}
+                                onChange={e => header.column.setFilterValue(e.target.value)}
+                                className="h-8 text-xs max-w-sm"
+                              />
+                            )
+                          ) : null}
+                      </div>
+                       {header.column.getCanResize() && (
+                        <div
+                          onMouseDown={header.getResizeHandler()}
+                          onTouchStart={header.getResizeHandler()}
+                          className="absolute top-0 right-0 h-full w-1.5 cursor-col-resize select-none touch-none bg-border/50 hover:bg-primary"
+                        />
+                      )}
                     </TableHead>
                   )
                 })}
               </TableRow>
             ))}
-             <TableRow className="bg-muted/50 hover:bg-muted/50">
-                {table.getHeaderGroups().map(headerGroup => (
-                    headerGroup.headers.map(header => (
-                        <TableHead key={`${header.id}-filter`}>
-                            {header.column.getCanFilter() ? (
-                                <Input
-                                    placeholder={`Filter by ${header.column.columnDef.header || header.id}`}
-                                    value={columnFilters[header.id] ?? ''}
-                                    onChange={e => {
-                                        setColumnFilters(prev => ({
-                                            ...prev,
-                                            [header.id]: e.target.value
-                                        }))
-                                    }}
-                                    className="h-8 text-xs"
-                                />
-                            ) : null}
-                        </TableHead>
-                    ))
-                ))}
-            </TableRow>
           </TableHeader>
           <TableBody>
             {table.getRowModel().rows?.length ? (
@@ -151,7 +164,7 @@ export function DataTable<TData, TValue>({
                   data-state={row.getIsSelected() && "selected"}
                 >
                   {row.getVisibleCells().map((cell) => (
-                    <TableCell key={cell.id}>
+                    <TableCell key={cell.id} style={{ width: cell.column.getSize() }}>
                       {flexRender(
                         cell.column.columnDef.cell,
                         cell.getContext()
@@ -175,8 +188,7 @@ export function DataTable<TData, TValue>({
       </div>
       <div className="flex items-center justify-end space-x-2 py-4">
         <div className="flex-1 text-sm text-muted-foreground">
-          {table.getFilteredSelectedRowModel().rows.length} of{" "}
-          {table.getFilteredRowModel().rows.length} row(s) selected.
+          {table.getFilteredRowModel().rows.length} row(s) found.
         </div>
         <div className="space-x-2">
           <Button
