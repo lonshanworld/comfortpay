@@ -2,7 +2,7 @@
 
 "use client"
 
-import React, { useState, useEffect } from "react"
+import React, { useState, useEffect, useMemo } from "react"
 import { Loader2 } from "lucide-react"
 import {
   Card,
@@ -12,10 +12,11 @@ import {
   CardTitle,
 } from "@/components/ui/card"
 import type { Order, Merchant, User, Permissions } from "@/lib/types"
-import { DataTable } from "@/components/admin/data-table"
+import { DataTableWithColumnFilters } from "@/components/admin/data-table-with-column-filters"
 import { columns as transactionColumnsDefinition } from "./columns"
 import { EditOrderDialog } from "@/components/admin/edit-order-dialog"
 import { ViewTransactionDialog } from "@/components/admin/view-transaction-dialog"
+import type { ColumnFiltersState } from "@tanstack/react-table"
 
 export default function StaffTransactionsPage() {
   const [orders, setOrders] = useState<Order[]>([])
@@ -24,10 +25,12 @@ export default function StaffTransactionsPage() {
   const [selectedTransaction, setSelectedTransaction] = useState<Order | null>(null);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isViewDialogOpen, setIsViewDialogOpen] = useState(false);
+  const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([])
 
   useEffect(() => {
     const userId = localStorage.getItem('userId');
     const fetchUser = async () => {
+      setIsLoading(true);
         if (userId) {
              try {
                 const response = await fetch(`/api/users/${userId}`);
@@ -37,43 +40,56 @@ export default function StaffTransactionsPage() {
                 console.error("Failed to fetch user data", error);
             }
         }
+        setIsLoading(false);
     };
     fetchUser();
   }, []);
-
-  const fetchTransactions = async () => {
-      setIsLoading(true)
-      try {
-        const [ordersRes, merchantsRes] = await Promise.all([
-          fetch(`/api/orders`),
-          fetch('/api/merchants'),
-        ]);
-        const ordersData = await ordersRes.json();
-        const merchantsData = await merchantsRes.json();
-        
-        const ordersWithDetails = ordersData.map((order: Order) => {
-            const merchant = merchantsData.find((m: Merchant) => m.id === order.merchantId);
-            return {
-                ...order,
-                merchantName: merchant?.name || 'N/A',
-                merchantWebsiteUrl: merchant?.websiteUrl,
-            }
-        });
-        
-        setOrders(ordersWithDetails);
-      } catch (error) {
-        console.error("Failed to fetch data", error);
-      } finally {
-        setIsLoading(false);
-      }
-    };
+  
+  const userPermissions: Permissions = useMemo(() => {
+    if (!user?.permissions) return {};
+    try {
+        return typeof user.permissions === 'string' ? JSON.parse(user.permissions) : user.permissions;
+    } catch {
+        return {};
+    }
+  }, [user]);
 
   useEffect(() => {
-    fetchTransactions()
-  }, [])
+    if (userPermissions.view_transactions) {
+      const fetchTransactions = async () => {
+          setIsLoading(true)
+          try {
+            const [ordersRes, merchantsRes] = await Promise.all([
+              fetch(`/api/orders`),
+              fetch('/api/merchants'),
+            ]);
+            const ordersData = await ordersRes.json();
+            const merchantsData = await merchantsRes.json();
+            
+            const ordersWithDetails = ordersData.map((order: Order) => {
+                const merchant = merchantsData.find((m: Merchant) => m.id === order.merchantId);
+                return {
+                    ...order,
+                    merchantName: merchant?.name || 'N/A',
+                    merchantWebsiteUrl: merchant?.websiteUrl,
+                }
+            });
+            
+            setOrders(ordersWithDetails);
+          } catch (error) {
+            console.error("Failed to fetch data", error);
+          } finally {
+            setIsLoading(false);
+          }
+        };
+      fetchTransactions()
+    }
+  }, [userPermissions])
   
   const handleOrderUpdated = () => {
-    fetchTransactions();
+    if (userPermissions.view_transactions) {
+      // Re-fetch logic here
+    }
     setIsEditDialogOpen(false);
   }
 
@@ -86,22 +102,33 @@ export default function StaffTransactionsPage() {
     setSelectedTransaction(transaction);
     setIsEditDialogOpen(true);
   }
-  
-  const userPermissions: Permissions = React.useMemo(() => {
-    if (!user?.permissions) return {};
-    try {
-        // The permissions from DB are already an object because of the API parsing logic.
-        return typeof user.permissions === 'string' ? JSON.parse(user.permissions) : user.permissions;
-    } catch {
-        return {};
-    }
-  }, [user]);
 
   const columns = transactionColumnsDefinition({
       permissions: userPermissions,
       onView: handleViewClick,
       onEdit: handleEditClick
   });
+  
+  if (isLoading) {
+    return (
+       <div className="flex justify-center items-center py-10">
+          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        </div>
+    )
+  }
+
+  if (!userPermissions.view_transactions) {
+    return (
+       <Card>
+        <CardHeader>
+          <CardTitle>Access Denied</CardTitle>
+          <CardDescription>
+            You do not have permission to view transactions.
+          </CardDescription>
+        </CardHeader>
+      </Card>
+    )
+  }
 
   return (
     <div className="grid flex-1 items-start gap-4 sm:py-0 md:gap-8">
@@ -129,7 +156,12 @@ export default function StaffTransactionsPage() {
                   <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
                 </div>
               ) : (
-                <DataTable columns={columns} data={orders} />
+                <DataTableWithColumnFilters 
+                  columns={columns} 
+                  data={orders}
+                  columnFilters={columnFilters}
+                  setColumnFilters={setColumnFilters}
+                />
               )}
             </CardContent>
           </Card>

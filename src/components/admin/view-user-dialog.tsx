@@ -60,7 +60,18 @@ export function ViewUserDialog({ open, onOpenChange, user }: ViewUserDialogProps
     
     if (!user) return null;
     
-    const userPermissions: Permissions = user.permissions ? JSON.parse(user.permissions) : {};
+    const userPermissions: Permissions = (() => {
+        if (!user.permissions) return {};
+        if (typeof user.permissions === 'string') {
+            try {
+                return JSON.parse(user.permissions);
+            } catch (e) {
+                console.error("Failed to parse user permissions:", e);
+                return {};
+            }
+        }
+        return user.permissions;
+    })();
 
 
   return (
@@ -106,7 +117,7 @@ export function ViewUserDialog({ open, onOpenChange, user }: ViewUserDialogProps
                             <div className="space-y-2">
                                 {permissionsList.map(permission => (
                                      <div key={permission.id} className="flex items-center text-sm gap-2">
-                                        {userPermissions[permission.id] 
+                                        {userPermissions[permission.id as keyof Permissions] 
                                             ? <CheckCircle className="h-4 w-4 text-green-500" /> 
                                             : <XCircle className="h-4 w-4 text-muted-foreground" />
                                         }

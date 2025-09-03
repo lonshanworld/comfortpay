@@ -40,6 +40,7 @@ export async function POST(req: NextRequest) {
           INSERT INTO daily_volume_history (paymentAccountId, date, totalVolume, createdAt) 
           VALUES ?
         `;
+        // For bulk inserts with mysql2, the parameters need to be wrapped in an array.
         await runQuery(historyQuery, [historyValues]);
         console.log(`Archived volume for ${historyValues.length} accounts.`);
       } else {

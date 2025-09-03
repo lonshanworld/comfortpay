@@ -8,8 +8,21 @@ const parseDbUser = (dbUser: any) => {
     if (!dbUser) return null;
     const user = { ...dbUser };
     user.id = `user_${user.id}`;
-    // Safely parse JSON fields
-    try { user.permissions = JSON.parse(user.permissions || '{}'); } catch (e) { user.permissions = {}; }
+    
+    // Safely handle JSON fields that might already be objects
+    const safeParseJson = (field: any) => {
+        if (typeof field === 'string') {
+            try {
+                return JSON.parse(field || '{}');
+            } catch {
+                return {};
+            }
+        }
+        return field || {};
+    };
+
+    user.permissions = safeParseJson(user.permissions);
+    
     return user;
 }
 
@@ -19,7 +32,7 @@ export async function GET(request: Request) {
   const role = searchParams.get('role');
 
   try {
-    let query = "SELECT id, name, email, role, createdAt, status, permissions FROM users";
+    let query = "SELECT * FROM users";
     const params: string[] = [];
     
     // If a specific role is requested (and it's not 'all'), filter by it.

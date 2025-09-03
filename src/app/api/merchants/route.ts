@@ -21,8 +21,13 @@ const saveFileFromBase64 = async (base64String: string, subfolder: 'avatars' | '
         const fileExtension = base64String.substring(base64String.indexOf('/') + 1, base64String.indexOf(';'));
         const fileName = `${crypto.randomBytes(16).toString('hex')}.${fileExtension}`;
         
-        // Use environment variable for base path, fallback to public/uploads for development
-        const baseUploadDir = process.env.UPLOADS_DIR || path.join(process.cwd(), 'public', 'uploads');
+        // Use environment variable for base path. It MUST be set in production.
+        const baseUploadDir = process.env.UPLOADS_DIR;
+        if (!baseUploadDir) {
+            console.error("UPLOADS_DIR environment variable is not set. Cannot save file.");
+            throw new Error("File upload directory is not configured on the server.");
+        }
+
         const uploadDir = path.join(baseUploadDir, subfolder);
 
         await fs.mkdir(uploadDir, { recursive: true });

@@ -11,21 +11,24 @@ const calculateCommission = (transaction: Order, merchant: User) => {
         : merchant.commissionRates;
         
     const processor = transaction.paymentType.toLowerCase() as keyof typeof commissionRates;
-    const commission: Fee | undefined = commissionRates?.[processor];
     
-    if (!commission || !commission.value) {
+    // The commission object for the specific processor (e.g., commissionRates.stripe)
+    const commissionConfig: { value: number; type: 'percentage' | 'flat' } | undefined = commissionRates?.[processor];
+    
+    if (!commissionConfig || typeof commissionConfig.value !== 'number') {
         return 0;
     }
     
-    if (commission.type === 'percentage') {
-        return transaction.totalAmount * (commission.value / 100);
+    if (commissionConfig.type === 'percentage') {
+        return transaction.totalAmount * (commissionConfig.value / 100);
     }
-    if (commission.type === 'flat') {
-        return commission.value;
+    if (commissionConfig.type === 'flat') {
+        return commissionConfig.value;
     }
 
-    return 0;
+    return 0; // Default case
 };
+
 
 export async function GET(
   request: Request,
@@ -92,11 +95,11 @@ export async function GET(
     const stats = {
         totalCommission: {
             value: totalCommission,
-            change: "+15.2% from last month", // Mock change
+            change: totalCommission > 0 ? "+100% from last month" : "No change from last month",
         },
         merchantsOnboarded: {
             value: totalMerchants,
-            change: "+2 from last month", // Mock change
+            change: "total merchants managed",
         },
         totalActiveMerchants: {
             value: activeMerchants,
@@ -104,7 +107,7 @@ export async function GET(
         },
         monthlyVolume: {
             value: monthlyVolume,
-            change: "+5% from last month", // Mock change
+            change: monthlyVolume > 0 ? "+100% from last month" : "No change from last month",
         },
     };
 

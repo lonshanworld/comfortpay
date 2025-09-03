@@ -6,8 +6,6 @@ import {
   File,
   PlusCircle,
   Loader2,
-  Search,
-  X,
 } from "lucide-react"
 import { useRouter } from "next/navigation"
 
@@ -30,20 +28,10 @@ import { AddMerchantDialog } from "@/components/admin/add-merchant-dialog"
 import type { Merchant, UserRole } from "@/lib/types"
 import { EditMerchantDialog } from "@/components/admin/edit-merchant-dialog"
 import { ViewMerchantDialog } from "@/components/admin/view-merchant-dialog"
-import { DataTable } from "@/components/admin/data-tabel"
+import { DataTable } from "@/components/admin/data-table"
 import { columns } from "./columns"
 import { useToast } from "@/hooks/use-toast"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import { ManageTokenDialog } from "@/components/admin/manage-token-dialog"
-
-const defaultFilters = {
-    name: "",
-    email: "",
-    website: "",
-    status: "all",
-}
-
 
 export default function MerchantsPage() {
   const [merchants, setMerchants] = useState<Merchant[]>([])
@@ -55,24 +43,14 @@ export default function MerchantsPage() {
   const [isViewDialogOpen, setIsViewDialogOpen] = useState(false)
   const [isManageTokenDialogOpen, setIsManageTokenDialogOpen] = useState(false)
   const [selectedMerchant, setSelectedMerchant] = useState<Merchant | null>(null)
+  const [activeTab, setActiveTab] = useState("all")
   const router = useRouter();
   const { toast } = useToast()
-  
-  // Filter states
-  const [filters, setFilters] = useState(defaultFilters);
-  const [appliedFilters, setAppliedFilters] = useState(defaultFilters);
 
-
-  const fetchMerchants = useCallback(async (filtersToApply: typeof appliedFilters) => {
+  const fetchMerchants = useCallback(async (status: string) => {
     setIsLoading(true)
     try {
-       const params = new URLSearchParams();
-       if (filtersToApply.status && filtersToApply.status !== 'all') params.append('status', filtersToApply.status);
-       if (filtersToApply.name) params.append('name', filtersToApply.name);
-       if (filtersToApply.email) params.append('email', filtersToApply.email);
-       if (filtersToApply.website) params.append('website', filtersToApply.website);
-      
-      const response = await fetch(`/api/merchants?${params.toString()}`)
+      const response = await fetch(`/api/merchants?status=${status}`)
       const data = await response.json()
       setMerchants(data)
     } catch (error) {
@@ -83,39 +61,15 @@ export default function MerchantsPage() {
   }, []);
 
   useEffect(() => {
-    fetchMerchants(appliedFilters)
-  }, [appliedFilters, fetchMerchants])
-
-  const handleFilterChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value } = e.target;
-    setFilters(prev => ({ ...prev, [name]: value }));
-  }
-
-  const handleTabChange = (status: string) => {
-    // Only update the status, keep other filters
-    const newFilters = { ...filters, status };
-    setFilters(newFilters);
-    setAppliedFilters(newFilters);
-  };
-  
-  const handleApplyFilters = () => {
-    setAppliedFilters(filters);
-  }
-
-  const handleClearFilters = () => {
-    // Reset only text filters, keep status from applied filters
-    const newFilters = { ...defaultFilters, status: appliedFilters.status };
-    setFilters(newFilters);
-    setAppliedFilters(newFilters);
-  }
-
+    fetchMerchants(activeTab)
+  }, [activeTab, fetchMerchants])
 
   const handleMerchantAdded = () => {
-    fetchMerchants(appliedFilters)
+    fetchMerchants(activeTab)
   }
 
   const handleMerchantUpdated = async (updatedMerchantId: string) => {
-    await fetchMerchants(appliedFilters); // Refresh the list in the background
+    await fetchMerchants(activeTab); // Refresh the list in the background
     // Fetch the single updated merchant to refresh the dialog instantly
     try {
         const response = await fetch(`/api/merchants/${updatedMerchantId}`);
@@ -156,7 +110,7 @@ export default function MerchantsPage() {
                 title: "Merchant Deleted",
                 description: `${merchant.name} has been successfully deleted.`,
             });
-            fetchMerchants(appliedFilters);
+            fetchMerchants(activeTab);
         } catch (error) {
              toast({
                 variant: "destructive",
@@ -251,7 +205,7 @@ export default function MerchantsPage() {
             />
         )}
 
-      <Tabs value={appliedFilters.status} onValueChange={handleTabChange}>
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
         <div className="flex items-center">
           <TabsList>
             <TabsTrigger value="all">All</TabsTrigger>
@@ -273,37 +227,13 @@ export default function MerchantsPage() {
             </Button>
           </div>
         </div>
-        <TabsContent value={appliedFilters.status}>
+        <TabsContent value={activeTab}>
           <Card>
             <CardHeader>
               <CardTitle>Merchants</CardTitle>
               <CardDescription>
                 Manage your merchants and view their sales performance.
               </CardDescription>
-               <div className="flex flex-wrap items-end gap-4 pt-4">
-                    <div className="grid gap-2">
-                        <Label htmlFor="name">Business Name</Label>
-                        <Input id="name" name="name" value={filters.name} onChange={handleFilterChange} className="h-8"/>
-                    </div>
-                     <div className="grid gap-2">
-                        <Label htmlFor="email">Merchant Email</Label>
-                        <Input id="email" name="email" value={filters.email} onChange={handleFilterChange} className="h-8"/>
-                    </div>
-                     <div className="grid gap-2">
-                        <Label htmlFor="website">Merchant Website</Label>
-                        <Input id="website" name="website" value={filters.website} onChange={handleFilterChange} className="h-8"/>
-                    </div>
-                    <div className="flex items-center gap-2">
-                        <Button size="sm" className="h-8 gap-1" onClick={handleApplyFilters}>
-                            <Search className="h-3.5 w-3.5"/>
-                            <span className="sr-only sm:not-sr-only">Search</span>
-                        </Button>
-                        <Button size="sm" variant="ghost" className="h-8 gap-1" onClick={handleClearFilters}>
-                            <X className="h-3.5 w-3.5"/>
-                            <span className="sr-only sm:not-sr-only">Clear</span>
-                        </Button>
-                    </div>
-               </div>
             </CardHeader>
             <CardContent>
               {isLoading ? (
@@ -311,7 +241,12 @@ export default function MerchantsPage() {
                     <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
                 </div>
               ) : (
-                <DataTable columns={merchantColumns} data={merchants} />
+                <DataTable 
+                  columns={merchantColumns} 
+                  data={merchants}
+                  filterColumnId="email"
+                  filterPlaceholder="Filter by name or email..."
+                />
               )}
             </CardContent>
              <CardFooter>

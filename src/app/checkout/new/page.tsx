@@ -238,6 +238,9 @@ function CheckoutForm({ sessionData }: { sessionData: CreateCheckoutSessionInput
   const [isModal, setIsModal] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || '';
+  const qrCodeUrl = sessionData.paymentDetails?.qrCodeUrl ? `${appUrl}${sessionData.paymentDetails.qrCodeUrl}` : null;
+
   useEffect(() => {
     // Check if running in an iframe (modal)
     if (window.self !== window.top) {
@@ -383,18 +386,18 @@ function CheckoutForm({ sessionData }: { sessionData: CreateCheckoutSessionInput
                 <p className="text-sm text-muted-foreground">Send payment to:</p>
                 <p className="text-2xl lg:text-4xl font-semibold text-primary">{sessionData.paymentDetails?.accountEmail}</p>
               </div>
-              {sessionData.paymentDetails?.qrCodeUrl && (
+              {qrCodeUrl && (
                 <div className="flex justify-center">
-                  <Image src={sessionData.paymentDetails.qrCodeUrl} alt="Zelle QR Code" width={200} height={200} className="rounded-lg border shadow-sm" />
+                  <Image src={qrCodeUrl} alt="Zelle QR Code" width={200} height={200} className="rounded-lg border shadow-sm" />
                 </div>
               )}
               <div>
                 <p className="text-lg text-muted-foreground">Memo = <span className="text-2xl lg:text-4xl font-bold text-primary">{visualOrderId}</span></p>
               </div>
               <Alert>
-                {/* <AlertTitle>Important!</AlertTitle> */}
+                <AlertTitle>Important!</AlertTitle>
                 <AlertDescription>
-                  Memo for zelle- Memo write order number only
+                  You must include the exact memo shown above with your Zelle payment. After sending, click the button below to confirm.
                 </AlertDescription>
               </Alert>
               <Button onClick={handleZelleConfirmation} className="w-full" disabled={isProcessing}>

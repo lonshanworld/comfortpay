@@ -50,7 +50,10 @@ const DetailRow = ({ label, value, isCopyable = false, onCopy, children }: { lab
 }
 
 const DocumentRow = ({ label, url, type }: { label: string, url?: string, type: 'image' | 'document' }) => {
-  if (!url) {
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || '';
+  const fullUrl = url ? `${appUrl}${url}` : null;
+  
+  if (!fullUrl) {
     return (
        <div className="grid grid-cols-3 gap-2 text-sm items-center py-1.5">
           <p className="text-muted-foreground col-span-1">{label}</p>
@@ -62,7 +65,7 @@ const DocumentRow = ({ label, url, type }: { label: string, url?: string, type: 
     <div className="grid grid-cols-3 gap-2 text-sm items-center py-1.5">
         <p className="text-muted-foreground col-span-1">{label}</p>
         <div className="col-span-2 font-medium break-words flex items-center gap-2">
-            <Link href={url} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline flex items-center gap-2">
+            <Link href={fullUrl} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline flex items-center gap-2">
                {type === 'image' ? <ImageIcon className="h-4 w-4"/> : <FileText className="h-4 w-4" />}
                View Document <ExternalLink className="h-3.5 w-3.5" />
             </Link>

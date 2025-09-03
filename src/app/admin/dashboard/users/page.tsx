@@ -23,7 +23,7 @@ import {
   TabsList,
   TabsTrigger,
 } from "@/components/ui/tabs"
-import { DataTable } from "@/components/admin/data-tabel"
+import { DataTable } from "@/components/admin/data-table"
 import { columns as userColumnsDefinition } from "./columns"
 import { columns as merchantColumnsDefinition } from "../merchants/columns"
 import type { User, Merchant, UserRole } from "@/lib/types"
@@ -79,12 +79,16 @@ export default function UsersPage() {
 
       // Filter out merchants from the allUsersData to avoid duplicates and ensure non-merchants are handled correctly
       const nonMerchantUsers = allUsersData.filter((u: User) => u.role !== 'Merchant');
-      setAllUsers([...merchantsData, ...nonMerchantUsers]);
+      const combinedUsers = [...merchantsData, ...nonMerchantUsers];
+      setAllUsers(combinedUsers);
+      
+      return combinedUsers; // Return the fetched data
 
     } catch (error) {
       console.error("Failed to fetch data", error);
       setAllUsers([]);
       setAllMerchants([]);
+      return []; // Return empty on error
     } finally {
       setIsLoading(false);
     }
@@ -102,14 +106,34 @@ export default function UsersPage() {
   }, [activeTab, allUsers, allMerchants]);
 
   
-  const handleUserAddedOrUpdated = () => {
-    fetchData();
-    setSelectedUser(null);
+  const handleUserAddedOrUpdated = async (updatedUserId?: string) => {
+    const updatedUsers = await fetchData();
+    if (updatedUserId && updatedUsers.length > 0) {
+      const freshUser = updatedUsers.find(u => u.id === updatedUserId);
+      if (freshUser) {
+        setSelectedUser(freshUser);
+        if (freshUser.role === 'Merchant') {
+          setSelectedMerchant(freshUser as Merchant);
+        }
+      }
+    } else {
+      setSelectedUser(null);
+      setSelectedMerchant(null);
+    }
   }
 
-  const handleMerchantAddedOrUpdated = () => {
-    fetchData()
-    setSelectedMerchant(null)
+  const handleMerchantAddedOrUpdated = async (updatedMerchantId?: string) => {
+    const updatedUsers = await fetchData();
+     if (updatedMerchantId && updatedUsers.length > 0) {
+      const freshMerchant = updatedUsers.find(u => u.id === updatedMerchantId);
+      if (freshMerchant) {
+        setSelectedMerchant(freshMerchant as Merchant);
+        setSelectedUser(freshMerchant);
+      }
+    } else {
+      setSelectedUser(null);
+      setSelectedMerchant(null);
+    }
   }
 
   const handleViewUserClick = (user: User) => {
@@ -236,13 +260,13 @@ export default function UsersPage() {
   return (
     <div className="grid flex-1 items-start gap-4 sm:py-0 md:gap-8">
       <AddUserDialog open={isAddUserDialogOpen} onOpenChange={setIsAddUserDialogOpen} onUserAdded={handleUserAddedOrUpdated} />
-      <AddMerchantDialog open={isAddMerchantDialogOpen} onOpenChange={setIsAddMerchantDialogOpen} onMerchantAdded={handleMerchantAddedOrUpdated} />
+      <AddMerchantDialog open={isAddMerchantDialogOpen} onOpenChange={setIsAddMerchantDialogOpen} onMerchantAdded={() => handleMerchantAddedOrUpdated()} />
       {selectedUser && (
         <EditUserDialog 
             open={isEditUserDialogOpen} 
             onOpenChange={setIsEditUserDialogOpen} 
             user={selectedUser} 
-            onUserUpdated={handleUserAddedOrUpdated}
+            onUserUpdated={() => handleUserAddedOrUpdated(selectedUser.id)}
         />
       )}
       {selectedUser && (
@@ -257,7 +281,7 @@ export default function UsersPage() {
           open={isPermissionsDialogOpen}
           onOpenChange={setIsPermissionsDialogOpen}
           user={selectedUser}
-          onPermissionsUpdated={handleUserAddedOrUpdated}
+          onPermissionsUpdated={() => handleUserAddedOrUpdated(selectedUser.id)}
         />
       )}
       {selectedMerchant && (
@@ -272,7 +296,7 @@ export default function UsersPage() {
             open={isEditMerchantDialogOpen}
             onOpenChange={setIsEditMerchantDialogOpen}
             merchant={selectedMerchant}
-            onMerchantUpdated={handleMerchantAddedOrUpdated}
+            onMerchantUpdated={() => handleMerchantAddedOrUpdated(selectedMerchant.id)}
         />
        )}
        {selectedMerchant && (
@@ -280,7 +304,7 @@ export default function UsersPage() {
             open={isManageTokenDialogOpen}
             onOpenChange={setIsManageTokenDialogOpen}
             merchant={selectedMerchant}
-            onTokenUpdated={handleMerchantAddedOrUpdated}
+            onTokenUpdated={() => handleMerchantAddedOrUpdated(selectedMerchant.id)}
         />
       )}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
@@ -321,7 +345,12 @@ export default function UsersPage() {
                             <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
                         </div>
                       ) : (
-                        <DataTable columns={currentColumns} data={currentData} />
+                        <DataTable 
+                          columns={currentColumns} 
+                          data={currentData} 
+                          filterColumnId="email"
+                          filterPlaceholder={`Filter by ${isMerchantTab ? "name" : "email"}...`}
+                        />
                       )}
                 </CardContent>
                  <CardFooter>

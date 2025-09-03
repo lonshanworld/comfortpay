@@ -216,7 +216,7 @@ export function EditAccountDialog({ open, onOpenChange, onAccountUpdated, onAcco
                 </FormItem>
               )}
             />
-            {account.type === 'Zelle' && (
+            {selectedType === 'Zelle' && (
                 <>
                  <FormField
                     control={form.control}
@@ -296,19 +296,21 @@ export function EditAccountDialog({ open, onOpenChange, onAccountUpdated, onAcco
                 </FormItem>
               )}
             />
-            <FormField
-              control={form.control}
-              name="websiteUrl"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Source Website URL {selectedType !== 'Zelle' && <span className="text-destructive">*</span>}</FormLabel>
-                  <FormControl>
-                    <Input placeholder="https://your-source-website.com" {...field} disabled={isLoading} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+            {selectedType !== 'Zelle' && (
+                <FormField
+                control={form.control}
+                name="websiteUrl"
+                render={({ field }) => (
+                    <FormItem>
+                    <FormLabel>Source Website URL {selectedType !== 'Zelle' && <span className="text-destructive">*</span>}</FormLabel>
+                    <FormControl>
+                        <Input placeholder="https://your-source-website.com" {...field} disabled={isLoading} />
+                    </FormControl>
+                    <FormMessage />
+                    </FormItem>
+                )}
+                />
+            )}
              <Alert>
                 <Terminal className="h-4 w-4" />
                 <AlertTitle>Environment Variable Configuration</AlertTitle>

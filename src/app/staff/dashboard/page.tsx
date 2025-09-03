@@ -1,6 +1,6 @@
 
 "use client"
-import React, { useState, useEffect, useCallback } from "react"
+import React, { useState, useEffect, useCallback, useMemo } from "react"
 import {
   Activity,
   ArrowUpRight,
@@ -82,14 +82,17 @@ export default function StaffDashboard() {
         return () => clearInterval(intervalId); // Cleanup on unmount
     }, [fetchStats]);
     
-    const permissions: Permissions = React.useMemo(() => {
+    const permissions: Permissions = useMemo(() => {
         if (!user?.permissions) return {};
-        try {
-             // The permissions from DB are already an object because of the API parsing logic.
-            return typeof user.permissions === 'string' ? JSON.parse(user.permissions) : user.permissions;
-        } catch {
-            return {};
+        // The API now guarantees this is an object, but a safeguard is good practice.
+        if (typeof user.permissions === 'string') {
+            try {
+                return JSON.parse(user.permissions);
+            } catch {
+                return {};
+            }
         }
+        return user.permissions;
     }, [user]);
 
     if (isLoading || !stats) {
@@ -109,7 +112,7 @@ export default function StaffDashboard() {
             </p>
         </div>
         <div className="grid gap-4 md:grid-cols-2 md:gap-8 lg:grid-cols-4">
-          {permissions.view_dashboard && (
+          {permissions.view_dashboard ? (
             <>
                 <Card>
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -166,6 +169,17 @@ export default function StaffDashboard() {
                     </Card>
                 )}
             </>
+          ) : (
+             <Card className="flex flex-1 items-center justify-center rounded-lg border border-dashed shadow-sm py-10 md:col-span-4">
+                <div className="flex flex-col items-center gap-1 text-center">
+                    <h3 className="text-2xl font-bold tracking-tight">
+                    No Access to Dashboard Stats
+                    </h3>
+                    <p className="text-sm text-muted-foreground">
+                    You do not have permission to view dashboard summary data.
+                    </p>
+                </div>
+            </Card>
           )}
         </div>
         <div>

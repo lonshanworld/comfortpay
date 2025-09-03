@@ -49,9 +49,9 @@ export const columns: ColumnDef<Merchant>[] = [
         const rates = row.original.commissionRates;
         return (
             <div className="text-sm">
-                <div>Stripe: <span className="font-semibold">{rates?.stripe ?? 'N/A'}%</span></div>
-                <div>Square: <span className="font-semibold">{rates?.square ?? 'N/A'}%</span></div>
-                <div>Zelle: <span className="font-semibold">{rates?.zelle ?? 'N/A'}%</span></div>
+                <div>Stripe: <span className="font-semibold">{rates?.stripe?.value ?? 'N/A'}%</span></div>
+                <div>Square: <span className="font-semibold">{rates?.square?.value ?? 'N/A'}%</span></div>
+                <div>Zelle: <span className="font-semibold">{rates?.zelle?.value ?? 'N/A'}%</span></div>
             </div>
         )
     }

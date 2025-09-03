@@ -41,10 +41,12 @@ export const runQuery = async (query: string, params: any[] = []): Promise<{ id:
   const db = await getDb();
   
   // Transaction control statements are not supported by the prepared statement protocol.
-  // We use `query` for them and `execute` for all other DML statements.
   const isTransactionControl = ['START TRANSACTION', 'COMMIT', 'ROLLBACK'].includes(query.trim().toUpperCase());
+  // Bulk inserts (`VALUES ?`) are also not supported by `execute`.
+  const isBulkInsert = query.trim().toUpperCase().includes('VALUES ?');
 
-  if (isTransactionControl) {
+
+  if (isTransactionControl || isBulkInsert) {
     const [result] = await db.query(query, params) as [mysql.ResultSetHeader, any];
     return { id: result.insertId, changes: result.affectedRows };
   } else {

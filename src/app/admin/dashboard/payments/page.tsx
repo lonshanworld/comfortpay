@@ -36,6 +36,9 @@ const AccountCard = ({ account, onManage }: { account: PaymentAccount, onManage:
     const isOverLimit = dailyLimit > 0 && currentVolume >= dailyLimit;
     const progressValue = dailyLimit > 0 ? (currentVolume / dailyLimit) * 100 : 0;
   
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || '';
+    const fullQrCodeUrl = account.qrCodeUrl ? `${appUrl}${account.qrCodeUrl}` : null;
+
     return (
       <Card>
         <CardHeader>
@@ -66,12 +69,12 @@ const AccountCard = ({ account, onManage }: { account: PaymentAccount, onManage:
                 <p className="text-sm">{account.accountEmail}</p>
             </div>
            )}
-            {account.type === 'Zelle' && account.qrCodeUrl && (
+            {account.type === 'Zelle' && fullQrCodeUrl && (
                 <div>
                     <p className="text-sm font-medium text-muted-foreground mb-2">QR Code</p>
                     <div className="relative w-32 h-32">
                         <Image
-                            src={account.qrCodeUrl}
+                            src={fullQrCodeUrl}
                             alt="Zelle QR Code"
                             layout="fill"
                             objectFit="contain"

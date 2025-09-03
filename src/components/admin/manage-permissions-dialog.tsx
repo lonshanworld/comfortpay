@@ -26,6 +26,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import type { User, Permissions } from "@/lib/types";
+import { ScrollArea } from "../ui/scroll-area";
 
 const permissionsList: { id: keyof Permissions; label: string, description: string }[] = [
   { id: "view_dashboard", label: "View Dashboard", description: "Can view the main dashboard and analytics." },
@@ -39,8 +40,16 @@ const permissionsList: { id: keyof Permissions; label: string, description: stri
 ];
 
 const permissionsSchema = z.object({
-  permissions: z.record(z.boolean()),
+  view_dashboard: z.boolean().default(false),
+  view_transactions: z.boolean().default(false),
+  edit_transactions: z.boolean().default(false),
+  view_merchants: z.boolean().default(false),
+  edit_merchants: z.boolean().default(false),
+  view_users: z.boolean().default(false),
+  edit_users: z.boolean().default(false),
+  manage_settings: z.boolean().default(false),
 });
+
 
 type PermissionsFormValues = z.infer<typeof permissionsSchema>;
 
@@ -57,30 +66,31 @@ export function ManagePermissionsDialog({ open, onOpenChange, onPermissionsUpdat
 
   const form = useForm<PermissionsFormValues>({
     resolver: zodResolver(permissionsSchema),
-    defaultValues: {
-      permissions: {},
-    },
+    defaultValues: {},
   });
   
   useEffect(() => {
     if (user && open) {
-      const getInitialPermissions = () => {
-        try {
-          if (user?.permissions) {
-            return JSON.parse(user.permissions);
-          }
-        } catch (e) {
-          console.error("Failed to parse user permissions:", e);
-        }
-        return {};
-      };
+        const getInitialPermissions = () => {
+            if (!user.permissions) return {};
+            // This is now robust and can handle both string and object types
+            if (typeof user.permissions === 'string') {
+                try {
+                    return JSON.parse(user.permissions);
+                } catch (e) {
+                    console.error("Failed to parse user permissions:", e);
+                    return {};
+                }
+            }
+            return user.permissions;
+        };
 
       const initialPermissions = permissionsList.reduce((acc, perm) => {
-        acc[perm.id] = getInitialPermissions()[perm.id] || false;
+        acc[perm.id as keyof Permissions] = !!getInitialPermissions()[perm.id as keyof Permissions];
         return acc;
       }, {} as Record<keyof Permissions, boolean>);
       
-      form.reset({ permissions: initialPermissions });
+      form.reset(initialPermissions);
     }
   }, [user, open, form]);
 
@@ -89,10 +99,12 @@ export function ManagePermissionsDialog({ open, onOpenChange, onPermissionsUpdat
     setIsLoading(true);
 
     try {
+      const payload = { permissions: data };
+
       const response = await fetch(`/api/users/${user.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ permissions: JSON.stringify(data.permissions) }),
+        body: JSON.stringify(payload),
       });
 
       if (!response.ok) {
@@ -120,7 +132,7 @@ export function ManagePermissionsDialog({ open, onOpenChange, onPermissionsUpdat
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-md flex flex-col h-[90vh]">
         <DialogHeader>
           <DialogTitle>Manage Permissions</DialogTitle>
           <DialogDescription>
@@ -128,43 +140,45 @@ export function ManagePermissionsDialog({ open, onOpenChange, onPermissionsUpdat
           </DialogDescription>
         </DialogHeader>
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-            <div className="max-h-[50vh] space-y-4 overflow-y-auto pr-2">
-                {permissionsList.map((permission) => (
-                <FormField
-                    key={permission.id}
-                    control={form.control}
-                    name={`permissions.${permission.id}`}
-                    render={({ field }) => (
-                    <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4">
-                        <FormControl>
-                        <Checkbox
-                            checked={field.value}
-                            onCheckedChange={field.onChange}
-                            disabled={isLoading}
+            <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col flex-grow min-h-0">
+                <ScrollArea className="flex-grow pr-4 -mr-4">
+                    <div className="space-y-4 pb-4">
+                        {permissionsList.map((permission) => (
+                        <FormField
+                            key={permission.id}
+                            control={form.control}
+                            name={permission.id}
+                            render={({ field }) => (
+                            <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4">
+                                <FormControl>
+                                <Checkbox
+                                    checked={field.value}
+                                    onCheckedChange={field.onChange}
+                                    disabled={isLoading}
+                                />
+                                </FormControl>
+                                <div className="space-y-1 leading-none">
+                                <FormLabel>{permission.label}</FormLabel>
+                                <FormDescription>
+                                {permission.description}
+                                </FormDescription>
+                                </div>
+                            </FormItem>
+                            )}
                         />
-                        </FormControl>
-                        <div className="space-y-1 leading-none">
-                        <FormLabel>{permission.label}</FormLabel>
-                        <FormDescription>
-                           {permission.description}
-                        </FormDescription>
-                        </div>
-                    </FormItem>
-                    )}
-                />
-                ))}
-            </div>
-            <DialogFooter>
-              <Button type="button" variant="ghost" onClick={() => onOpenChange(false)} disabled={isLoading}>
-                Cancel
-              </Button>
-              <Button type="submit" disabled={isLoading}>
-                {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                Save Permissions
-              </Button>
-            </DialogFooter>
-          </form>
+                        ))}
+                    </div>
+                </ScrollArea>
+                <DialogFooter className="pt-4 flex-shrink-0">
+                    <Button type="button" variant="ghost" onClick={() => onOpenChange(false)} disabled={isLoading}>
+                        Cancel
+                    </Button>
+                    <Button type="submit" disabled={isLoading}>
+                        {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                        Save Permissions
+                    </Button>
+                </DialogFooter>
+            </form>
         </Form>
       </DialogContent>
     </Dialog>

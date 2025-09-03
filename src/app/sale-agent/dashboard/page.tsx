@@ -10,7 +10,6 @@ import {
   CardTitle,
 } from "@/components/ui/card"
 import { DollarSign, Users, TrendingUp, UserPlus, Loader2 } from "lucide-react"
-import { set } from "zod";
 
 interface AgentStats {
     totalCommission: { value: number; change: string };
@@ -28,14 +27,11 @@ export default function SaleAgentDashboard() {
     const userRole = localStorage.getItem('userRole');
     let id;
     if (userRole === 'Admin') {
-        // agentId = localStorage.getItem('impersonatingUserId');
-        const storageAgentId =  localStorage.getItem('impersonatingUserId');
-        setAgentId(storageAgentId);
+        id = localStorage.getItem('impersonatingUserId');
     } else {
-        const userStorageId = localStorage.getItem('userId');
-        setAgentId(userStorageId);
+        id = localStorage.getItem('userId');
     }
-    setAgentId(agentId);
+    setAgentId(id);
   }, []);
 
   const fetchStats = useCallback(async (isInitialLoad = false) => {

@@ -4,11 +4,16 @@
 import * as React from "react"
 import {
   ColumnDef,
+  ColumnFiltersState,
+  SortingState,
+  VisibilityState,
   flexRender,
   getCoreRowModel,
+  getFilteredRowModel,
   getPaginationRowModel,
   getSortedRowModel,
   useReactTable,
+  ColumnSizingState,
 } from "@tanstack/react-table"
 import { SlidersHorizontal } from "lucide-react"
 
@@ -32,39 +37,46 @@ import { Input } from "@/components/ui/input"
 interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[]
   data: TData[]
-  columnFilters: Record<string, any>;
-  setColumnFilters: React.Dispatch<React.SetStateAction<Record<string, any>>>;
+  filterColumnId?: string;
+  filterPlaceholder?: string;
 }
 
 export function DataTable<TData, TValue>({
   columns,
   data,
-  columnFilters,
-  setColumnFilters,
+  filterColumnId,
+  filterPlaceholder,
 }: DataTableProps<TData, TValue>) {
-  
-  const [sorting, setSorting] = React.useState<any[]>([])
+  const [sorting, setSorting] = React.useState<SortingState>([])
+  const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([])
   const [columnVisibility, setColumnVisibility] =
-    React.useState<Record<string, boolean>>({})
+    React.useState<VisibilityState>({})
   const [rowSelection, setRowSelection] = React.useState({})
+  const [columnSizing, setColumnSizing] = React.useState<ColumnSizingState>({})
 
   const table = useReactTable({
     data,
     columns,
     onSortingChange: setSorting,
+    onColumnFiltersChange: setColumnFilters,
     getCoreRowModel: getCoreRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
     getSortedRowModel: getSortedRowModel(),
+    getFilteredRowModel: getFilteredRowModel(),
     onColumnVisibilityChange: setColumnVisibility,
     onRowSelectionChange: setRowSelection,
+    onColumnSizingChange: setColumnSizing,
+    columnResizeMode: "onChange",
     state: {
       sorting,
+      columnFilters,
       columnVisibility,
       rowSelection,
+      columnSizing,
     },
     initialState: {
         pagination: {
-            pageSize: 5,
+            pageSize: 10,
         },
     }
   })
@@ -72,6 +84,16 @@ export function DataTable<TData, TValue>({
   return (
     <div>
       <div className="flex items-center py-4">
+        {filterColumnId && (
+            <Input
+              placeholder={filterPlaceholder || `Filter by ${filterColumnId}...`}
+              value={(table.getColumn(filterColumnId)?.getFilterValue() as string) ?? ""}
+              onChange={(event) =>
+                table.getColumn(filterColumnId)?.setFilterValue(event.target.value)
+              }
+              className="max-w-sm"
+            />
+        )}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="outline" className="ml-auto h-8 gap-1">
@@ -103,45 +125,31 @@ export function DataTable<TData, TValue>({
         </DropdownMenu>
       </div>
       <div className="rounded-md border overflow-x-auto">
-        <Table>
+        <Table style={{ width: table.getTotalSize() }}>
           <TableHeader>
             {table.getHeaderGroups().map((headerGroup) => (
               <TableRow key={headerGroup.id}>
                 {headerGroup.headers.map((header) => {
                   return (
-                    <TableHead key={header.id}>
+                    <TableHead key={header.id} style={{ width: header.getSize() }} className="relative">
                       {header.isPlaceholder
                         ? null
                         : flexRender(
                             header.column.columnDef.header,
                             header.getContext()
                           )}
+                       {header.column.getCanResize() && (
+                        <div
+                          onMouseDown={header.getResizeHandler()}
+                          onTouchStart={header.getResizeHandler()}
+                          className="absolute top-0 right-0 h-full w-1.5 cursor-col-resize select-none touch-none bg-border/50 hover:bg-primary"
+                        />
+                      )}
                     </TableHead>
                   )
                 })}
               </TableRow>
             ))}
-             <TableRow className="bg-muted/50 hover:bg-muted/50">
-                {table.getHeaderGroups().map(headerGroup => (
-                    headerGroup.headers.map(header => (
-                        <TableHead key={`${header.id}-filter`}>
-                            {header.column.getCanFilter() ? (
-                                <Input
-                                    placeholder={`Filter by ${header.column.columnDef.header || header.id}`}
-                                    value={columnFilters[header.id] ?? ''}
-                                    onChange={e => {
-                                        setColumnFilters(prev => ({
-                                            ...prev,
-                                            [header.id]: e.target.value
-                                        }))
-                                    }}
-                                    className="h-8 text-xs"
-                                />
-                            ) : null}
-                        </TableHead>
-                    ))
-                ))}
-            </TableRow>
           </TableHeader>
           <TableBody>
             {table.getRowModel().rows?.length ? (
@@ -151,7 +159,7 @@ export function DataTable<TData, TValue>({
                   data-state={row.getIsSelected() && "selected"}
                 >
                   {row.getVisibleCells().map((cell) => (
-                    <TableCell key={cell.id}>
+                    <TableCell key={cell.id} style={{ width: cell.column.getSize() }}>
                       {flexRender(
                         cell.column.columnDef.cell,
                         cell.getContext()
@@ -175,8 +183,7 @@ export function DataTable<TData, TValue>({
       </div>
       <div className="flex items-center justify-end space-x-2 py-4">
         <div className="flex-1 text-sm text-muted-foreground">
-          {table.getFilteredSelectedRowModel().rows.length} of{" "}
-          {table.getFilteredRowModel().rows.length} row(s) selected.
+          {table.getFilteredRowModel().rows.length} row(s) found.
         </div>
         <div className="space-x-2">
           <Button
