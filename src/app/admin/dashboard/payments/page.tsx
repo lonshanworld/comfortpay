@@ -38,7 +38,7 @@ const AccountCard = ({ account, onManage }: { account: PaymentAccount, onManage:
   
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || '';
     const fullQrCodeUrl = account.qrCodeUrl ? `${appUrl}${account.qrCodeUrl}` : null;
-
+    console.log("Full QR Code URL:", account,fullQrCodeUrl);
     return (
       <Card>
         <CardHeader>
@@ -73,7 +73,7 @@ const AccountCard = ({ account, onManage }: { account: PaymentAccount, onManage:
                 <div>
                     <p className="text-sm font-medium text-muted-foreground mb-2">QR Code</p>
                     <div className="relative w-32 h-32">
-                        <Image
+                        <img
                             src={fullQrCodeUrl}
                             alt="Zelle QR Code"
                             layout="fill"
