@@ -376,11 +376,11 @@ function CheckoutForm({ sessionData }: { sessionData: CreateCheckoutSessionInput
                 <p className="text-sm text-muted-foreground">Send payment to:</p>
                 <p className="text-2xl lg:text-4xl font-semibold text-primary">{sessionData.paymentDetails?.accountEmail}</p>
               </div>
-              {qrCodeUrl && (
+              {/* {qrCodeUrl && (
                 <div className="flex justify-center">
                   <Image src={qrCodeUrl} alt="Zelle QR Code" width={200} height={200} className="rounded-lg border shadow-sm" />
                 </div>
-              )}
+              )} */}
               <div>
                 <p className="text-lg text-muted-foreground">Memo = <span className="text-2xl lg:text-4xl font-bold text-primary">{visualOrderId}</span></p>
               </div>
