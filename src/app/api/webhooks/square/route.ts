@@ -11,6 +11,7 @@ import { ApiError, Client, Environment } from 'square/legacy';
 import crypto from 'crypto';
 import { executeQuery, runQuery } from '@/lib/db';
 import { sendOrderNotification } from '@/app/actions/send-order-notification';
+import type { Order, PaymentAccount } from '@/lib/types';
 
 
 /**
@@ -46,49 +47,71 @@ export async function POST(req: NextRequest) {
   const url = req.url;
   
   const event = JSON.parse(body);
+  console.log("🚀 [Square Webhook] Received event:", { type: event.type, id: event.id });
+  const payment = event.data?.object?.payment;
 
-  // Extract the Square location ID from the event to fetch the correct signature key
-  const locationId = event.data.object.payment.location_id;
-  const webhookSignatureKey = process.env[`SQUARE_WEBHOOK_SIGNATURE_KEY_FOR_${locationId}`];
+  // Use the `note` field which we populated with our internal ID
+  const comfortPayOrderIdWithPrefix = payment?.note;
+  if (!comfortPayOrderIdWithPrefix) {
+      console.warn(`[Square Webhook] Warning: No comfortPayOrderId found in payment note for Square Payment ID ${payment?.id}. Cannot process.`);
+      // We return 200 to Square to acknowledge receipt and prevent retries for events we can't handle.
+      return NextResponse.json({ received: true });
+  }
+  console.log(`[Square Webhook] Found ComfortPay Order ID in note: ${comfortPayOrderIdWithPrefix}`);
+
+
+  const numericOrderId = comfortPayOrderIdWithPrefix.replace('CP', '');
+  const orderResult: any[] = await executeQuery("SELECT paymentAccountId FROM orders WHERE id = ?", [numericOrderId]);
+
+  if (orderResult.length === 0) {
+      console.error(`❌ [Square Webhook] Error: Could not find an order with ID ${comfortPayOrderIdWithPrefix}.`);
+      return NextResponse.json({ error: 'Order not found.' }, { status: 404 });
+  }
+  
+  const paymentAccountId = orderResult[0].paymentAccountId; // This is the numeric ID, e.g., 3
+  if (!paymentAccountId) {
+      console.error(`❌ [Square Webhook] Error: Order ${comfortPayOrderIdWithPrefix} is not associated with a payment account.`);
+      return NextResponse.json({ error: 'Internal configuration error.' }, { status: 500 });
+  }
+  
+  // Use the Payment Account ID to get the correct webhook secret.
+  const webhookSignatureKey = process.env[`SQUARE_WEBHOOK_SIGNATURE_KEY_${paymentAccountId}`];
 
   if (!webhookSignatureKey) {
-     console.error(`❌ Square Webhook Error: No signature key found for location_id: ${locationId}`);
-     return NextResponse.json({ error: 'Webhook configuration error' }, { status: 500 });
+     console.error(`❌ [Square Webhook] Error: No signature key found for payment account ID: ${paymentAccountId}. Make sure the SQUARE_WEBHOOK_SIGNATURE_KEY_${paymentAccountId} environment variable is set.`);
+     return NextResponse.json({ error: 'Webhook configuration error on server.' }, { status: 500 });
   }
 
   if (!signature || !isWebhookSignatureValid(signature, body, url, webhookSignatureKey)) {
-    console.error('❌ Square Webhook Error: Invalid signature');
+    console.error('❌ [Square Webhook] Error: Invalid signature');
     return NextResponse.json({ error: 'Webhook Error: Invalid signature' }, { status: 401 });
   }
 
-  console.log('✅ Square signature verified.');
+  console.log('✅ [Square Webhook] Signature verified.');
 
   try {
     // Handle the event
     switch (event.type) {
       case 'payment.updated':
-        const payment = event.data.object.payment;
-        
         if (payment.status === 'COMPLETED') {
-            const squareOrderId = payment.order_id;
-            console.log(`✅ Received payment.updated for Square order: ${squareOrderId}`);
+            console.log(`[Square Webhook] Processing COMPLETED payment.updated event for Square payment: ${payment.id}`);
             
-            // In a real app, the Square Order ID would have a reference to your
-            // internal comfortPayOrderId. We retrieve this from the metadata.
-            const comfortPayOrderId = payment.note; // We'll use the 'note' field for our internal ID.
-            
-            if (!comfortPayOrderId) {
-                 console.warn(`Square Webhook Warning: No comfortPayOrderId found in payment note for Square Order ID ${squareOrderId}.`);
-                 break;
+            const updates: any[] = ['Completed', payment.id, new Date().toISOString()];
+            let updateQuery = `UPDATE orders SET status = ?, paymentGatewayTransactionId = ?, paymentReceivedDate = ?`;
+
+            if (payment.riskEvaluation) {
+                console.log("🔍 [Square Webhook] Found Risk Evaluation:", payment.riskEvaluation);
+                updateQuery += `, riskDetails = ?`;
+                updates.push(JSON.stringify(payment.riskEvaluation));
             }
 
-            const numericOrderId = comfortPayOrderId.replace('CP', '');
+            updateQuery += ` WHERE id = ?`;
+            updates.push(numericOrderId);
             
             // Update order in DB
-            await runQuery(
-                `UPDATE orders SET status = ?, paymentGatewayTransactionId = ?, paymentReceivedDate = ? WHERE id = ?`,
-                ['Completed', payment.id, new Date().toISOString(), numericOrderId]
-            );
+            const dbResult = await runQuery(updateQuery, updates);
+            console.log("[Square Webhook] Database update result:", dbResult);
+
 
             // Fetch order and merchant details to send emails
             const details = await getOrderDetails(numericOrderId);
@@ -96,27 +119,28 @@ export async function POST(req: NextRequest) {
                 const { order, merchant } = details;
                 // Send notifications (don't block the response for this)
                  Promise.all([
-                    sendOrderNotification({ recipientType: 'customer', customerEmail: order.customerEmail, merchantName: merchant.name, orderDetails: order }),
-                    sendOrderNotification({ recipientType: 'merchant', merchantEmail: merchant.email, merchantName: merchant.name, orderDetails: order })
+                    sendOrderNotification({ recipientType: 'customer', customerEmail: order.customerEmail, merchantName: merchant.name, orderDetails: order, items: order.items }),
+                    sendOrderNotification({ recipientType: 'merchant', merchantEmail: merchant.email, merchantName: merchant.name, orderDetails: order, items: order.items })
                 ]).catch(err => console.error("Webhook email notification failed:", err));
+                console.log("[Square Webhook] Triggered customer and merchant email notifications.");
             }
 
-            console.log(`Order ${comfortPayOrderId} status updated to 'Completed'.`);
+            console.log(`✅ [Square Webhook] Order ${comfortPayOrderIdWithPrefix} status updated to 'Completed'.`);
 
         } else if (payment.status === 'FAILED') {
-             console.log(`❌ Payment failed for Square Order ID: ${payment.order_id}`);
+             console.log(`❌ [Square Webhook] Payment failed for Square Payment ID: ${payment.id}`);
              // You could also update your internal order status to 'Failed' here.
         }
         break;
       
       default:
-        console.warn(`🤷‍♀️ Unhandled Square event type: ${event.type}`);
+        console.warn(`🤷‍♀️ [Square Webhook] Unhandled Square event type: ${event.type}`);
     }
 
     // Return a 200 response to acknowledge receipt of the event
     return NextResponse.json({ received: true });
   } catch (err: any) {
-     console.error(`❌ Square Webhook Error: ${err.message}`);
+     console.error(`❌ [Square Webhook] Error: ${err.message}`);
      if (err instanceof ApiError) {
         console.error(err.errors);
      }

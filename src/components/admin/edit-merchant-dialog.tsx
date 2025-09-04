@@ -595,7 +595,7 @@ export function EditMerchantDialog({ open, onOpenChange, onMerchantUpdated, merc
                 </div>
 
                 <Separator className="my-4" />
-                <h4 className="text-sm font-semibold text-primary">Payment Gateway Fees</h4>
+                <h4 className="text-sm font-semibold text-primary">Payment Gateway Fees & Access</h4>
                 <div className="space-y-6">
                     <GatewayFeeSection gatewayName="stripe" control={form.control} />
                     <GatewayFeeSection gatewayName="square" control={form.control} />

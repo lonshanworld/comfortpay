@@ -239,7 +239,7 @@ export function ViewMerchantDialog({ open, onOpenChange, merchant }: ViewMerchan
                 </section>
                  <Separator />
                 <section>
-                    <h4 className="text-sm font-semibold text-primary mb-2">Payment Gateway Fees</h4>
+                    <h4 className="text-sm font-semibold text-primary mb-2">Payment Gateway Fees & Status</h4>
                     <div className="space-y-2">
                         <GatewayFeeDetails name="Stripe" fees={merchant.paymentGatewayFees?.stripe} />
                         <GatewayFeeDetails name="Square" fees={merchant.paymentGatewayFees?.square} />

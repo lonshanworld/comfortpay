@@ -1,11 +1,14 @@
 
 "use client"
+import * as React from "react"
 
 import { ColumnDef } from "@tanstack/react-table"
-import { ArrowUpDown, ExternalLink, MoreHorizontal, Check, Loader2 } from "lucide-react"
+import { ArrowUpDown, ExternalLink, MoreHorizontal, Check, Loader2, ShieldQuestion } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -21,11 +24,13 @@ const getStatusVariant = (status: OrderStatus) => {
   switch (status) {
     case 'Completed':
     case 'Reconciled':
-      return 'secondary';
+      return 'success';
     case 'Pending':
       return 'outline';
+    case 'Partially Paid':
+        return 'warning'
     case 'Requires Confirmation':
-      return 'default';
+      return 'info';
     case 'Failed':
     case 'Refunded':
       return 'destructive';
@@ -33,11 +38,19 @@ const getStatusVariant = (status: OrderStatus) => {
       return 'outline';
   }
 };
+const getRiskVariant = (riskLevel: string) => {
+    const level = riskLevel.toLowerCase();
+    if (level.includes('high')) return 'destructive';
+    if (level.includes('elevated')) return 'default';
+    if (level.includes('normal')) return 'secondary';
+    return 'outline';
+}
+
 
 type TransactionColumnsProps = {
   onView: (transaction: Order) => void;
   onEdit: (transaction: Order) => void;
-  onConfirmPayment: (transaction: Order) => void;
+  onConfirmPayment: (transaction: Order, paidAmount: number) => void;
   isConfirmingId: string | null;
 };
 
@@ -48,8 +61,73 @@ const formatCurrency = (amount: number, currency: string) => {
     }).format(amount);
 }
 
+const ConfirmationPopover = ({ transaction, onConfirmPayment, isConfirming }: { transaction: Order, onConfirmPayment: (transaction: Order, paidAmount: number) => void, isConfirming: boolean}) => {
+    const [amount, setAmount] = React.useState<string>('');
+
+    const getTitle = () => {
+        if (transaction.status === 'Partially Paid') return "Confirm Additional Payment";
+        return "Confirm Payment";
+    }
+
+    const getRemaining = () => transaction.totalAmount - transaction.paidAmount;
+
+    return (
+        <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="default" size="sm" className="h-auto py-0.5 px-2.5">
+                {isConfirming ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : null}
+                {transaction.status}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-4 space-y-4">
+                <div className="space-y-1">
+                    <p className="text-sm font-medium">{getTitle()}</p>
+                    <p className="text-xs text-muted-foreground">
+                        Order Total: {formatCurrency(transaction.totalAmount, transaction.currency)}
+                    </p>
+                    {transaction.status === 'Partially Paid' && (
+                         <p className="text-xs text-muted-foreground">
+                            Paid: {formatCurrency(transaction.paidAmount, transaction.currency)} | Remaining: <span className="font-bold">{formatCurrency(getRemaining(), transaction.currency)}</span>
+                        </p>
+                    )}
+                </div>
+              <div className="grid gap-2">
+                 <Label htmlFor="paid-amount" className="text-xs">
+                    {transaction.status === 'Partially Paid' ? 'Additional Amount Received' : 'Amount Received'}
+                 </Label>
+                 <Input 
+                    id="paid-amount"
+                    type="number"
+                    step="0.01"
+                    value={amount}
+                    onChange={(e) => setAmount(e.target.value)}
+                    className="h-8"
+                    placeholder="e.g., 50.00"
+                 />
+              </div>
+              <Button
+                  size="sm"
+                  onClick={() => onConfirmPayment(transaction, parseFloat(amount))}
+                  disabled={isConfirming || !amount}
+                  className="w-full"
+                >
+                  <Check className="mr-2 h-4 w-4" />
+                  Confirm Payment
+                </Button>
+            </PopoverContent>
+          </Popover>
+    )
+}
+
 
 export const columns = ({ onView, onEdit, onConfirmPayment, isConfirmingId }: TransactionColumnsProps): ColumnDef<Order>[] => [
+    {
+    accessorKey: "orderDate",
+    header: "Order Date",
+    cell: ({ row }) => new Date(row.original.orderDate).toLocaleString()
+  },
   {
     accessorKey: "id",
     header: "ComfortPay ID",
@@ -58,33 +136,43 @@ export const columns = ({ onView, onEdit, onConfirmPayment, isConfirmingId }: Tr
    {
     accessorKey: "merchantId",
     header: "Merchant ID",
-  },
-  {
-    accessorKey: "merchantName",
-    header: "Merchant Name",
-  },
-   {
-    accessorKey: "merchantWebsiteUrl",
-    header: "Merchant Website",
     cell: ({ row }) => {
-        const websiteUrl = row.original.merchantWebsiteUrl;
-        if (!websiteUrl) return "N/A";
-        return (
-             <Link href={websiteUrl} target="_blank" className="flex items-center gap-1.5 hover:underline">
-                {new URL(websiteUrl).hostname} <ExternalLink className="h-3 w-3" />
-            </Link>
-        )
+        const order = row.original;
+        const numericId = order.merchantId.split('_')[1];
+        if (order.merchantWebsiteUrl) {
+            try {
+                const hostname = new URL(order.merchantWebsiteUrl).hostname;
+                const prefix = hostname.replace('www.', '').substring(0, 3).toUpperCase();
+                return `${prefix}_${numericId}`;
+            } catch (e) {
+                return `user_${numericId}`;
+            }
+        }
+        return `user_${numericId}`;
     }
   },
+  // {
+  //   accessorKey: "merchantName",
+  //   header: "Merchant Name",
+  // },
+  //  {
+  //   accessorKey: "merchantWebsiteUrl",
+  //   header: "Merchant Website",
+  //   cell: ({ row }) => {
+  //       const websiteUrl = row.original.merchantWebsiteUrl;
+  //       if (!websiteUrl) return "N/A";
+  //       return (
+  //            <Link href={websiteUrl} target="_blank" className="flex items-center gap-1.5 hover:underline">
+  //               {new URL(websiteUrl).hostname} <ExternalLink className="h-3 w-3" />
+  //           </Link>
+  //       )
+  //   }
+  // },
   {
     accessorKey: "merchantOrderId",
     header: "Order Number",
   },
-  {
-    accessorKey: "orderDate",
-    header: "Order Date",
-    cell: ({ row }) => new Date(row.original.orderDate).toLocaleString()
-  },
+
   {
     accessorKey: "paymentReceivedDate",
     header: "Payment Date",
@@ -110,54 +198,62 @@ export const columns = ({ onView, onEdit, onConfirmPayment, isConfirmingId }: Tr
       const status = transaction.status;
       const isConfirming = isConfirmingId === transaction.id;
 
-      if (status === 'Requires Confirmation') {
+      if (status === 'Requires Confirmation' || status === 'Partially Paid') {
         return (
-          <Popover>
-            <PopoverTrigger asChild>
-              <Button variant="default" size="sm" className="h-auto py-0.5 px-2.5">
-                {isConfirming ? (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                ) : null}
-                Requires Confirmation
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-auto p-2">
-              <div className="flex flex-col items-center gap-2">
-                <p className="text-sm font-medium">Confirm Payment?</p>
-                <Button
-                  size="sm"
-                  onClick={() => onConfirmPayment(transaction)}
-                  disabled={isConfirming}
-                >
-                  <Check className="mr-2 h-4 w-4" />
-                  Confirm
-                </Button>
-              </div>
-            </PopoverContent>
-          </Popover>
+          <ConfirmationPopover transaction={transaction} onConfirmPayment={onConfirmPayment} isConfirming={isConfirming} />
         );
       }
       return <Badge variant={getStatusVariant(status)}>{status}</Badge>
     }
   },
-  {
-    accessorKey: "orderAmount",
-    header: "Order Amount",
-    cell: ({ row }) => formatCurrency(row.original.orderAmount, row.original.currency)
+   {
+    accessorKey: "riskDetails",
+    header: "Risk Level",
+    cell: ({ row }) => {
+        const riskDetails = row.original.riskDetails;
+        if (!riskDetails) return <span className="text-xs text-muted-foreground">N/A</span>;
+        
+        const riskLevel = riskDetails.risk_level || riskDetails.riskLevel; // Stripe or Square
+        if (!riskLevel) return <span className="text-xs text-muted-foreground">Unknown</span>;
+
+        return (
+             <Popover>
+                <PopoverTrigger asChild>
+                    <Badge variant={getRiskVariant(riskLevel)} className="cursor-pointer">
+                        <ShieldQuestion className="mr-1.5 h-3.5 w-3.5" />
+                        {riskLevel.charAt(0).toUpperCase() + riskLevel.slice(1).toLowerCase()}
+                    </Badge>
+                </PopoverTrigger>
+                <PopoverContent className="w-80">
+                    <div className="space-y-2">
+                        <h4 className="font-medium leading-none">Risk Details</h4>
+                        <pre className="mt-2 w-full text-xs overflow-auto rounded-md bg-muted p-2 font-mono">
+                           {JSON.stringify(riskDetails, null, 2)}
+                        </pre>
+                    </div>
+                </PopoverContent>
+            </Popover>
+        )
+    }
   },
+  // {
+  //   accessorKey: "orderAmount",
+  //   header: "Order Amount",
+  //   cell: ({ row }) => formatCurrency(row.original.orderAmount, row.original.currency)
+  // },
   {
     accessorKey: "totalAmount",
-    header: "Total Amount",
+    header: "Order Amount",
     cell: ({ row }) => formatCurrency(row.original.totalAmount, row.original.currency)
+  },
+  {
+    accessorKey: "currency",
+    header: "Currency",
   },
   {
     accessorKey: "paidAmount",
     header: "Paid Amount",
     cell: ({ row }) => formatCurrency(row.original.paidAmount, row.original.currency)
-  },
-  {
-    accessorKey: "currency",
-    header: "Currency",
   },
   {
     accessorKey: "paymentMethod",
@@ -169,7 +265,11 @@ export const columns = ({ onView, onEdit, onConfirmPayment, isConfirmingId }: Tr
   },
   {
     accessorKey: "paymentAccountId",
-    header: "Acct. ID",
+    header: "Account Info",
+    cell: ({ row }) => {
+        const order = row.original;
+        return order.paymentAccountEmail || order.paymentAccountId || "N/A";
+    }
   },
   {
     accessorKey: "paymentGatewayTransactionId",

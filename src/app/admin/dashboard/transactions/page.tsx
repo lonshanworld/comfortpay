@@ -74,7 +74,7 @@ const convertToHtmlTable = (data: Order[]): string => {
 };
 
 const StatusFilter = ({ column }: { column: any }) => {
-  const statuses: OrderStatus[] = ["Pending", "Completed", "Failed", "Requires Confirmation", "Refunded", "Reconciled"];
+  const statuses: OrderStatus[] = ["Pending", "Completed", "Failed", "Requires Confirmation", "Refunded", "Reconciled", "Partially Paid"];
   return (
     <Select
       value={(column.getFilterValue() ?? '') as string}
@@ -151,61 +151,71 @@ export default function TransactionsPage() {
     fetchTransactions(appliedFilters);
   }
 
-  const handleConfirmPayment = async (transaction: Order) => {
+  const handleConfirmPayment = async (transaction: Order, amount: number) => {
     console.log("--- Starting Manual Payment Confirmation ---");
-    console.log("Transaction to confirm:", transaction);
+    console.log(`Transaction to confirm: ${transaction.id}, Amount: ${amount}`);
     setIsConfirming(transaction.id);
+
     try {
-        console.log("Step 1: Updating order status to 'Completed'.");
-        const response = await fetch(`/api/orders/${transaction.id}`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ 
-                status: 'Completed', 
-                paidAmount: transaction.totalAmount,
-                paymentReceivedDate: new Date().toISOString()
-            }),
+      // Determine the new status and the total paid amount
+      const newPaidAmount = (Number(transaction.paidAmount) || 0) + amount;
+      const isFullyPaid = newPaidAmount >= transaction.totalAmount;
+      const newStatus: OrderStatus = isFullyPaid ? 'Completed' : 'Partially Paid';
+
+      console.log(`Step 1: Updating order. New Status: ${newStatus}, New Paid Amount: ${newPaidAmount}`);
+
+      const response = await fetch(`/api/orders/${transaction.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          status: newStatus, 
+          paidAmount: newPaidAmount,
+          paymentReceivedDate: new Date().toISOString() // Update payment date on each confirmation
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error("Error on Step 1:", errorData);
+        throw new Error('Failed to update order status');
+      }
+        
+      const updatedTransaction = await response.json();
+      console.log("Step 1 successful. API returned updated transaction:", updatedTransaction);
+
+      // Only update payment account volume if the payment makes the order completed
+      if (isFullyPaid && updatedTransaction.paymentAccountId && typeof updatedTransaction.totalAmount !== 'undefined') {
+        console.log(`Step 2: Updating volume for Payment Account ID: ${updatedTransaction.paymentAccountId}`);
+        const numericAccountId = String(updatedTransaction.paymentAccountId).replace('pa_','');
+        const payload = { amount: Number(updatedTransaction.totalAmount) };
+        console.log("Payload for volume update:", payload);
+
+        const volumeResponse = await fetch(`/api/payments/accounts/${numericAccountId}/update-volume`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
         });
-
-        if (!response.ok) {
-            const errorData = await response.json();
-            console.error("Error on Step 1:", errorData);
-            throw new Error('Failed to update order status');
-        }
-        
-        const updatedTransaction = await response.json();
-        console.log("Step 1 successful. API returned updated transaction:", updatedTransaction);
-        
-        // Update payment account volume
-        if (updatedTransaction.paymentAccountId && typeof updatedTransaction.totalAmount !== 'undefined') {
-            console.log(`Step 2: Updating volume for Payment Account ID: ${updatedTransaction.paymentAccountId}`);
-            const numericAccountId = String(updatedTransaction.paymentAccountId).replace('pa_','');
-            const payload = { amount: Number(updatedTransaction.totalAmount) };
-            console.log("Payload for volume update:", payload);
-
-            const volumeResponse = await fetch(`/api/payments/accounts/${numericAccountId}/update-volume`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload),
-            });
             
-            if (!volumeResponse.ok) {
-                const errorData = await volumeResponse.json();
-                console.error("Error on Step 2:", errorData);
-                throw new Error(errorData.message || 'Failed to update payment account volume.');
-            }
-            console.log("Step 2 successful: Volume updated.");
+        if (!volumeResponse.ok) {
+          const errorData = await volumeResponse.json();
+          console.error("Error on Step 2:", errorData);
+          // Don't throw error here, let the main flow complete
+          toast({ variant: "destructive", title: "Volume Update Failed", description: errorData.message || 'Failed to update payment account volume.'});
         } else {
-            console.warn("Skipping Step 2: No paymentAccountId or totalAmount on updated transaction object.", updatedTransaction);
+          console.log("Step 2 successful: Volume updated.");
         }
+      } else {
+        console.warn("Skipping volume update: Order is not fully paid or is missing data.");
+      }
         
-        toast({
-            title: "Payment Confirmed",
-            description: `Transaction ${transaction.id} has been marked as Completed.`
-        });
-        console.log("Step 3: Refreshing transaction list.");
-        await fetchTransactions(appliedFilters);
-        console.log("--- Manual Payment Confirmation Finished Successfully ---");
+      toast({
+        title: "Payment Confirmed",
+        description: `Transaction ${transaction.id} has been marked as ${newStatus}.`
+      });
+
+      console.log("Step 3: Refreshing transaction list.");
+      await fetchTransactions(appliedFilters);
+      console.log("--- Manual Payment Confirmation Finished Successfully ---");
 
     } catch (error: any) {
         console.error("--- Manual Payment Confirmation FAILED ---");
@@ -219,6 +229,7 @@ export default function TransactionsPage() {
         setIsConfirming(null);
     }
   }
+
 
   const handleSearch = () => {
     setAppliedFilters(columnFilters);

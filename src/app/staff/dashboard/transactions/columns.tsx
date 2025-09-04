@@ -21,10 +21,13 @@ const getStatusVariant = (status: OrderStatus) => {
   switch (status) {
     case 'Completed':
     case 'Reconciled':
-      return 'secondary';
+      return 'success';
     case 'Pending':
+      return 'outline';
+    case 'Partially Paid':
+      return 'warning';
     case 'Requires Confirmation':
-      return 'default';
+      return 'info';
     case 'Failed':
     case 'Refunded':
       return 'destructive';

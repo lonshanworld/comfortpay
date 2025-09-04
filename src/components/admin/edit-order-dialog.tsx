@@ -41,7 +41,7 @@ const transactionFormSchema = z.object({
   merchantOrderId: z.string().min(1, "Merchant Transaction ID is required."),
   customerName: z.string().min(2, "Customer name is required."),
   customerEmail: z.string().email("Please enter a valid email."),
-  status: z.enum(["Pending", "Completed", "Failed", "Requires Confirmation", "Refunded", "Reconciled"]),
+  status: z.enum(["Pending", "Completed", "Failed", "Requires Confirmation", "Refunded", "Reconciled", "Partially Paid"]),
   orderAmount: z.coerce.number().positive("Amount must be a positive number."),
   totalAmount: z.coerce.number().positive("Amount must be a positive number."),
   paidAmount: z.coerce.number().min(0, "Amount must be zero or positive."),
@@ -198,6 +198,7 @@ export function EditOrderDialog({ open, onOpenChange, onOrderUpdated, order: tra
                           <SelectItem value="Completed">Completed</SelectItem>
                           <SelectItem value="Failed">Failed</SelectItem>
                           <SelectItem value="Requires Confirmation">Requires Confirmation</SelectItem>
+                          <SelectItem value="Partially Paid">Partially Paid</SelectItem>
                           <SelectItem value="Refunded">Refunded</SelectItem>
                           <SelectItem value="Reconciled">Reconciled</SelectItem>
                         </SelectContent>
@@ -360,3 +361,5 @@ export function EditOrderDialog({ open, onOpenChange, onOrderUpdated, order: tra
     </Dialog>
   );
 }
+
+    

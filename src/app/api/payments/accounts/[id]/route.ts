@@ -16,8 +16,13 @@ const saveQrCodeFromBase64 = async (base64String: string): Promise<string | null
         const fileExtension = base64String.substring(base64String.indexOf('/') + 1, base64String.indexOf(';'));
         const fileName = `${crypto.randomBytes(16).toString('hex')}.${fileExtension}`;
         
-        // Use environment variable for base path, fallback to public/uploads for development
-        const baseUploadDir = process.env.UPLOADS_DIR || path.join(process.cwd(), 'public', 'uploads');
+        // Use environment variable for base path. It MUST be set in production.
+        const baseUploadDir = process.env.UPLOADS_DIR;
+        if (!baseUploadDir) {
+            console.error("UPLOADS_DIR environment variable is not set. Cannot save file.");
+            throw new Error("File upload directory is not configured on the server.");
+        }
+        
         const uploadDir = path.join(baseUploadDir, 'qrcodes');
         
         await fs.mkdir(uploadDir, { recursive: true });
@@ -41,7 +46,7 @@ export async function PUT(
   const body = await request.json();
 
   try {
-    const { name, status, dailyLimit, prefix_order_name, websiteUrl, accountEmail, qrCode } = body;
+    const { name, status, dailyLimit, prefix_order_name, websiteUrl, accountEmail, qrCode, type } = body;
 
     let qrCodeUrl = undefined;
     if (qrCode) {
@@ -65,7 +70,17 @@ export async function PUT(
     updateField('dailyLimit', Number(dailyLimit), 'dailyLimit' in body);
     updateField('prefix_order_name', prefix_order_name, 'prefix_order_name' in body);
     updateField('websiteUrl', websiteUrl, 'websiteUrl' in body);
-    updateField('accountEmail', accountEmail, 'accountEmail' in body);
+    
+    if (type === 'Zelle') {
+        // For Zelle accounts, if accountEmail is provided, convert empty string to NULL.
+        if ('accountEmail' in body) {
+            updateField('accountEmail', accountEmail === '' ? null : accountEmail, true);
+        }
+    } else {
+        // For non-Zelle accounts, always set accountEmail to NULL.
+        updateField('accountEmail', null, true);
+    }
+    
     updateField('qrCodeUrl', qrCodeUrl, 'qrCode' in body);
     
     if (fieldsToUpdate.length === 0) {

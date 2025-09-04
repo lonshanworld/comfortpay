@@ -19,11 +19,13 @@ const getStatusVariant = (status: OrderStatus) => {
   switch (status) {
     case 'Completed':
     case 'Reconciled':
-      return 'secondary';
+      return 'success';
     case 'Pending':
       return 'outline';
+    case 'Partially Paid':
+      return 'warning';
     case 'Requires Confirmation':
-      return 'default';
+      return 'info';
     case 'Failed':
     case 'Refunded':
       return 'destructive';
@@ -75,11 +77,6 @@ export const columns = ({ onView }: TransactionColumnsProps): ColumnDef<Order>[]
     accessorKey: "status",
     header: "Status",
     cell: ({ row }) => <Badge variant={getStatusVariant(row.original.status)}>{row.original.status}</Badge>
-  },
-   {
-    accessorKey: "orderAmount",
-    header: "Order Amount",
-    cell: ({ row }) => formatCurrency(row.original.orderAmount, row.original.currency)
   },
   {
     accessorKey: "totalAmount",

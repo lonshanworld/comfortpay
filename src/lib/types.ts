@@ -2,7 +2,7 @@
 import type { CreateCheckoutSessionInputSchema, SendOrderNotificationInputSchema } from "./schemas";
 import type { z } from "zod";
 
-export type OrderStatus = "Pending" | "Completed" | "Failed" | "Requires Confirmation" | "Refunded" | "Reconciled";
+export type OrderStatus = "Pending" | "Completed" | "Failed" | "Requires Confirmation" | "Refunded" | "Reconciled" | "Partially Paid";
 export type PaymentMethod = "Credit Card" | "Zelle";
 export type PaymentType = "Stripe" | "Square" | "Zelle";
 
@@ -43,12 +43,14 @@ export interface Order {
   currency: string; // e.g., "USD", "EUR"
   paymentType: PaymentType;
   paymentAccountId?: string;
+  paymentAccountEmail?: string; // Added from API join
   processor?: PaymentAccountType;
   paymentGatewayTransactionId?: string; // e.g., Stripe's ch_... or a Zelle confirmation code
   merchantWebsiteUrl?: string;
   sourceWebsiteUrl?: string;
   billingDetails?: BillingDetails;
   items?: OrderItem[];
+  riskDetails?: any; // To store JSON from Stripe/Square
   // Derived fields from API
   customerFirstName?: string;
   customerLastName?: string;

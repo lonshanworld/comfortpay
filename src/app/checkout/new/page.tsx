@@ -63,20 +63,12 @@ function SquarePaymentForm({ sessionData, onPaymentSuccess, setParentProcessing 
     const cardInstance = useRef<SquareCard | null>(null);
     const [isCardReady, setIsCardReady] = useState(false);
     const [isProcessing, setIsProcessing] = useState(false);
-    
-    useEffect(() => {
-        if (!sessionData.paymentDetails?.paymentAccountId) {
-            return;
-        }
-        if (!cardRef.current) {
-            return;
-        }
 
+    useEffect(() => {
         let isMounted = true;
-        
+
         const initializeSquare = async () => {
-            if (cardInstance.current) {
-                setIsCardReady(true);
+            if (!isMounted || !cardRef.current || cardInstance.current) {
                 return;
             }
 
@@ -85,64 +77,54 @@ function SquarePaymentForm({ sessionData, onPaymentSuccess, setParentProcessing 
                 if (!appIdRes.ok) throw new Error(`Could not fetch Square App ID. Status: ${appIdRes.status}`);
                 const { applicationId, locationId } = await appIdRes.json();
 
-
                 if (!applicationId || !locationId) {
                     throw new Error("Square Application ID or Location ID not configured.");
                 }
 
-                const initCard = async (payments: any) => {
-                    if (!isMounted) {
-                        return;
-                    }
-                    try {
-                        const squareCard = await payments.card();
-                        if (cardRef.current) {
-                            await squareCard.attach(cardRef.current);
-                            cardInstance.current = squareCard;
-                            setIsCardReady(true);
-                        }
-                    } catch (e) {
-                        console.error("Failed to attach square card", e);
-                        toast({ variant: "destructive", title: "Payment Form Error", description: "Could not render the payment form." });
-                    }
-                };
+                const payments = window.Square.payments(applicationId, locationId);
+                const squareCard = await payments.card();
                 
-                const loadAndInit = async () => {
-                    if (window.Square) {
-                        const payments = window.Square.payments(applicationId, locationId);
-                        await initCard(payments);
-                    } else {
-                        throw new Error("Square SDK failed to load.");
-                    }
+                if (isMounted && cardRef.current) {
+                    await squareCard.attach(cardRef.current);
+                    cardInstance.current = squareCard;
+                    setIsCardReady(true);
                 }
 
-                if (!document.getElementById("square-sdk")) {
-                    const script = document.createElement('script');
-                    script.src = "https://sandbox.web.squarecdn.com/v1/square.js";
-                    script.id = "square-sdk";
-                    script.async = true;
-                    script.onload = () => {
-                        loadAndInit();
-                    };
-                    script.onerror = () => {
-                        throw new Error("Square SDK script could not be loaded from the CDN.");
-                    };
-                    document.head.appendChild(script);
-                } else if (window.Square) {
-                    await loadAndInit();
-                }
             } catch (error: any) {
-                console.error("Square initialization error:", error);
-                toast({ variant: "destructive", title: "Square SDK Error", description: error.message });
+                 if (isMounted) {
+                    console.error("Square initialization error:", error);
+                    toast({ variant: "destructive", title: "Square SDK Error", description: error.message });
+                 }
             }
         };
 
-        initializeSquare();
-        
+        const loadSquareSdk = () => {
+            if (window.Square) {
+                initializeSquare();
+            } else {
+                const script = document.createElement('script');
+                script.src = "https://sandbox.web.squarecdn.com/v1/square.js";
+                script.id = "square-sdk";
+                script.async = true;
+                script.onload = () => initializeSquare();
+                script.onerror = () => {
+                    if (isMounted) {
+                        toast({ variant: "destructive", title: "SDK Error", description: "Failed to load Square payment script." });
+                    }
+                };
+                document.head.appendChild(script);
+            }
+        };
+
+        if (sessionData.paymentDetails?.paymentAccountId && cardRef.current) {
+            loadSquareSdk();
+        }
+
         return () => {
             isMounted = false;
         };
     }, [sessionData, toast]);
+
 
     const handlePayment = async () => {
         if (!cardInstance.current) {
@@ -275,6 +257,7 @@ function CheckoutForm({ sessionData }: { sessionData: CreateCheckoutSessionInput
       toast({ variant: "destructive", title: "Payment Error", description: "Internal order ID or final amount is missing." });
       return;
     }
+    console.log("🚀 [CheckoutForm] Calling processPayment action...");
     const paymentResult = await processPayment({
       processor: sessionData.processor as 'Stripe' | 'Square',
       paymentMethodId: paymentMethodId,
@@ -282,6 +265,7 @@ function CheckoutForm({ sessionData }: { sessionData: CreateCheckoutSessionInput
       amount: sessionData.totalAmount,
       currency: sessionData.currency || 'USD',
     });
+    console.log("[CheckoutForm] processPayment action result:", paymentResult);
 
     if (paymentResult.success && paymentResult.transactionId) {
       await updateOrderStatus('Completed', paymentResult.transactionId);
@@ -307,6 +291,7 @@ function CheckoutForm({ sessionData }: { sessionData: CreateCheckoutSessionInput
         payload.paymentReceivedDate = new Date().toISOString();
       }
       
+      console.log(`[CheckoutForm] Updating order status to '${status}'...`);
       const response = await fetch(`/api/orders/${sessionData.comfortPayOrderId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -318,14 +303,17 @@ function CheckoutForm({ sessionData }: { sessionData: CreateCheckoutSessionInput
       }
       
       const updatedOrder = await response.json();
+      console.log("[CheckoutForm] Order status update result:", updatedOrder);
       
       // Update payment account volume
       if (updatedOrder.paymentAccountId && typeof sessionData.totalAmount !== 'undefined') {
-        await fetch(`/api/payments/accounts/${updatedOrder.paymentAccountId}/update-volume`, {
+        console.log("[CheckoutForm] Updating payment account volume...");
+        const volumeResponse = await fetch(`/api/payments/accounts/${updatedOrder.paymentAccountId}/update-volume`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ amount: Number(sessionData.totalAmount) }),
         });
+        console.log("[CheckoutForm] Volume update response status:", volumeResponse.status);
       }
       
       // Only send email notifications if the payment is fully completed.
@@ -348,6 +336,8 @@ function CheckoutForm({ sessionData }: { sessionData: CreateCheckoutSessionInput
   const handleZelleConfirmation = async () => {
     setIsProcessing(true);
     await updateOrderStatus('Requires Confirmation');
+    console.log("✅ [CheckoutForm] Zelle payment confirmed by user.");
+
 
     if (isModal) {
       window.parent.postMessage({ type: 'comfortPay:success', data: { orderId: sessionData.comfortPayOrderId, status: 'Requires Confirmation' }}, '*');
@@ -461,8 +451,10 @@ function CheckoutPage() {
   useEffect(() => {
     if (sessionToken) {
       try {
+        console.log("🚀 [CheckoutPage] Decoding session token...");
         const decodedData = JSON.parse(atob(sessionToken));
         setSessionData(decodedData);
+        console.log("[CheckoutPage] Decoded session data result:", decodedData);
       } catch (error) {
         console.error("Invalid session token:", error);
       }

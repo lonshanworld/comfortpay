@@ -76,7 +76,7 @@ export function DataTableWithColumnFilters<TData, TValue>({
     },
     initialState: {
         pagination: {
-            pageSize: 10,
+            pageSize: 75,
         },
     }
   })

@@ -29,25 +29,25 @@ export type CreateCheckoutSessionOutput = z.infer<typeof CreateCheckoutSessionOu
 
 export async function createCheckoutSession(input: CreateCheckoutSessionInput): Promise<CreateCheckoutSessionOutput> {
     console.log("==========================================");
-    console.log("🚀 Starting createCheckoutSession...");
-    console.log("Input Data:", JSON.stringify(input, null, 2));
+    console.log("🚀 [createCheckoutSession] Starting...");
+    console.log("   Input Data:", JSON.stringify(input, null, 2));
 
     if (!input.merchantId) {
-        console.error("❌ Error: Merchant ID is required.");
+        console.error("❌ [createCheckoutSession] Error: Merchant ID is required.");
         return { error: "Merchant ID is required." };
     }
     const numericMerchantId = input.merchantId.split('_')[1];
     const merchantResult: any[] = await executeQuery("SELECT * FROM users WHERE id = ? AND role = 'Merchant'", [numericMerchantId]);
     
     if (merchantResult.length === 0) {
-        console.error(`❌ Error: Merchant not found with ID ${numericMerchantId}.`);
+        console.error(`❌ [createCheckoutSession] Error: Merchant not found with ID ${numericMerchantId}.`);
         return { error: "Merchant not found." };
     }
     const merchant: User = merchantResult[0];
-    console.log(`✅ Found Merchant: ${merchant.name} (ID: ${merchant.id})`);
+    console.log(`✅ [createCheckoutSession] Found Merchant:`, { id: merchant.id, name: merchant.name });
     
     if (!input.redirectUrl) {
-        console.error("❌ Error: A redirect URL was not provided by the merchant's site.");
+        console.error("❌ [createCheckoutSession] Error: A redirect URL was not provided by the merchant's site.");
         return { error: "A redirect URL was not provided by the merchant's site." };
     }
     
@@ -62,10 +62,9 @@ export async function createCheckoutSession(input: CreateCheckoutSessionInput): 
     } else if (input.paymentMethod === 'zelle') {
         availableProcessorsForMethod = ['Zelle'];
     } else {
-        console.error(`❌ Error: Unsupported payment method: ${input.paymentMethod}`);
+        console.error(`❌ [createCheckoutSession] Error: Unsupported payment method: ${input.paymentMethod}`);
         return { error: `Unsupported payment method: ${input.paymentMethod}`};
     }
-    console.log(`Initial processors for method '${input.paymentMethod}':`, availableProcessorsForMethod);
     
     // Filter down to only the processors the merchant has explicitly enabled
     const enabledProcessors = availableProcessorsForMethod.filter(proc => {
@@ -73,10 +72,10 @@ export async function createCheckoutSession(input: CreateCheckoutSessionInput): 
         return gatewayConfig?.enabled;
     });
 
-    console.log(`Merchant's enabled processors for this method:`, enabledProcessors);
+    console.log(`[createCheckoutSession] Merchant's enabled processors for this method:`, enabledProcessors);
 
     if (enabledProcessors.length === 0) {
-        console.error(`❌ Error: No payment processors enabled for this merchant for the '${input.paymentMethod}' method.`);
+        console.error(`❌ [createCheckoutSession] Error: No payment processors enabled for this merchant for the '${input.paymentMethod}' method.`);
         return { error: `No payment processors enabled for this merchant for the '${input.paymentMethod}' method.` };
     }
     
@@ -88,41 +87,36 @@ export async function createCheckoutSession(input: CreateCheckoutSessionInput): 
     );
 
     if (eligiblePaymentAccounts.length === 0) {
-        console.error(`❌ Error: No payment accounts available for method '${input.paymentMethod}' that are under their daily processing limit.`);
+        console.error(`❌ [createCheckoutSession] Error: No payment accounts available for method '${input.paymentMethod}' that are under their daily processing limit.`);
         return { error: `This payment method is temporarily unavailable due to high volume. Please try again later or contact support. (Ref: ALL_ACCOUNTS_AT_CAPACITY)` };
     }
-    console.log(`Found ${eligiblePaymentAccounts.length} eligible accounts under their limit.`);
+    console.log(`[createCheckoutSession] Found ${eligiblePaymentAccounts.length} eligible accounts under their limit.`);
+    console.log(`[createCheckoutSession] Eligible accounts result:`, eligiblePaymentAccounts.map(a => ({id: a.id, type: a.type, currentVolume: a.currentVolume, dailyLimit: a.dailyLimit})));
 
     // 3. From the eligible accounts, select the best one.
     let selectedAccount: PaymentAccount | null = null;
     
     if (eligiblePaymentAccounts.length === 1) {
         selectedAccount = eligiblePaymentAccounts[0];
-        console.log(`Only one account available. Selected:`, {id: selectedAccount.id, type: selectedAccount.type});
     } else {
-        console.log("Multiple Payment Accounts Found, applying selection logic.");
         // Find the account with the lowest current volume to balance the load.
         const minCurrentVolume = Math.min(...eligiblePaymentAccounts.map(acc => Number(acc.currentVolume)));
-        console.log(`Minimum current volume found: ${minCurrentVolume}`);
-        
         const bestAccounts = eligiblePaymentAccounts.filter(acc => Number(acc.currentVolume) === minCurrentVolume);
-        console.log(`Found ${bestAccounts.length} best accounts with that volume:`, bestAccounts.map(p => ({id: p.id, type: p.type})));
         
         if (bestAccounts.length > 0) {
             const randomIndex = Math.floor(Math.random() * bestAccounts.length);
-            console.log(`randomIndex: ${randomIndex}`);
             selectedAccount = bestAccounts[randomIndex];
         }
     }
     
     if (!selectedAccount) {
-        console.error(`❌ Error: Could not select a payment account after filtering.`);
+        console.error(`❌ [createCheckoutSession] Error: Could not select a payment account after filtering.`);
         return { error: `Could not select a payment account.` };
     }
-    console.log(`✅ Final Selected Account:`, {id: selectedAccount.id, type: selectedAccount.type});
+    console.log(`✅ [createCheckoutSession] Final Selected Account result:`, {id: selectedAccount.id, type: selectedAccount.type});
 
     const selectedGateway = selectedAccount.type;
-    const paymentAccountId = selectedAccount.id; // This is now correct, e.g. 3
+    const paymentAccountId = selectedAccount.id;
 
     let visualId = '';
     const paymentPrefix = selectedAccount.prefix_order_name;
@@ -138,7 +132,7 @@ export async function createCheckoutSession(input: CreateCheckoutSessionInput): 
     } else {
         visualId = input.merchantOrderId;
     }
-    console.log(`Generated Visual ID: ${visualId}`);
+    console.log(`[createCheckoutSession] Generated Visual ID: ${visualId}`);
     
     const orderAmount = (input.items || []).reduce((acc, item) => acc + (item.price * item.quantity), 0);
 
@@ -162,7 +156,7 @@ export async function createCheckoutSession(input: CreateCheckoutSessionInput): 
 
     const orderResult = await runQuery(orderInsertQuery, orderParams);
     const newOrderId = `CP${orderResult.id}`;
-    console.log(`📝 Order created in DB with ComfortPay ID: ${newOrderId}`);
+    console.log(`📝 [createCheckoutSession] Order created in DB. Result:`, { newComfortPayId: newOrderId, dbInsertId: orderResult.id });
 
     const sessionDataWithDetails = { 
         ...input,
@@ -183,8 +177,10 @@ export async function createCheckoutSession(input: CreateCheckoutSessionInput): 
     
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
     const checkoutUrl = `${appUrl}/checkout/new?session=${sessionToken}`;
-    console.log(`✅ Session created successfully. Checkout URL: ${checkoutUrl}`);
+    
+    const finalResult = { sessionToken, checkoutUrl };
+    console.log(`✅ [createCheckoutSession] Session created successfully. Final result:`, finalResult);
     console.log("==========================================");
 
-    return { sessionToken, checkoutUrl };
+    return finalResult;
 }

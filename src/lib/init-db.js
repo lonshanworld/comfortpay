@@ -92,9 +92,19 @@ async function initialize() {
                 paymentGatewayTransactionId VARCHAR(255),
                 billingDetails JSON,
                 items JSON,
+                riskDetails JSON,
                 FOREIGN KEY (merchantId) REFERENCES users(id) ON DELETE SET NULL
             ) ENGINE=InnoDB;
         `);
+        
+        // Add riskDetails column to orders table if it doesn't exist (for backward compatibility)
+        const [orderColumns] = await connection.query(`SHOW COLUMNS FROM orders LIKE 'riskDetails'`);
+        if (orderColumns.length === 0) {
+            console.log("Adding 'riskDetails' column to 'orders' table...");
+            await connection.query(`ALTER TABLE orders ADD COLUMN riskDetails JSON;`);
+            console.log("'riskDetails' column added.");
+        }
+
         await connection.query(`
             CREATE TABLE IF NOT EXISTS payment_accounts (
                 id INT PRIMARY KEY AUTO_INCREMENT,

@@ -15,7 +15,7 @@ const parseDbOrder = (dbOrder: any) => {
           ...dbOrder,
           id: `CP${dbOrder.id}`,
           merchantId: `user_${dbOrder.merchantId}`,
-          paymentAccountId: `pa_${dbOrder.paymentAccountId}`,
+          paymentAccountId: dbOrder.paymentAccountId ? `pa_${dbOrder.paymentAccountId}` : null,
           billingDetails: billingDetails || null,
           customerFirstName: billingDetails?.firstName || '',
           customerLastName: billingDetails?.lastName || '',
@@ -29,7 +29,7 @@ const parseDbOrder = (dbOrder: any) => {
           ...dbOrder,
           id: `CP${dbOrder.id}`,
           merchantId: `user_${dbOrder.merchantId}`,
-          paymentAccountId: `pa_${dbOrder.paymentAccountId}`,
+          paymentAccountId: dbOrder.paymentAccountId ? `pa_${dbOrder.paymentAccountId}` : null,
           billingDetails: null,
           customerFirstName: '',
           customerLastName: '',
@@ -44,9 +44,14 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   
   let query = `
-      SELECT o.*, u.name as merchantName, u.websiteUrl as merchantWebsiteUrl
+      SELECT 
+        o.*, 
+        u.name as merchantName, 
+        u.websiteUrl as merchantWebsiteUrl,
+        pa.accountEmail as paymentAccountEmail
       FROM orders o
       LEFT JOIN users u ON o.merchantId = u.id AND u.role = 'Merchant'
+      LEFT JOIN payment_accounts pa ON o.paymentAccountId = pa.id
       WHERE 1=1
     `;
   const params: (string | number)[] = [];
