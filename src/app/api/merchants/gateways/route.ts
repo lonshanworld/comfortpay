@@ -34,7 +34,7 @@ export async function GET(request: Request) {
         card: cardEnabled,
         zelle: zelleEnabled,
     };
-
+    console.log(enabledGateways);
     return NextResponse.json(enabledGateways);
 
   } catch (error: any) {

@@ -185,7 +185,7 @@ export default function HomePage() {
                            <User className="mr-2 h-4 w-4"/> Merchant Login
                         </Button>
                     </Link>
-                    <Link href="/login/staff" passHref>
+                    {/* <Link href="/login/staff" passHref>
                         <Button className="w-full" variant="outline">
                            <UserCheck className="mr-2 h-4 w-4"/> Staff Login
                         </Button>
@@ -194,7 +194,7 @@ export default function HomePage() {
                         <Button className="w-full" variant="outline">
                             <Briefcase className="mr-2 h-4 w-4"/> Sales Login
                         </Button>
-                    </Link>
+                    </Link> */}
                 </CardContent>
             </Card>
              {/* <Card className="w-full">
