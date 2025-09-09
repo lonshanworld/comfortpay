@@ -93,7 +93,8 @@ export async function POST(req: NextRequest) {
         // Update the order status to 'Completed' and store risk details in your database
         const dbResult = await runQuery(
             `UPDATE orders SET status = ?, paymentGatewayTransactionId = ?, paymentReceivedDate = ?, riskDetails = ? WHERE id = ? AND status != 'Completed'`,
-            ['Completed', paymentIntent.id, new Date().toISOString(), JSON.stringify(paymentIntent.outcome), numericOrderId]
+            ['Completed', paymentIntent.id, new Date(paymentIntent.created * 1000).toISOString().slice(0, 19).replace('T', ' '), JSON.stringify(paymentIntent.outcome), numericOrderId]
+
         );
         console.log("[Stripe Webhook] Database update result:", dbResult);
 

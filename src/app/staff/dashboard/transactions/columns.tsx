@@ -43,6 +43,20 @@ const formatCurrency = (amount: number, currency: string) => {
     }).format(amount);
 }
 
+
+const formatDate = (dateString: string | undefined | null) => {
+    if (!dateString) return "N/A";
+    const date = new Date(dateString.endsWith('Z') ? dateString : dateString + 'Z');
+    const options: Intl.DateTimeFormatOptions = {
+        year: 'numeric', month: 'short', day: 'numeric',
+        hour: '2-digit', minute: '2-digit',
+        timeZone: 'GMT',
+        hour12: true,
+    };
+    return date.toLocaleString('en-US', options);
+}
+
+
 type TransactionColumnsProps = {
   permissions: Permissions;
   onView: (transaction: Order) => void;
@@ -113,8 +127,8 @@ export const columns = ({ permissions, onView, onEdit }: TransactionColumnsProps
       )
     },
     cell: ({ row }) => {
-        const date = new Date(row.getValue("orderDate"));
-        return <div>{date.toLocaleString()}</div>
+      return <div>{formatDate(row.original.orderDate)}</div>
+
     },
   },
    {

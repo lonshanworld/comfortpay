@@ -45,6 +45,18 @@ const formatCurrency = (amount: number, currency: string) => {
     }).format(amount);
 }
 
+const formatDate = (dateString: string | undefined | null) => {
+    if (!dateString) return "N/A";
+    const date = new Date(dateString.endsWith('Z') ? dateString : dateString + 'Z');
+    const options: Intl.DateTimeFormatOptions = {
+        year: 'numeric', month: 'short', day: 'numeric',
+        hour: '2-digit', minute: '2-digit',
+        timeZone: 'GMT',
+        hour12: true,
+    };
+    return date.toLocaleString('en-US', options);
+}
+
 
 export const columns = ({ onView }: TransactionColumnsProps): ColumnDef<Order>[] => [
   {
@@ -54,12 +66,12 @@ export const columns = ({ onView }: TransactionColumnsProps): ColumnDef<Order>[]
   {
     accessorKey: "orderDate",
     header: "Order Date",
-    cell: ({ row }) => new Date(row.original.orderDate).toLocaleString()
+    cell: ({ row }) => formatDate(row.original.orderDate)
   },
    {
     accessorKey: "paymentReceivedDate",
     header: "Payment Date",
-    cell: ({ row }) => row.original.paymentReceivedDate ? new Date(row.original.paymentReceivedDate).toLocaleString() : "N/A"
+    cell: ({ row }) => formatDate(row.original.paymentReceivedDate)
   },
   {
     accessorKey: "customerFirstName",

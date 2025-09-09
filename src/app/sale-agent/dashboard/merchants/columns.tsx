@@ -85,8 +85,16 @@ export const columns: ColumnDef<Merchant>[] = [
       )
     },
     cell: ({ row }) => {
-        const date = new Date(row.getValue("dateJoined"));
-        return <div>{date.toLocaleString()}</div>
+         const dateString = row.getValue("dateJoined") as string;
+        if (!dateString) return "N/A";
+        const date = new Date(dateString.endsWith('Z') ? dateString : dateString + 'Z');
+        const options: Intl.DateTimeFormatOptions = {
+            year: 'numeric', month: 'short', day: 'numeric',
+            hour: '2-digit', minute: '2-digit',
+            timeZone: 'GMT',
+            hour12: true,
+        };
+        return <div>{date.toLocaleString('en-US', options)}</div>
     },
   },
 ]

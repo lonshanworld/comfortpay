@@ -64,7 +64,7 @@ interface EditTransactionDialogProps {
 const toDateTimeLocal = (isoString?: string | null) => {
     if (!isoString) return "";
     try {
-        const date = new Date(isoString);
+        const date = new Date(isoString.endsWith('Z') ? isoString : isoString + 'Z');
         // Directly format to YYYY-MM-DDTHH:mm which <input type="datetime-local"> requires.
         // This keeps the time in the user's local timezone for the input, which is expected behavior for this control.
         // The display will be local, but the submission will be converted back to ISO string (UTC).

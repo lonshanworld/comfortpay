@@ -9,8 +9,16 @@ const saltRounds = 10;
 
 const formatDateForMySQL = (date) => {
     if (!date) return null;
-    return new Date(date).toISOString().slice(0, 19).replace('T', ' ');
-}
+    const d = new Date(date);
+    const year = d.getUTCFullYear();
+    const month = (d.getUTCMonth() + 1).toString().padStart(2, '0');
+    const day = d.getUTCDate().toString().padStart(2, '0');
+    const hours = d.getUTCHours().toString().padStart(2, '0');
+    const minutes = d.getUTCMinutes().toString().padStart(2, '0');
+    const seconds = d.getUTCSeconds().toString().padStart(2, '0');
+    return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+};
+
 
 async function initialize() {
     const dbUrl = process.env.DATABASE_URL;
@@ -43,6 +51,7 @@ async function initialize() {
         console.log('Dropping existing tables...');
         const dropTablesScript = `
             SET FOREIGN_KEY_CHECKS = 0;
+            DROP TABLE IF EXISTS daily_volume_history;
             DROP TABLE IF EXISTS settings;
             DROP TABLE IF EXISTS notifications;
             DROP TABLE IF EXISTS payment_accounts;
@@ -110,6 +119,7 @@ async function initialize() {
                 paymentGatewayTransactionId VARCHAR(255),
                 billingDetails JSON,
                 items JSON,
+                riskDetails JSON,
                 FOREIGN KEY (merchantId) REFERENCES users(id) ON DELETE SET NULL
             ) ENGINE=InnoDB;
 
@@ -122,7 +132,7 @@ async function initialize() {
                 currentVolume DECIMAL(15, 2) NOT NULL,
                 prefix_order_name VARCHAR(255),
                 websiteUrl VARCHAR(255),
-                accountEmail VARCHAR(255),
+                accountEmail VARCHAR(255) UNIQUE,
                 qrCodeUrl VARCHAR(255)
             ) ENGINE=InnoDB;
 
@@ -141,6 +151,15 @@ async function initialize() {
             CREATE TABLE settings (
                 \`key\` VARCHAR(255) PRIMARY KEY,
                 \`value\` TEXT
+            ) ENGINE=InnoDB;
+
+             CREATE TABLE daily_volume_history (
+                id INT PRIMARY KEY AUTO_INCREMENT,
+                paymentAccountId INT NOT NULL,
+                date DATE NOT NULL,
+                totalVolume DECIMAL(15, 2) NOT NULL,
+                createdAt DATETIME NOT NULL,
+                UNIQUE KEY (paymentAccountId, date)
             ) ENGINE=InnoDB;
         `;
         await connection.query(createTablesScript);
@@ -175,24 +194,24 @@ async function initialize() {
             
             // Sales Agents
             await connection.query(`INSERT INTO users (name, email, password, role, createdAt, status, dateJoined) VALUES ?`, [[
-                ['Agent Smith', 'agent.smith@comfortpay.com', password, 'Sale Agent', formatDateForMySQL(now), 'Active', formatDateForMySQL(now)],
-                ['Agent Jones', 'agent.jones@comfortpay.com', password, 'Sale Agent', formatDateForMySQL(now), 'Active', formatDateForMySQL(now)]
+                ['Agent Smith', 'agent.smith@comfortpay.com', password, 'Sale Agent', formatDateForMySQL(new Date()), 'Active', formatDateForMySQL(new Date())],
+                ['Agent Jones', 'agent.jones@comfortpay.com', password, 'Sale Agent', formatDateForMySQL(new Date()), 'Active', formatDateForMySQL(new Date())]
             ]]);
             
             // Merchants
             await connection.query(`INSERT INTO users (name, email, password, role, createdAt, status, dateJoined, salesAgentId, commissionRates, websiteUrl, settlementFees, paymentGatewayFees, token) VALUES ?`, [[
-                ['Gadget Store', 'merchant@comfortpay.com', password, 'Merchant', formatDateForMySQL(now), 'Active', formatDateForMySQL(now), 2, commissionRates, 'https://gadgetstore.com', settlementFees, paymentGatewayFees, defaultToken],
-                ['Bookworm Nook', 'books@comfortpay.com', password, 'Merchant', formatDateForMySQL(now), 'Active', formatDateForMySQL(now), 2, commissionRates, 'https://bookwormnook.com', settlementFees, paymentGatewayFees, defaultToken],
-                ['The Art Corner', 'art@comfortpay.com', password, 'Merchant', formatDateForMySQL(now), 'Active', formatDateForMySQL(now), 3, commissionRates, 'https://theartcorner.com', settlementFees, paymentGatewayFees, defaultToken],
-                ['Coffee Express', 'coffee@comfortpay.com', password, 'Merchant', formatDateForMySQL(now), 'Inactive', formatDateForMySQL(now), 3, commissionRates, 'https://coffeeexpress.com', settlementFees, paymentGatewayFees, defaultToken],
-                ['Global Exports', 'exports@comfortpay.com', password, 'Merchant', formatDateForMySQL(now), 'Active', formatDateForMySQL(now), 2, commissionRates, 'https://globalexports.com', settlementFees, paymentGatewayFees, defaultToken]
+                ['Gadget Store', 'merchant@comfortpay.com', password, 'Merchant', formatDateForMySQL(new Date()), 'Active', formatDateForMySQL(new Date()), 2, commissionRates, 'https://gadgetstore.com', settlementFees, paymentGatewayFees, defaultToken],
+                ['Bookworm Nook', 'books@comfortpay.com', password, 'Merchant', formatDateForMySQL(new Date()), 'Active', formatDateForMySQL(new Date()), 2, commissionRates, 'https://bookwormnook.com', settlementFees, paymentGatewayFees, defaultToken],
+                ['The Art Corner', 'art@comfortpay.com', password, 'Merchant', formatDateForMySQL(new Date()), 'Active', formatDateForMySQL(new Date()), 3, commissionRates, 'https://theartcorner.com', settlementFees, paymentGatewayFees, defaultToken],
+                ['Coffee Express', 'coffee@comfortpay.com', password, 'Merchant', formatDateForMySQL(new Date()), 'Inactive', formatDateForMySQL(new Date()), 3, commissionRates, 'https://coffeeexpress.com', settlementFees, paymentGatewayFees, defaultToken],
+                ['Global Exports', 'exports@comfortpay.com', password, 'Merchant', formatDateForMySQL(new Date()), 'Active', formatDateForMySQL(new Date()), 2, commissionRates, 'https://globalexports.com', settlementFees, paymentGatewayFees, defaultToken]
             ]]);
 
             // Staff
             await connection.query(`INSERT INTO users (name, email, password, role, createdAt, status, dateJoined, permissions) VALUES ?`, [[
-                ['Support Staff', 'support@comfortpay.com', password, 'Staff', formatDateForMySQL(now), 'Active', formatDateForMySQL(now), JSON.stringify({ "view_dashboard": true, "view_transactions": true })],
-                ['Finance Staff', 'finance@comfortpay.com', password, 'Staff', formatDateForMySQL(now), 'Active', formatDateForMySQL(now), JSON.stringify({ "view_dashboard": true, "view_transactions": true, "edit_transactions": true, "view_merchants": true })],
-                ['Compliance Staff', 'compliance@comfortpay.com', password, 'Staff', formatDateForMySQL(now), 'Active', formatDateForMySQL(now), JSON.stringify({ "view_merchants": true, "edit_merchants": true })]
+                ['Support Staff', 'support@comfortpay.com', password, 'Staff', formatDateForMySQL(new Date()), 'Active', formatDateForMySQL(new Date()), JSON.stringify({ "view_dashboard": true, "view_transactions": true })],
+                ['Finance Staff', 'finance@comfortpay.com', password, 'Staff', formatDateForMySQL(new Date()), 'Active', formatDateForMySQL(new Date()), JSON.stringify({ "view_dashboard": true, "view_transactions": true, "edit_transactions": true, "view_merchants": true })],
+                ['Compliance Staff', 'compliance@comfortpay.com', password, 'Staff', formatDateForMySQL(new Date()), 'Active', formatDateForMySQL(new Date()), JSON.stringify({ "view_merchants": true, "edit_merchants": true })]
             ]]);
 
             // Payment Accounts (3 Stripe, 2 Square, 3 Zelle)
@@ -202,25 +221,25 @@ async function initialize() {
                 ['Stripe', 'Stripe EU', 'Inactive', 15000.00, 100.00, 'https://comfortpay.com', null, null],
                 ['Square', 'Square US', 'Active', 5000.00, 250.00, 'https://comfortpay.com', null, null],
                 ['Square', 'Square Events', 'Active', 2000.00, 100.00, 'https://comfortpay.com', null, null],
-                ['Zelle', 'Zelle Main', 'Active', 20000.00, 5000.00, 'https://comfortpay.com', 'billing@comfortpay.com', null],
-                ['Zelle', 'Zelle Secondary', 'Active', 10000.00, 150.00, 'https://comfortpay.com', 'payments@comfortpay.com', null],
-                ['Zelle', 'Zelle Backup', 'Inactive', 5000.00, 0.00, 'https://comfortpay.com', 'backup@comfortpay.com', null]
+                ['Zelle', 'Zelle Main', 'Active', 20000.00, 5000.00, null, 'billing@comfortpay.com', null],
+                ['Zelle', 'Zelle Secondary', 'Active', 10000.00, 150.00, null, 'payments@comfortpay.com', null],
+                ['Zelle', 'Zelle Backup', 'Inactive', 5000.00, 0.00, null, 'backup@comfortpay.com', null]
             ]]);
 
              // Orders
              const ordersData = [
-                [4, 'WC-101', 'GS-101-A', formatDateForMySQL(new Date(now.getTime() - 86400000 * 1)), 'Alice Johnson', 'alice@example.com', 'Completed', 'Credit Card', 99.99, 105.99, 105.99, 'USD', 'Stripe', 1, JSON.stringify({firstName: 'Alice'}), JSON.stringify([{name: 'Product A', quantity: 1, price: 99.99}])],
-                [5, 'WC-102', 'BN-102-B', formatDateForMySQL(new Date(now.getTime() - 86400000 * 2)), 'Bob Williams', 'bob@example.com', 'Requires Confirmation', 'Zelle', 45.00, 45.00, 0, 'USD', 'Zelle', 6, JSON.stringify({firstName: 'Bob'}), JSON.stringify([{name: 'Book', quantity: 2, price: 22.50}])],
-                [4, 'WC-103', 'GS-103-C', formatDateForMySQL(new Date(now.getTime() - 86400000 * 3)), 'Charlie Brown', 'charlie@example.com', 'Completed', 'Credit Card', 15.50, 18.00, 18.00, 'USD', 'Square', 4, JSON.stringify({firstName: 'Charlie'}), JSON.stringify([{name: 'Sticker', quantity: 1, price: 15.50}])],
-                [6, 'WC-104', 'AC-104-D', formatDateForMySQL(new Date(now.getTime() - 86400000 * 4)), 'Diana Miller', 'diana@example.com', 'Pending', 'Credit Card', 250.00, 265.00, 0, 'USD', 'Stripe', 2, JSON.stringify({firstName: 'Diana'}), JSON.stringify([{name: 'Artwork', quantity: 1, price: 250.00}])],
-                [7, 'WC-105', 'CE-105-E', formatDateForMySQL(new Date(now.getTime() - 86400000 * 5)), 'Ethan Davis', 'ethan@example.com', 'Completed', 'Zelle', 12.50, 12.50, 12.50, 'USD', 'Zelle', 7, JSON.stringify({firstName: 'Ethan'}), JSON.stringify([{name: 'Coffee', quantity: 5, price: 2.50}])],
-                [8, 'WC-106', 'GE-106-F', formatDateForMySQL(new Date(now.getTime() - 86400000 * 6)), 'Fiona Clark', 'fiona@example.com', 'Completed', 'Credit Card', 1200.00, 1250.00, 1250.00, 'USD', 'Stripe', 2, JSON.stringify({firstName: 'Fiona'}), JSON.stringify([{name: 'Export Item', quantity: 10, price: 120.00}])],
-                [4, 'WC-107', 'GS-107-G', formatDateForMySQL(new Date(now.getTime() - 86400000 * 7)), 'George Harris', 'george@example.com', 'Refunded', 'Credit Card', 75.00, 75.00, 0, 'USD', 'Square', 5, JSON.stringify({firstName: 'George'}), JSON.stringify([{name: 'Gadget', quantity: 1, price: 75.00}])],
-                [5, 'WC-108', 'BN-108-H', formatDateForMySQL(new Date(now.getTime() - 86400000 * 8)), 'Hannah Lewis', 'hannah@example.com', 'Completed', 'Zelle', 22.95, 25.00, 25.00, 'USD', 'Zelle', 6, JSON.stringify({firstName: 'Hannah'}), JSON.stringify([{name: 'Book', quantity: 1, price: 22.95}])],
-                [6, 'WC-109', 'AC-109-I', formatDateForMySQL(new Date(now.getTime() - 86400000 * 9)), 'Ian Walker', 'ian@example.com', 'Failed', 'Credit Card', 300.00, 310.00, 0, 'USD', 'Stripe', 1, JSON.stringify({firstName: 'Ian'}), JSON.stringify([{name: 'Artwork Large', quantity: 1, price: 300.00}])],
-                [7, 'WC-110', 'CE-110-J', formatDateForMySQL(new Date(now.getTime() - 86400000 * 10)), 'Jane Hall', 'jane@example.com', 'Requires Confirmation', 'Zelle', 8.75, 8.75, 0, 'USD', 'Zelle', 7, JSON.stringify({firstName: 'Jane'}), JSON.stringify([{name: 'Pastry', quantity: 2, price: 4.375}])]
+                [4, 'WC-101', 'GS-101-A', formatDateForMySQL(new Date(new Date().getTime() - 86400000 * 1)), 'Alice Johnson', 'alice@example.com', 'Completed', 'Credit Card', 99.99, 105.99, 105.99, 'USD', 'Stripe', 1, JSON.stringify({firstName: 'Alice'}), JSON.stringify([{name: 'Product A', quantity: 1, price: 99.99}]), null],
+                [5, 'WC-102', 'BN-102-B', formatDateForMySQL(new Date(new Date().getTime() - 86400000 * 2)), 'Bob Williams', 'bob@example.com', 'Requires Confirmation', 'Zelle', 45.00, 45.00, 0, 'USD', 'Zelle', 6, JSON.stringify({firstName: 'Bob'}), JSON.stringify([{name: 'Book', quantity: 2, price: 22.50}]), null],
+                [4, 'WC-103', 'GS-103-C', formatDateForMySQL(new Date(new Date().getTime() - 86400000 * 3)), 'Charlie Brown', 'charlie@example.com', 'Completed', 'Credit Card', 15.50, 18.00, 18.00, 'USD', 'Square', 4, JSON.stringify({firstName: 'Charlie'}), JSON.stringify([{name: 'Sticker', quantity: 1, price: 15.50}]), null],
+                [6, 'WC-104', 'AC-104-D', formatDateForMySQL(new Date(new Date().getTime() - 86400000 * 4)), 'Diana Miller', 'diana@example.com', 'Pending', 'Credit Card', 250.00, 265.00, 0, 'USD', 'Stripe', 2, JSON.stringify({firstName: 'Diana'}), JSON.stringify([{name: 'Artwork', quantity: 1, price: 250.00}]), null],
+                [7, 'WC-105', 'CE-105-E', formatDateForMySQL(new Date(new Date().getTime() - 86400000 * 5)), 'Ethan Davis', 'ethan@example.com', 'Completed', 'Zelle', 12.50, 12.50, 12.50, 'USD', 'Zelle', 7, JSON.stringify({firstName: 'Ethan'}), JSON.stringify([{name: 'Coffee', quantity: 5, price: 2.50}]), null],
+                [8, 'WC-106', 'GE-106-F', formatDateForMySQL(new Date(new Date().getTime() - 86400000 * 6)), 'Fiona Clark', 'fiona@example.com', 'Completed', 'Credit Card', 1200.00, 1250.00, 1250.00, 'USD', 'Stripe', 2, JSON.stringify({firstName: 'Fiona'}), JSON.stringify([{name: 'Export Item', quantity: 10, price: 120.00}]), null],
+                [4, 'WC-107', 'GS-107-G', formatDateForMySQL(new Date(new Date().getTime() - 86400000 * 7)), 'George Harris', 'george@example.com', 'Refunded', 'Credit Card', 75.00, 75.00, 0, 'USD', 'Square', 5, JSON.stringify({firstName: 'George'}), JSON.stringify([{name: 'Gadget', quantity: 1, price: 75.00}]), null],
+                [5, 'WC-108', 'BN-108-H', formatDateForMySQL(new Date(new Date().getTime() - 86400000 * 8)), 'Hannah Lewis', 'hannah@example.com', 'Completed', 'Zelle', 22.95, 25.00, 25.00, 'USD', 'Zelle', 6, JSON.stringify({firstName: 'Hannah'}), JSON.stringify([{name: 'Book', quantity: 1, price: 22.95}]), null],
+                [6, 'WC-109', 'AC-109-I', formatDateForMySQL(new Date(new Date().getTime() - 86400000 * 9)), 'Ian Walker', 'ian@example.com', 'Failed', 'Credit Card', 300.00, 310.00, 0, 'USD', 'Stripe', 1, JSON.stringify({firstName: 'Ian'}), JSON.stringify([{name: 'Artwork Large', quantity: 1, price: 300.00}]), null],
+                [7, 'WC-110', 'CE-110-J', formatDateForMySQL(new Date(new Date().getTime() - 86400000 * 10)), 'Jane Hall', 'jane@example.com', 'Requires Confirmation', 'Zelle', 8.75, 8.75, 0, 'USD', 'Zelle', 7, JSON.stringify({firstName: 'Jane'}), JSON.stringify([{name: 'Pastry', quantity: 2, price: 4.375}]), null]
              ];
-             await connection.query(`INSERT INTO orders (merchantId, merchantOrderId, visualOrderId, orderDate, customerName, customerEmail, status, paymentMethod, orderAmount, totalAmount, paidAmount, currency, paymentType, paymentAccountId, billingDetails, items) VALUES ?`, [ordersData]);
+             await connection.query(`INSERT INTO orders (merchantId, merchantOrderId, visualOrderId, orderDate, customerName, customerEmail, status, paymentMethod, orderAmount, totalAmount, paidAmount, currency, paymentType, paymentAccountId, billingDetails, items, riskDetails) VALUES ?`, [ordersData]);
             
             // Settings
             const settings = [

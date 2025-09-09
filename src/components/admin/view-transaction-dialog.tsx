@@ -49,6 +49,17 @@ const DetailRow = ({ label, value, isCopyable = false, onCopy, children }: { lab
     )
 }
 
+const formatDate = (dateString: string | undefined | null) => {
+    if (!dateString) return "N/A";
+    const date = new Date(dateString.endsWith('Z') ? dateString : dateString + 'Z');
+    const options: Intl.DateTimeFormatOptions = {
+        year: 'numeric', month: 'long', day: 'numeric',
+        hour: '2-digit', minute: '2-digit', second: '2-digit',
+        timeZone: 'GMT',
+        hour12: true,
+    };
+    return date.toLocaleString('en-US', options);
+}
 
 export function ViewTransactionDialog({ open, onOpenChange, transaction }: ViewTransactionDialogProps) {
     const { toast } = useToast();
@@ -95,8 +106,8 @@ export function ViewTransactionDialog({ open, onOpenChange, transaction }: ViewT
                         <DetailRow label="Merchant Transaction ID" value={transaction.merchantOrderId} isCopyable onCopy={(v) => handleCopy(v, "Merchant Transaction ID")} />
                          {isAdmin && <DetailRow label="Gateway Txn ID" value={transaction.paymentGatewayTransactionId} isCopyable onCopy={(v) => handleCopy(v, "Gateway Transaction ID")} />}
                         <DetailRow label="Status"><Badge>{transaction.status}</Badge></DetailRow>
-                        <DetailRow label="Transaction Date" value={new Date(transaction.orderDate).toLocaleString()} />
-                        <DetailRow label="Payment Received" value={transaction.paymentReceivedDate ? new Date(transaction.paymentReceivedDate).toLocaleString() : 'N/A'} />
+                          <DetailRow label="Transaction Date" value={formatDate(transaction.orderDate)} />
+                        <DetailRow label="Payment Received" value={formatDate(transaction.paymentReceivedDate)} />
                         <DetailRow label="Order Amount" value={formatCurrency(transaction.orderAmount, transaction.currency)} />
                         <DetailRow label="Total Amount" value={formatCurrency(transaction.totalAmount, transaction.currency)} />
                         <DetailRow label="Paid Amount" value={formatCurrency(transaction.paidAmount, transaction.currency)} />

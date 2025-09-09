@@ -7,10 +7,18 @@ const path = require('path');
 
 const saltRounds = 10;
 
-const formatDateForMySQL = (isoDate) => {
-    if (!isoDate) return null;
-    return new Date(isoDate).toISOString().slice(0, 19).replace('T', ' ');
-}
+const formatDateForMySQL = (date) => {
+    if (!date) return null;
+    const d = new Date(date);
+    const year = d.getUTCFullYear();
+    const month = (d.getUTCMonth() + 1).toString().padStart(2, '0');
+    const day = d.getUTCDate().toString().padStart(2, '0');
+    const hours = d.getUTCHours().toString().padStart(2, '0');
+    const minutes = d.getUTCMinutes().toString().padStart(2, '0');
+    const seconds = d.getUTCSeconds().toString().padStart(2, '0');
+    return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+};
+
 
 async function initialize() {
     const dbUrl = process.env.DATABASE_URL;
@@ -181,10 +189,10 @@ async function initialize() {
 
             if (existingAdmin.length === 0) {
                 const hashedPassword = await bcrypt.hash(superAdminPassword, saltRounds);
-                const now = formatDateForMySQL(new Date());
+                const now = new Date();
                 await connection.query(
                     `INSERT INTO users (name, email, password, role, createdAt, status, dateJoined) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-                    ['Admin User', superAdminEmail, hashedPassword, 'Admin', now, 'Active', now]
+                    ['Admin User', superAdminEmail, hashedPassword, 'Admin', formatDateForMySQL(now), 'Active', formatDateForMySQL(now)]
                 );
                 console.log('Super Admin user inserted.');
             } else {

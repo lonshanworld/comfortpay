@@ -46,11 +46,21 @@ export const columns = ({ onView }: TransactionColumnsProps): ColumnDef<Order>[]
     header: "Transaction",
     cell: ({ row }) => {
         const transaction = row.original;
+         const dateString = transaction.orderDate;
+        if (!dateString) return <div>{transaction.id}</div>;
+
+        const date = new Date(dateString.endsWith('Z') ? dateString : dateString + 'Z');
+        const options: Intl.DateTimeFormatOptions = {
+            year: 'numeric', month: 'short', day: 'numeric',
+            hour: '2-digit', minute: '2-digit',
+            timeZone: 'GMT',
+            hour12: true,
+        };
         return (
             <div className="font-medium">
                 <div>{transaction.id}</div>
                 <div className="text-sm text-muted-foreground hidden sm:block">
-                    {new Date(transaction.orderDate).toLocaleString()}
+                    {date.toLocaleString('en-US', options)}
                 </div>
             </div>
         )

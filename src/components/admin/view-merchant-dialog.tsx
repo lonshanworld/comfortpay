@@ -160,6 +160,15 @@ export function ViewMerchantDialog({ open, onOpenChange, merchant }: ViewMerchan
 
     if (!merchant) return null;
 
+     const dateString = merchant.dateJoined as string;
+    const date = new Date(dateString.endsWith('Z') ? dateString : dateString + 'Z');
+    const dateJoined = date.toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+        timeZone: 'GMT',
+    });
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-lg">
@@ -180,7 +189,7 @@ export function ViewMerchantDialog({ open, onOpenChange, merchant }: ViewMerchan
                         <DetailRow label="API Token" value={merchant.token} isCopyable onCopy={(v) => handleCopy(v, 'API Token')} />
                         <DetailRow label="Order ID Prefix" value={merchant.orderIdPrefix || "Not Set"} />
                         <DetailRow label="Status"><Badge variant={merchant.status === 'Active' ? "secondary" : "destructive"}>{merchant.status}</Badge></DetailRow>
-                        <DetailRow label="Date Joined" value={new Date(merchant.dateJoined || Date.now()).toLocaleDateString()} />
+                        <DetailRow label="Date Joined" value={dateJoined} />
                         {merchant.websiteUrl && <DetailRow label="Website" value={merchant.websiteUrl} />}
                      </div>
                 </section>

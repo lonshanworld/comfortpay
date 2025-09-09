@@ -63,15 +63,15 @@ export async function POST(request: Request) {
       (name, email, password, role, createdAt, status, permissions, dateJoined) 
       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     `;
-    const now = formatDateForMySQL(new Date());
+    const now = new Date();
     const params = [
-        name, email, hashedPassword, role, now, status, 
+        name, email, hashedPassword, role,  formatDateForMySQL(now), status, 
         permissions ? JSON.stringify(permissions) : JSON.stringify({}),
-        now
+        formatDateForMySQL(now)
     ];
     const result: any = await runQuery(query, params);
     
-    const newUser = { id: `user_${result.id}`, ...body, createdAt: new Date().toISOString() };
+    const newUser = { id: `user_${result.id}`, ...body, createdAt: now.toISOString() };
     delete newUser.password;
     return NextResponse.json(newUser, { status: 201 });
   } catch (error) {

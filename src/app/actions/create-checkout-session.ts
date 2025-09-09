@@ -135,6 +135,7 @@ export async function createCheckoutSession(input: CreateCheckoutSessionInput): 
     console.log(`[createCheckoutSession] Generated Visual ID: ${visualId}`);
     
     const orderAmount = (input.items || []).reduce((acc, item) => acc + (item.price * item.quantity), 0);
+    const now = new Date();
 
     const orderInsertQuery = `
       INSERT INTO orders 
@@ -142,7 +143,7 @@ export async function createCheckoutSession(input: CreateCheckoutSessionInput): 
       VALUES (?, ?, ?, ?, ?, ?, 'Pending', ?, ?, ?, 0, ?, ?, ?, ?, ?)
     `;
     const orderParams = [
-        numericMerchantId, input.merchantOrderId, visualId, formatDateForMySQL(new Date()),
+        numericMerchantId, input.merchantOrderId, visualId, formatDateForMySQL(now),
         `${input.billingDetails.firstName} ${input.billingDetails.lastName}`, input.billingDetails.email,
         input.paymentMethod === 'card' ? 'Credit Card' : 'Zelle',
         orderAmount, // Pure item subtotal

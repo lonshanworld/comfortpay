@@ -73,6 +73,14 @@ export function ViewUserDialog({ open, onOpenChange, user }: ViewUserDialogProps
         return user.permissions;
     })();
 
+     const dateString = user.createdAt as string;
+    const date = new Date(dateString.endsWith('Z') ? dateString : dateString + 'Z');
+    const dateJoined = date.toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+        timeZone: 'GMT',
+    });
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -106,7 +114,7 @@ export function ViewUserDialog({ open, onOpenChange, user }: ViewUserDialogProps
                         <DetailRow label="Login Email" value={user.email} />
                         <DetailRow label="Role"><Badge variant={user.role === 'Admin' ? 'destructive' : 'secondary'}>{user.role}</Badge></DetailRow>
                         <DetailRow label="Status"><Badge variant={user.status === 'Active' ? "secondary" : "destructive"}>{user.status}</Badge></DetailRow>
-                        <DetailRow label="Date Joined" value={new Date(user.createdAt).toLocaleDateString()} />
+                        <DetailRow label="Date Joined" value={dateJoined} />
                      </div>
                 </section>
                 {user.role === 'Staff' && (

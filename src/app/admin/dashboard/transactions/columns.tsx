@@ -61,6 +61,19 @@ const formatCurrency = (amount: number, currency: string) => {
     }).format(amount);
 }
 
+const formatDate = (dateString: string | undefined | null) => {
+    console.log("Formatting date:", dateString);
+     if (!dateString) return "N/A";
+    const date = new Date(dateString.endsWith('Z') ? dateString : dateString + 'Z');
+    const options: Intl.DateTimeFormatOptions = {
+        year: 'numeric', month: 'short', day: 'numeric',
+        hour: '2-digit', minute: '2-digit',
+        timeZone: 'GMT',
+        hour12: true,
+    };
+    return date.toLocaleString('en-US', options);
+}
+
 const ConfirmationPopover = ({ transaction, onConfirmPayment, isConfirming }: { transaction: Order, onConfirmPayment: (transaction: Order, paidAmount: number) => void, isConfirming: boolean}) => {
     const [amount, setAmount] = React.useState<string>('');
 
@@ -126,7 +139,10 @@ export const columns = ({ onView, onEdit, onConfirmPayment, isConfirmingId }: Tr
     {
     accessorKey: "orderDate",
     header: "Order Date",
-    cell: ({ row }) => new Date(row.original.orderDate).toLocaleString()
+    cell: ({ row }) =>{
+      console.log("Order Date Cell:", JSON.stringify(row));  
+      return  formatDate(row.original.orderDate);
+    }
   },
   {
     accessorKey: "id",
@@ -176,7 +192,7 @@ export const columns = ({ onView, onEdit, onConfirmPayment, isConfirmingId }: Tr
   {
     accessorKey: "paymentReceivedDate",
     header: "Payment Date",
-    cell: ({ row }) => row.original.paymentReceivedDate ? new Date(row.original.paymentReceivedDate).toLocaleString() : "N/A"
+    cell: ({ row }) => formatDate(row.original.paymentReceivedDate)
   },
   {
     accessorKey: "customerFirstName",

@@ -96,7 +96,7 @@ export async function POST(req: NextRequest) {
         if (payment.status === 'COMPLETED') {
             console.log(`[Square Webhook] Processing COMPLETED payment.updated event for Square payment: ${payment.id}`);
             
-            const updates: any[] = ['Completed', payment.id, new Date().toISOString()];
+            const updates: any[] = ['Completed', payment.id, new Date().toISOString().slice(0, 19).replace('T', ' ')];
             let updateQuery = `UPDATE orders SET status = ?, paymentGatewayTransactionId = ?, paymentReceivedDate = ?`;
 
             if (payment.riskEvaluation) {
