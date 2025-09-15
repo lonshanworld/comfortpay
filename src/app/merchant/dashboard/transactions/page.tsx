@@ -29,7 +29,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { useToast } from "@/hooks/use-toast"
-
+import type { DateRange } from "react-day-picker"
+import { DateRangePicker } from "@/components/ui/date-range-picker"
 
 // Helper to download files on the client side
 const downloadFile = (content: string, fileName: string, contentType: string) => {
@@ -70,6 +71,19 @@ const convertToHtmlTable = (data: Order[]): string => {
     return `<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:x='urn:schemas-microsoft-com:office:excel' xmlns='http://www.w3.org/TR/REC-html40'><head><meta charset='utf-8'/><style>table, th, td { border: 1px solid black; border-collapse: collapse; } th, td { padding: 5px; }</style></head><body><table><thead>${headerRow}</thead><tbody>${bodyRows}</tbody></table></body></html>`;
 };
 
+const DateRangeColumnFilter = ({ column }: { column: { id: string; setFilterValue: (value: any) => void; getFilterValue: () => any } }) => {
+    const value = column.getFilterValue() as DateRange | undefined;
+    
+    return (
+        <DateRangePicker
+            date={value}
+            setDate={(date) => {
+                column.setFilterValue(date);
+            }}
+            className="h-8"
+        />
+    )
+}
 
 export default function MerchantTransactionsPage() {
   const [transactions, setTransactions] = useState<Order[]>([]);
@@ -105,8 +119,15 @@ export default function MerchantTransactionsPage() {
       const params = new URLSearchParams({ merchantId });
       filters.forEach(filter => {
          if (filter.value) {
-            params.append(String(filter.id), String(filter.value));
-          }
+            // Special handling for date range filters
+            if (filter.id === 'orderDate' || filter.id === 'paymentReceivedDate') {
+                const range = filter.value as DateRange;
+                if (range.from) params.append(`${filter.id}_start`, range.from.toISOString());
+                if (range.to) params.append(`${filter.id}_end`, range.to.toISOString());
+            } else {
+                params.append(String(filter.id), String(filter.value));
+            }
+        }
       })
 
       const response = await fetch(`/api/orders?${params.toString()}`);
@@ -156,13 +177,13 @@ export default function MerchantTransactionsPage() {
       try {
         if (format === 'csv') {
           const csvData = convertToCSV(transactions);
-          downloadFile(csvData, `transactions-${new Date().toISOString()}.csv`, 'text/csv;charset=utf-8;');
+          downloadFile(`transactions-${new Date().toISOString()}.csv`, 'text/csv;charset=utf-8;', csvData);
         } else if (format === 'docs') {
           const htmlData = convertToHtmlTable(transactions);
-          downloadFile(htmlData, `transactions-${new Date().toISOString()}.doc`, 'application/msword');
+          downloadFile(`transactions-${new Date().toISOString()}.doc`, 'application/msword', htmlData);
         } else if (format === 'excel') {
-           const htmlData = convertToHtmlTable(transactions);
-           downloadFile(htmlData, `transactions-${new Date().toISOString()}.xls`, 'application/vnd.ms-excel');
+          const htmlData = convertToHtmlTable(transactions);
+          downloadFile(`transactions-${new Date().toISOString()}.xls`, 'application/vnd.ms-excel', htmlData);
         }
          toast({
           title: "Export Successful",
@@ -242,6 +263,10 @@ export default function MerchantTransactionsPage() {
                   data={transactions} 
                   columnFilters={columnFilters}
                   setColumnFilters={setColumnFilters}
+                  customFilterComponents={{ 
+                  orderDate: DateRangeColumnFilter,
+                  paymentReceivedDate: DateRangeColumnFilter,
+                }}
                 />
               )}
             </CardContent>

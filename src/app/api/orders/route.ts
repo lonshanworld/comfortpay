@@ -116,11 +116,29 @@ export async function GET(request: Request) {
                     query += ` AND o.paymentAccountId = ?`;
                     params.push(value.replace('pa_', ''));
                     break;
-                case 'orderDate':
-                case 'paymentReceivedDate':
-                    // This is a simplification; a real app would handle date ranges
-                    query += ` AND DATE(o.${key}) = ?`;
+                  case 'orderDate_start':
+                    query += ` AND o.orderDate >= ?`;
                     params.push(value);
+                    break;
+                case 'orderDate_end':
+                    query += ` AND o.orderDate <= ?`;
+                    params.push(value);
+                    break;
+                case 'paymentReceivedDate_start':
+                    query += ` AND o.paymentReceivedDate >= ?`;
+                    params.push(value);
+                    break;
+                case 'paymentReceivedDate_end':
+                    query += ` AND o.paymentReceivedDate <= ?`;
+                    params.push(value);
+                    break;
+                case 'startDate':
+                    query += ` AND DATE(o.orderDate) >= ?`;
+                    params.push(value.split('T')[0]); // Use just the date part
+                    break;
+                case 'endDate':
+                    query += ` AND DATE(o.orderDate) <= ?`;
+                    params.push(value.split('T')[0]); // Use just the date part
                     break;
             }
         }

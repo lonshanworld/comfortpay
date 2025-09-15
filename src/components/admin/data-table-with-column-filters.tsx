@@ -142,7 +142,7 @@ export function DataTableWithColumnFilters<TData, TValue>({
                 {headerGroup.headers.map((header) => {
                   const CustomFilter = customFilterComponents[header.id];
                   return (
-                    <TableHead key={header.id} style={{ width: header.getSize() }} className="relative align-top">
+                    <TableHead key={header.id} style={{ width: header.getSize() }} className="relative align-top h-24">
                       <div className="flex flex-col gap-2">
                         {header.isPlaceholder
                           ? null

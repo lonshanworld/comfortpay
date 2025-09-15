@@ -15,22 +15,61 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover"
 import { Label } from "@/components/ui/label"
+import { Input } from "./input"
 
-interface DatePickerWithRangeProps extends React.HTMLAttributes<HTMLDivElement> {
+interface DateRangePickerProps extends React.HTMLAttributes<HTMLDivElement> {
   date: DateRange | undefined;
   setDate: (date: DateRange | undefined) => void;
 }
 
-export function DatePickerWithRange({
+export function DateRangePicker({
   className,
   date,
   setDate
-}: DatePickerWithRangeProps) {
+}: DateRangePickerProps) {
   const [isClient, setIsClient] = React.useState(false);
 
   React.useEffect(() => {
     setIsClient(true);
   }, []);
+
+  const fromTime = date?.from ? format(date.from, "HH:mm") : "00:00";
+  const toTime = date?.to ? format(date.to, "HH:mm") : "23:59";
+
+  const handleDateSelect = (range: DateRange | undefined) => {
+    if (!range) {
+        setDate(undefined);
+        return;
+    }
+
+    let { from, to } = range;
+
+    if (from) {
+        const [fromHours, fromMinutes] = fromTime.split(':').map(Number);
+        from.setHours(fromHours, fromMinutes);
+    }
+    if (to) {
+        const [toHours, toMinutes] = toTime.split(':').map(Number);
+        to.setHours(toHours, toMinutes);
+    }
+    
+    setDate({ from, to });
+  };
+  
+  const handleTimeChange = (type: 'from' | 'to', time: string) => {
+    const [hours, minutes] = time.split(':').map(Number);
+    if (type === 'from' && date?.from) {
+        const newFrom = new Date(date.from);
+        newFrom.setHours(hours, minutes);
+        setDate({ ...date, from: newFrom });
+    }
+    if (type === 'to' && date?.to) {
+        const newTo = new Date(date.to);
+        newTo.setHours(hours, minutes);
+        setDate({ ...date, to: newTo });
+    }
+  };
+
 
   if (!isClient) {
     return null;
@@ -38,15 +77,16 @@ export function DatePickerWithRange({
 
   return (
     <div className={cn("grid gap-1", className)}>
-      <Label htmlFor="date-range" className="text-xs">Date Range</Label>
+      <Label htmlFor="date-range" className="text-xs">Filter by Date</Label>
       <Popover>
         <PopoverTrigger asChild>
           <Button
             id="date-range"
             variant={"outline"}
             className={cn(
-              "w-[260px] justify-start text-left font-normal h-8",
-              !date && "text-muted-foreground"
+              "w-auto justify-start text-left font-normal",
+              !date && "text-muted-foreground",
+              className
             )}
           >
             <CalendarIcon className="mr-2 h-4 w-4" />
@@ -70,9 +110,31 @@ export function DatePickerWithRange({
             mode="range"
             defaultMonth={date?.from}
             selected={date}
-            onSelect={setDate}
+            onSelect={handleDateSelect}
             numberOfMonths={2}
           />
+           <div className="p-3 border-t grid grid-cols-2 gap-4">
+              <div className="space-y-1">
+                  <Label htmlFor="from-time" className="text-xs">Start Time</Label>
+                  <Input 
+                      id="from-time"
+                      type="time" 
+                      defaultValue={fromTime}
+                      onChange={(e) => handleTimeChange('from', e.target.value)}
+                      disabled={!date?.from}
+                  />
+              </div>
+              <div className="space-y-1">
+                  <Label htmlFor="to-time" className="text-xs">End Time</Label>
+                   <Input 
+                      id="to-time"
+                      type="time" 
+                      defaultValue={toTime}
+                      onChange={(e) => handleTimeChange('to', e.target.value)}
+                      disabled={!date?.to}
+                  />
+              </div>
+           </div>
         </PopoverContent>
       </Popover>
     </div>

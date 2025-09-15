@@ -33,6 +33,8 @@ import {
 import { useToast } from "@/hooks/use-toast"
 import { sendOrderNotification } from "@/app/actions/send-order-notification"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { DateRangePicker } from "@/components/ui/date-range-picker"
+import type { DateRange } from "react-day-picker"
 
 // Helper to download files on the client side
 const downloadFile = (content: string, fileName: string, contentType: string) => {
@@ -93,6 +95,19 @@ const StatusFilter = ({ column }: { column: any }) => {
   );
 };
 
+const DateRangeColumnFilter = ({ column }: { column: { id: string; setFilterValue: (value: any) => void; getFilterValue: () => any } }) => {
+    const value = column.getFilterValue() as DateRange | undefined;
+    
+    return (
+        <DateRangePicker
+            date={value}
+            setDate={(date) => {
+                column.setFilterValue(date);
+            }}
+            className="h-8"
+        />
+    )
+}
 
 export default function TransactionsPage() {
   const [transactions, setTransactions] = useState<Order[]>([]);
@@ -118,8 +133,15 @@ export default function TransactionsPage() {
       // Add column filters to params
       filters.forEach(filter => {
          if (filter.value) {
-            params.append(String(filter.id), String(filter.value));
-          }
+            // Special handling for date range filters
+            if (filter.id === 'orderDate' || filter.id === 'paymentReceivedDate') {
+                const range = filter.value as DateRange;
+                if (range.from) params.append(`${filter.id}_start`, range.from.toISOString());
+                if (range.to) params.append(`${filter.id}_end`, range.to.toISOString());
+            } else {
+                params.append(String(filter.id), String(filter.value));
+            }
+        }
       })
 
       const response = await fetch(`/api/orders?${params.toString()}`);
@@ -355,7 +377,11 @@ export default function TransactionsPage() {
                   data={transactions} 
                   columnFilters={columnFilters}
                   setColumnFilters={setColumnFilters}
-                  customFilterComponents={{ status: StatusFilter }}
+                  customFilterComponents={{ 
+                    status: StatusFilter,
+                    orderDate: DateRangeColumnFilter,
+                    paymentReceivedDate: DateRangeColumnFilter,
+                   }}
                 />
               )}
             </CardContent>
