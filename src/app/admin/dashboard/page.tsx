@@ -32,6 +32,15 @@ import Link from "next/link"
 import { RevenueChart } from "@/components/admin/revenue-chart"
 import type { DashboardStats } from "@/lib/types"
 
+const formatDate = (dateString: string | undefined | null) => {
+    if (!dateString) return "N/A";
+    const date = new Date(dateString.endsWith('Z') ? dateString : dateString + 'Z');
+    const options: Intl.DateTimeFormatOptions = {
+        year: 'numeric', month: 'short', day: 'numeric',
+    };
+    return date.toLocaleDateString('en-US', options);
+}
+
 export default function AdminDashboard() {
     const [stats, setStats] = useState<DashboardStats | null>(null);
     const [isLoading, setIsLoading] = useState(true);
@@ -68,8 +77,8 @@ export default function AdminDashboard() {
     }
 
   return (
-      <div className="flex flex-col sm:gap-4">
-        <div className="grid gap-4 md:grid-cols-2 md:gap-8 lg:grid-cols-4">
+      <div className="flex flex-col gap-4">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">
@@ -125,7 +134,7 @@ export default function AdminDashboard() {
             </Card>
           )}
         </div>
-        <div className="grid gap-4 md:gap-8 lg:grid-cols-2 xl:grid-cols-3">
+        <div className="grid gap-4 lg:grid-cols-2 xl:grid-cols-3">
           <Card className="xl:col-span-2">
             <CardHeader className="flex flex-row items-center">
               <div className="grid gap-2">
@@ -142,47 +151,49 @@ export default function AdminDashboard() {
               </Button>
             </CardHeader>
             <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Customer</TableHead>
-                    <TableHead className="hidden xl:table-column">
-                      Type
-                    </TableHead>
-                    <TableHead className="hidden xl:table-column">
-                      Status
-                    </TableHead>
-                    <TableHead className="hidden xl:table-column">
-                      Date
-                    </TableHead>
-                    <TableHead className="text-right">Amount</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {stats.recentTransactions.map((tx, i) => (
-                  <TableRow key={i}>
-                    <TableCell>
-                      <div className="font-medium">{tx.customerName}</div>
-                      <div className="hidden text-sm text-muted-foreground md:inline">
-                        {tx.customerEmail}
-                      </div>
-                    </TableCell>
-                    <TableCell className="hidden xl:table-column">
-                      {tx.type}
-                    </TableCell>
-                    <TableCell className="hidden xl:table-column">
-                      <Badge className="text-xs" variant="outline">
-                        {tx.status}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="hidden md:table-cell lg:hidden xl:table-column">
-                      {tx.date}
-                    </TableCell>
-                    <TableCell className="text-right">${Number(tx.amount).toFixed(2)}</TableCell>
-                  </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Customer</TableHead>
+                      <TableHead className="hidden sm:table-cell">
+                        Type
+                      </TableHead>
+                      <TableHead className="hidden sm:table-cell">
+                        Status
+                      </TableHead>
+                      <TableHead className="hidden md:table-cell">
+                        Date
+                      </TableHead>
+                      <TableHead className="text-right">Amount</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {stats.recentTransactions.map((tx, i) => (
+                    <TableRow key={i}>
+                      <TableCell>
+                        <div className="font-medium">{tx.customerName}</div>
+                        <div className="hidden text-sm text-muted-foreground md:inline">
+                          {tx.customerEmail}
+                        </div>
+                      </TableCell>
+                      <TableCell className="hidden sm:table-cell">
+                        {tx.type}
+                      </TableCell>
+                      <TableCell className="hidden sm:table-cell">
+                        <Badge className="text-xs" variant="outline">
+                          {tx.status}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="hidden md:table-cell">
+                        {formatDate(tx.date)}
+                      </TableCell>
+                      <TableCell className="text-right">${Number(tx.amount).toFixed(2)}</TableCell>
+                    </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
             </CardContent>
           </Card>
           <Card>

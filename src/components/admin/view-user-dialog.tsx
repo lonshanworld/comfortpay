@@ -73,26 +73,27 @@ export function ViewUserDialog({ open, onOpenChange, user }: ViewUserDialogProps
         return user.permissions;
     })();
 
-     const dateString = user.createdAt as string;
+    const dateString = user.createdAt as string;
     const date = new Date(dateString.endsWith('Z') ? dateString : dateString + 'Z');
     const dateJoined = date.toLocaleDateString('en-US', {
         year: 'numeric',
         month: 'long',
         day: 'numeric',
-        timeZone: 'GMT',
+        timeZone: 'GMT'
     });
+
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className="sm:max-w-lg h-full sm:h-auto sm:max-h-[90vh] flex flex-col">
         <DialogHeader>
           <DialogTitle>User Details</DialogTitle>
           <DialogDescription>
             Full details for {user.name}.
           </DialogDescription>
         </DialogHeader>
-        <ScrollArea className="max-h-[70vh]">
-            <div className="space-y-4 py-4 pr-6">
+        <ScrollArea className="flex-grow pr-6 -mr-6">
+            <div className="space-y-4 py-4">
                 <section>
                      <h4 className="text-sm font-semibold text-primary mb-2">General Information</h4>
                      <div className="space-y-1">
@@ -114,7 +115,7 @@ export function ViewUserDialog({ open, onOpenChange, user }: ViewUserDialogProps
                         <DetailRow label="Login Email" value={user.email} />
                         <DetailRow label="Role"><Badge variant={user.role === 'Admin' ? 'destructive' : 'secondary'}>{user.role}</Badge></DetailRow>
                         <DetailRow label="Status"><Badge variant={user.status === 'Active' ? "secondary" : "destructive"}>{user.status}</Badge></DetailRow>
-                        <DetailRow label="Date Joined" value={dateJoined} />
+                        <DetailRow label="Date Joined (GMT)" value={dateJoined} />
                      </div>
                 </section>
                 {user.role === 'Staff' && (
@@ -138,7 +139,7 @@ export function ViewUserDialog({ open, onOpenChange, user }: ViewUserDialogProps
                 )}
             </div>
         </ScrollArea>
-         <DialogFooter>
+         <DialogFooter className="flex-shrink-0 pt-4">
             <Button type="button" variant="secondary" onClick={() => onOpenChange(false)}>Close</Button>
         </DialogFooter>
       </DialogContent>

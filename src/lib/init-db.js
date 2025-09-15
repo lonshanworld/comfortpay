@@ -156,6 +156,13 @@ async function initialize() {
                 UNIQUE KEY (paymentAccountId, date)
             ) ENGINE=InnoDB;
         `);
+        await connection.query(`
+            CREATE TABLE IF NOT EXISTS zelle_email_ai_record (
+                id INT PRIMARY KEY AUTO_INCREMENT,
+                ai_response_json JSON,
+                created_at DATETIME NOT NULL
+            ) ENGINE=InnoDB;
+        `);
         console.log('Tables created or verified.');
         
         // Before adding the unique constraint, clean up any existing empty strings

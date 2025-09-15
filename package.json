@@ -45,6 +45,7 @@
     "date-fns": "^4.1.0",
     "dotenv": "^17.2.1",
     "embla-carousel-react": "^8.6.0",
+    "genkit": "^1.17.1",
     "lucide-react": "^0.541.0",
     "mysql2": "^3.14.3",
     "next": "15.5.0",
@@ -64,6 +65,7 @@
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",
+    "@genkit-ai/googleai": "^1.19.2",
     "@tanstack/eslint-plugin-query": "^5.83.1",
     "@types/bcrypt": "^6.0.0",
     "@types/node": "^20.19.11",

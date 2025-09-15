@@ -118,7 +118,7 @@ export function ManageTokenDialog({ open, onOpenChange, onTokenUpdated, merchant
                 Regenerate Token
             </Button>
         </div>
-        <DialogFooter>
+        <DialogFooter className="pt-4">
           <Button type="button" variant="secondary" onClick={() => onOpenChange(false)}>Close</Button>
         </DialogFooter>
       </DialogContent>

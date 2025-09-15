@@ -51,6 +51,7 @@ async function initialize() {
         console.log('Dropping existing tables...');
         const dropTablesScript = `
             SET FOREIGN_KEY_CHECKS = 0;
+            DROP TABLE IF EXISTS zelle_email_ai_record;
             DROP TABLE IF EXISTS daily_volume_history;
             DROP TABLE IF EXISTS settings;
             DROP TABLE IF EXISTS notifications;
@@ -160,6 +161,12 @@ async function initialize() {
                 totalVolume DECIMAL(15, 2) NOT NULL,
                 createdAt DATETIME NOT NULL,
                 UNIQUE KEY (paymentAccountId, date)
+            ) ENGINE=InnoDB;
+
+            CREATE TABLE zelle_email_ai_record (
+                id INT PRIMARY KEY AUTO_INCREMENT,
+                ai_response_json JSON,
+                created_at DATETIME NOT NULL
             ) ENGINE=InnoDB;
         `;
         await connection.query(createTablesScript);

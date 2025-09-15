@@ -18,13 +18,14 @@ const nextConfig: NextConfig = {
     dangerouslyAllowSVG: true,
     unoptimized: process.env.NODE_ENV === "development",
   },
-  compiler: {
-   removeConsole: {
-      exclude: ['error'],
-    },
-  },
+  // compiler: {
+  //  removeConsole: {
+  //     exclude: ['error'],
+  //   },
+  // },
 
-  // async headers() {
+  
+  // async headers()
   //   return [
   //     {
   //       source: "/(.*)",

@@ -35,6 +35,7 @@ import { z } from "zod";
 import type { PaymentAccountType } from "@/lib/types";
 import { Alert, AlertDescription, AlertTitle } from "../ui/alert";
 import { Terminal } from "lucide-react";
+import { ScrollArea } from "../ui/scroll-area";
 
 const accountFormSchema = z.object({
   name: z.string().min(3, "Account name must be at least 3 characters."),
@@ -182,7 +183,7 @@ export function AddAccountDialog({ open, onOpenChange, onAccountAdded }: AddAcco
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-md h-full sm:h-auto sm:max-h-[90vh] flex flex-col">
         <DialogHeader>
           <DialogTitle>Add New Payment Account</DialogTitle>
           <DialogDescription>
@@ -190,150 +191,152 @@ export function AddAccountDialog({ open, onOpenChange, onAccountAdded }: AddAcco
           </DialogDescription>
         </DialogHeader>
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 py-4">
-            <FormField
-              control={form.control}
-              name="name"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Account Name</FormLabel>
-                  <FormControl>
-                    <Input placeholder="e.g., Stripe Primary" {...field} disabled={isLoading} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-             <FormField
-              control={form.control}
-              name="type"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Account Type</FormLabel>
-                  <Select onValueChange={field.onChange} defaultValue={field.value} disabled={isLoading}>
+          <ScrollArea className="flex-grow pr-6 -mr-6">
+            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 py-4">
+              <FormField
+                control={form.control}
+                name="name"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Account Name</FormLabel>
                     <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select an account type" />
-                      </SelectTrigger>
+                      <Input placeholder="e.g., Stripe Primary" {...field} disabled={isLoading} />
                     </FormControl>
-                    <SelectContent>
-                      <SelectItem value="Stripe">Stripe</SelectItem>
-                      <SelectItem value="Square">Square</SelectItem>
-                      <SelectItem value="Zelle">Zelle</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            {selectedType === 'Zelle' && (
-                <>
-                 <FormField
-                    control={form.control}
-                    name="accountEmail"
-                    render={({ field }) => (
-                        <FormItem>
-                        <FormLabel>Zelle Account / Email</FormLabel>
-                        <FormControl>
-                            <Input placeholder="e.g., billing@company.com" {...field} disabled={isLoading} />
-                        </FormControl>
-                        <FormMessage />
-                        </FormItem>
-                    )}
-                 />
-                 <FormField
-                    control={form.control}
-                    name="qrCode"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Zelle QR Code (Optional)</FormLabel>
-                        <FormControl>
-                          <Input type="file" accept="image/*" onChange={(e) => field.onChange(e.target.files?.[0])} disabled={isLoading} />
-                        </FormControl>
-                         <FormMessage />
-                      </FormItem>
-                    )}
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="type"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Account Type</FormLabel>
+                    <Select onValueChange={field.onChange} defaultValue={field.value} disabled={isLoading}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select an account type" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="Stripe">Stripe</SelectItem>
+                        <SelectItem value="Square">Square</SelectItem>
+                        <SelectItem value="Zelle">Zelle</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              {selectedType === 'Zelle' && (
+                  <>
+                  <FormField
+                      control={form.control}
+                      name="accountEmail"
+                      render={({ field }) => (
+                          <FormItem>
+                          <FormLabel>Zelle Account / Email</FormLabel>
+                          <FormControl>
+                              <Input placeholder="e.g., billing@company.com" {...field} disabled={isLoading} />
+                          </FormControl>
+                          <FormMessage />
+                          </FormItem>
+                      )}
                   />
-                </>
-            )}
-             <FormField
-              control={form.control}
-              name="dailyLimit"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Daily Volume Limit ($)</FormLabel>
-                  <FormControl>
-                    <Input type="number" placeholder="e.g., 10000" {...field} disabled={isLoading} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
+                  <FormField
+                      control={form.control}
+                      name="qrCode"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Zelle QR Code (Optional)</FormLabel>
+                          <FormControl>
+                            <Input type="file" accept="image/*" onChange={(e) => field.onChange(e.target.files?.[0])} disabled={isLoading} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </>
               )}
-            />
-             <FormField
-              control={form.control}
-              name="prefix_order_name"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Order Name Prefix (Optional)</FormLabel>
-                  <FormControl>
-                    <Input placeholder="e.g., Online Purchase (leave blank for none)" {...field} disabled={isLoading} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="websiteUrl"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Source Website URL {selectedType !== 'Zelle' && <span className="text-destructive">*</span>}</FormLabel>
-                  <FormControl>
-                    <Input placeholder="https://your-source-website.com" {...field} disabled={isLoading} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            
-            <Alert>
-                <Terminal className="h-4 w-4" />
-                <AlertTitle>Configuration Required</AlertTitle>
-                <AlertDescription>
-                    {selectedType === 'Stripe' && (
-                        <div>
-                        After creating, add these to your .env file. Replace `[ID]` with the generated Account ID (e.g., 1, 2).
-                        <ul className="list-disc list-inside pl-2 font-mono text-xs mt-2">
-                            <li>STRIPE_SECRET_KEY_[ID]=sk_...</li>
-                            <li>STRIPE_PUBLIC_KEY_[ID]=pk_...</li>
-                            <li>STRIPE_WEBHOOK_SECRET_[ID]=whsec_...</li>
-                        </ul>
-                        </div>
-                    )}
-                    {selectedType === 'Square' && (
-                        <div>
-                        After creating, add these to your .env file. Replace `[ID]` with the generated Account ID.
-                        <ul className="list-disc list-inside pl-2 font-mono text-xs mt-2">
-                             <li>SQUARE_APP_ID_[ID]=...</li>
-                             <li>SQUARE_LOCATION_ID_[ID]=...</li>
-                             <li>SQUARE_ACCESS_TOKEN_[ID]=...</li>
-                             <li>SQUARE_WEBHOOK_SIGNATURE_KEY_[ID]=...</li>
-                        </ul>
-                        </div>
-                    )}
-                    {selectedType === 'Zelle' && (
-                       <p>Zelle accounts do not require API keys.</p>
-                    )}
-                </AlertDescription>
-            </Alert>
-            <DialogFooter>
-              <Button type="button" variant="ghost" onClick={() => handleOpenChange(false)} disabled={isLoading}>Cancel</Button>
-              <Button type="submit" disabled={isLoading}>
-                {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                Create Account
-              </Button>
-            </DialogFooter>
-          </form>
+              <FormField
+                control={form.control}
+                name="dailyLimit"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Daily Volume Limit ($)</FormLabel>
+                    <FormControl>
+                      <Input type="number" placeholder="e.g., 10000" {...field} disabled={isLoading} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="prefix_order_name"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Order Name Prefix (Optional)</FormLabel>
+                    <FormControl>
+                      <Input placeholder="e.g., Online Purchase (leave blank for none)" {...field} disabled={isLoading} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="websiteUrl"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Source Website URL {selectedType !== 'Zelle' && <span className="text-destructive">*</span>}</FormLabel>
+                    <FormControl>
+                      <Input placeholder="https://your-source-website.com" {...field} disabled={isLoading} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              
+              <Alert>
+                  <Terminal className="h-4 w-4" />
+                  <AlertTitle>Configuration Required</AlertTitle>
+                  <AlertDescription>
+                      {selectedType === 'Stripe' && (
+                          <div>
+                          After creating, add these to your .env file. Replace `[ID]` with the generated Account ID (e.g., 1, 2).
+                          <ul className="list-disc list-inside pl-2 font-mono text-xs mt-2">
+                              <li>STRIPE_SECRET_KEY_[ID]=sk_...</li>
+                              <li>STRIPE_PUBLIC_KEY_[ID]=pk_...</li>
+                              <li>STRIPE_WEBHOOK_SECRET_[ID]=whsec_...</li>
+                          </ul>
+                          </div>
+                      )}
+                      {selectedType === 'Square' && (
+                          <div>
+                          After creating, add these to your .env file. Replace `[ID]` with the generated Account ID.
+                          <ul className="list-disc list-inside pl-2 font-mono text-xs mt-2">
+                              <li>SQUARE_APP_ID_[ID]=...</li>
+                              <li>SQUARE_LOCATION_ID_[ID]=...</li>
+                              <li>SQUARE_ACCESS_TOKEN_[ID]=...</li>
+                              <li>SQUARE_WEBHOOK_SIGNATURE_KEY_[ID]=...</li>
+                          </ul>
+                          </div>
+                      )}
+                      {selectedType === 'Zelle' && (
+                        <p>Zelle accounts do not require API keys.</p>
+                      )}
+                  </AlertDescription>
+              </Alert>
+            </form>
+          </ScrollArea>
+          <DialogFooter className="flex-shrink-0 pt-4">
+            <Button type="button" variant="ghost" onClick={() => handleOpenChange(false)} disabled={isLoading}>Cancel</Button>
+            <Button type="submit" onClick={form.handleSubmit(onSubmit)} disabled={isLoading}>
+              {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Create Account
+            </Button>
+          </DialogFooter>
         </Form>
       </DialogContent>
     </Dialog>

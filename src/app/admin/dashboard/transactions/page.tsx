@@ -109,8 +109,10 @@ export default function TransactionsPage() {
   // State for applied filters which triggers the fetch
   const [appliedFilters, setAppliedFilters] = React.useState<ColumnFiltersState>([])
 
-  const fetchTransactions = useCallback(async (filters: ColumnFiltersState) => {
-    setIsLoading(true);
+  const fetchTransactions = useCallback(async (filters: ColumnFiltersState, isBackgroundRefresh = false) => {
+    if (!isBackgroundRefresh) {
+        setIsLoading(true);
+    }
     try {
       const params = new URLSearchParams();
       // Add column filters to params
@@ -129,12 +131,19 @@ export default function TransactionsPage() {
       console.error("Failed to fetch data", error);
       toast({ variant: "destructive", title: "Fetch Error", description: "Could not fetch transactions."})
     } finally {
-      setIsLoading(false);
+       if (!isBackgroundRefresh) {
+            setIsLoading(false);
+        }
     }
   }, [toast]);
 
   useEffect(() => {
     fetchTransactions(appliedFilters);
+    const intervalId = setInterval(() => {
+        fetchTransactions(appliedFilters, true);
+    }, 3 * 60 * 1000); // 3 minutes
+
+    return () => clearInterval(intervalId); // Cleanup on unmount
   }, [appliedFilters, fetchTransactions]);
   
   const handleViewClick = (transaction: Order) => {
@@ -359,3 +368,5 @@ export default function TransactionsPage() {
     </div>
   )
 }
+
+    

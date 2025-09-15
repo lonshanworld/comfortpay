@@ -29,6 +29,7 @@ import { Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { sendSupportEmail } from "@/app/actions/send-support-email";
 import { SendSupportEmailInputSchema } from "@/lib/schemas";
+import { ScrollArea } from "../ui/scroll-area";
 
 
 const formSchema = SendSupportEmailInputSchema.omit({ recipient: true });
@@ -96,48 +97,51 @@ export function ContactSupportDialog({ open, onOpenChange }: ContactSupportDialo
           </DialogDescription>
         </DialogHeader>
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-            <FormField
-              control={form.control}
-              name="title"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Title</FormLabel>
-                  <FormControl>
-                    <Input placeholder="e.g., Issue with my last payout" {...field} disabled={isLoading}/>
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="description"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Description</FormLabel>
-                  <FormControl>
-                    <Textarea
-                      placeholder="Please describe your issue in detail..."
-                      className="resize-none"
-                      {...field}
-                      disabled={isLoading}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <DialogFooter>
-              <DialogClose asChild>
-                <Button type="button" variant="ghost" disabled={isLoading}>Cancel</Button>
-              </DialogClose>
-              <Button type="submit" disabled={isLoading}>
-                {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                Send Request
-              </Button>
-            </DialogFooter>
-          </form>
+          <ScrollArea className="max-h-[70vh] -mr-6 pr-6">
+            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+              <FormField
+                control={form.control}
+                name="title"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Title</FormLabel>
+                    <FormControl>
+                      <Input placeholder="e.g., Issue with my last payout" {...field} disabled={isLoading}/>
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="description"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Description</FormLabel>
+                    <FormControl>
+                      <Textarea
+                        placeholder="Please describe your issue in detail..."
+                        className="resize-none"
+                        {...field}
+                        rows={8}
+                        disabled={isLoading}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </form>
+          </ScrollArea>
+          <DialogFooter>
+            <DialogClose asChild>
+              <Button type="button" variant="ghost" disabled={isLoading}>Cancel</Button>
+            </DialogClose>
+            <Button type="submit" onClick={form.handleSubmit(onSubmit)} disabled={isLoading}>
+              {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Send Request
+            </Button>
+          </DialogFooter>
         </Form>
       </DialogContent>
     </Dialog>

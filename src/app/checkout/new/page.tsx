@@ -23,7 +23,7 @@ import { Elements, useStripe, useElements, CardElement } from '@stripe/react-str
 import { loadStripe, type Stripe } from '@stripe/stripe-js';
 import { processPayment } from '@/app/actions/process-payment';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import type { Payment, Card as SquareCard } from '@square/web-payments-sdk-types';
+import type { Card as SquareCard } from '@square/web-payments-sdk-types';
 
 const CARD_ELEMENT_OPTIONS = {
   style: {
@@ -333,16 +333,39 @@ function CheckoutForm({ sessionData }: { sessionData: CreateCheckoutSessionInput
     }
   }
   
+  
   const handleZelleConfirmation = async () => {
     setIsProcessing(true);
-    await updateOrderStatus('Requires Confirmation');
-    console.log("✅ [CheckoutForm] Zelle payment confirmed by user.");
+    if (!sessionData.comfortPayOrderId) {
+        toast({ variant: "destructive", title: "Error", description: "Order ID is missing." });
+        setIsProcessing(false);
+        return;
+    }
+    try {
+        // Fetch the current order status first to prevent race conditions
+        const orderRes = await fetch(`/api/orders/${sessionData.comfortPayOrderId}`);
+        if (!orderRes.ok) throw new Error("Could not verify order status.");
+        
+        const currentOrder: Order = await orderRes.json();
 
+        // Only update status if it's still 'Pending'
+        if (currentOrder.status === 'Pending') {
+            await updateOrderStatus('Requires Confirmation');
+            console.log("✅ [CheckoutForm] Zelle payment confirmed by user, status set to Requires Confirmation.");
+        } else {
+            console.log(`✅ [CheckoutForm] Zelle payment already confirmed (status is ${currentOrder.status}). No action needed.`);
+        }
 
-    if (isModal) {
-      window.parent.postMessage({ type: 'comfortPay:success', data: { orderId: sessionData.comfortPayOrderId, status: 'Requires Confirmation' }}, '*');
-    } else if (sessionData.wooCommerceOrderReceivedUrl) {
-      window.location.href = sessionData.wooCommerceOrderReceivedUrl;
+        // Redirect regardless of whether we updated the status or not
+        if (isModal) {
+            window.parent.postMessage({ type: 'comfortPay:success', data: { orderId: sessionData.comfortPayOrderId, status: currentOrder.status === 'Pending' ? 'Requires Confirmation' : currentOrder.status }}, '*');
+        } else if (sessionData.wooCommerceOrderReceivedUrl) {
+            window.location.href = sessionData.wooCommerceOrderReceivedUrl;
+        }
+
+    } catch (error: any) {
+        toast({ variant: "destructive", title: "Error", description: error.message });
+        setIsProcessing(false);
     }
   }
 
