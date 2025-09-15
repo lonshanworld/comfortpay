@@ -11,8 +11,7 @@
 import { z } from 'zod';
 import { CreateCheckoutSessionInputSchema } from '@/lib/schemas';
 import { executeQuery, runQuery } from '@/lib/db';
-import type { GatewayFee, PaymentAccount, User } from '@/lib/types';
-import { sendOrderNotification } from '@/app/actions/send-order-notification';
+import type { PaymentAccount, User } from '@/lib/types';
 import { formatDateForMySQL } from '@/lib/utils';
 
 

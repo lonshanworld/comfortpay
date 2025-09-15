@@ -33,6 +33,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { Input } from "@/components/ui/input"
+import { useIsMobile } from "@/hooks/use-mobile"
 
 interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[]
@@ -53,6 +54,8 @@ export function DataTable<TData, TValue>({
     React.useState<VisibilityState>({})
   const [rowSelection, setRowSelection] = React.useState({})
   const [columnSizing, setColumnSizing] = React.useState<ColumnSizingState>({})
+  
+  const isMobile = useIsMobile();
 
   const table = useReactTable({
     data,
@@ -81,8 +84,27 @@ export function DataTable<TData, TValue>({
     }
   })
 
+  React.useEffect(() => {
+    console.log('isMobile changed:', isMobile);
+    if (isMobile) {
+      const newColumnSizing: ColumnSizingState = {};
+      table.getAllLeafColumns().forEach(column => {
+        // Only set a default mobile size if one isn't already specified in the column def
+        if (column.columnDef.size === undefined) {
+          console.log('Setting mobile size for column:', column.columnDef);
+           newColumnSizing[column.id] = 10;
+        }
+      });
+      setColumnSizing(newColumnSizing);
+    } else {
+        // On desktop, reset to default behavior
+        setColumnSizing({});
+    }
+  }, [isMobile, table.getAllLeafColumns]);
+
+
   return (
-    <div>
+    <div className="w-full">
       <div className="flex items-center py-4">
         {filterColumnId && (
             <Input
@@ -91,7 +113,7 @@ export function DataTable<TData, TValue>({
               onChange={(event) =>
                 table.getColumn(filterColumnId)?.setFilterValue(event.target.value)
               }
-              className="max-w-sm"
+              className="max-w-sm h-8"
             />
         )}
         <DropdownMenu>
@@ -142,7 +164,7 @@ export function DataTable<TData, TValue>({
                         <div
                           onMouseDown={header.getResizeHandler()}
                           onTouchStart={header.getResizeHandler()}
-                          className="absolute top-0 right-0 h-full w-1.5 cursor-col-resize select-none touch-none bg-border/50 hover:bg-primary"
+                          className="absolute top-0 right-0 h-full w-1.5 cursor-col-resize select-none touch-none bg-border/50 hover:bg-primary active:bg-primary"
                         />
                       )}
                     </TableHead>

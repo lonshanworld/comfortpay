@@ -7,14 +7,11 @@
  * for both customers and merchants after a transaction.
  */
 
-import { z } from 'zod';
-import { CreateCheckoutSessionInputSchema, SendSupportEmailInputSchema } from '@/lib/schemas';
 import { getCustomerEmailContent, getMerchantEmailContent } from '@/lib/email-templates';
-import { executeQuery, runQuery } from '@/lib/db';
-import type { Order, SendOrderNotificationInput, SendOrderNotificationOutput } from '@/lib/types';
+import { executeQuery, } from '@/lib/db';
+import type {  SendOrderNotificationInput, SendOrderNotificationOutput } from '@/lib/types';
 import nodemailer from 'nodemailer';
 import sgMail from '@sendgrid/mail';
-import { formatDateForMySQL } from '@/lib/utils';
 
 
 async function getEmailConfig() {

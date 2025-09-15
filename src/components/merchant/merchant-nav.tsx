@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
+import { SheetDescription, SheetTitle } from '../ui/sheet';
 
 const navLinks = [
     { href: '/merchant/dashboard', label: 'Dashboard', icon: LayoutGrid },
@@ -80,6 +81,8 @@ export function MerchantNavMobile() {
 
     return (
         <nav className="grid gap-2 text-lg font-medium">
+             <SheetTitle className="sr-only">Merchant Navigation</SheetTitle>
+            <SheetDescription className="sr-only">A list of links to navigate the merchant dashboard.</SheetDescription>
              <Link
                   href="/merchant/dashboard"
                   className="flex items-center gap-2 text-lg font-semibold"
@@ -104,7 +107,7 @@ export function MerchantNavMobile() {
                         )}
                     >
                         {isLoading ? <Loader2 className="h-5 w-5 animate-spin" /> : <link.icon className="h-5 w-5" />}
-                        {link.label}
+                        <span className="flex-1 break-words">{link.label}</span>
                     </Link>
                 )
             })}

@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Badge } from '../ui/badge';
+import { SheetDescription, SheetTitle } from '../ui/sheet';
 
 const navLinks = [
     { href: '/sale-agent/dashboard', label: 'Dashboard', icon: LayoutGrid },
@@ -77,6 +78,8 @@ export function SaleAgentNavMobile() {
 
     return (
         <nav className="grid gap-2 text-lg font-medium">
+            <SheetTitle className="sr-only">Sales Agent Navigation</SheetTitle>
+             <SheetDescription className="sr-only">A list of links to navigate the sales agent dashboard.</SheetDescription>
              <Link
                   href="#"
                   className="flex items-center gap-2 text-lg font-semibold"
@@ -101,7 +104,7 @@ export function SaleAgentNavMobile() {
                         )}
                     >
                         {isLoading ? <Loader2 className="h-5 w-5 animate-spin" /> : <link.icon className="h-5 w-5" />}
-                        {link.label}
+                         <span className="flex-1 break-words">{link.label}</span>
                     </Link>
                 )
             })}

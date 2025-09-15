@@ -115,7 +115,7 @@ export default function MerchantDashboard() {
   }
 
   return (
-    <div className="grid flex-1 items-start gap-4 sm:py-0 md:gap-8">
+    <div className="grid flex-1 items-start gap-4">
        {selectedTransaction && (
             <ViewTransactionDialog
               open={isViewDialogOpen}
@@ -124,11 +124,11 @@ export default function MerchantDashboard() {
             />
         )}
 
-        <div className="grid gap-4 md:grid-cols-2 md:gap-8 lg:grid-cols-3">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">
-                Today's Revenue
+                Today&apos;s Revenue
               </CardTitle>
               <DollarSign className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
@@ -142,7 +142,7 @@ export default function MerchantDashboard() {
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">
-                Today's Sales
+                Today&apos;s Sales
               </CardTitle>
               <CreditCard className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
@@ -170,7 +170,7 @@ export default function MerchantDashboard() {
           <Card>
             <CardHeader className="flex flex-row items-center">
               <div className="grid gap-2">
-                <CardTitle>Today's Transactions</CardTitle>
+                <CardTitle>Today&apos;s Transactions</CardTitle>
                 <CardDescription>
                   A list of transactions received today.
                 </CardDescription>
@@ -182,13 +182,14 @@ export default function MerchantDashboard() {
                 </Link>
               </Button>
             </CardHeader>
-            <CardContent>
+            <div className="overflow-x-auto">
+              <CardContent>
                 <Table>
                   <TableHeader>
                     <TableRow>
                       <TableHead>Customer</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Method</TableHead>
+                      <TableHead className="hidden sm:table-cell">Status</TableHead>
+                      <TableHead className="hidden sm:table-cell">Method</TableHead>
                       <TableHead className="text-right">Amount</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -199,8 +200,8 @@ export default function MerchantDashboard() {
                             <div className="font-medium">{tx.customerName}</div>
                             <div className="text-sm text-muted-foreground">{tx.customerEmail}</div>
                           </TableCell>
-                          <TableCell><Badge>{tx.status}</Badge></TableCell>
-                          <TableCell>{tx.paymentMethod}</TableCell>
+                        <TableCell className="hidden sm:table-cell"><Badge>{tx.status}</Badge></TableCell>
+                          <TableCell className="hidden sm:table-cell">{tx.paymentMethod}</TableCell>
                           <TableCell className="text-right">{formatCurrency(tx.totalAmount, tx.currency)}</TableCell>
                         </TableRow>
                     )) : (
@@ -212,7 +213,9 @@ export default function MerchantDashboard() {
                     )}
                   </TableBody>
                 </Table>
-            </CardContent>
+              </CardContent>
+            </div>
+            
           </Card>
     </div>
   )

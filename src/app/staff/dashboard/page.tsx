@@ -10,6 +10,7 @@ import {
   Loader2,
 } from "lucide-react"
 
+
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -104,14 +105,14 @@ export default function StaffDashboard() {
     }
 
   return (
-      <div className="flex flex-col sm:gap-4">
+      <div className="flex flex-col gap-4">
          <div>
             <h1 className="text-2xl font-bold tracking-tight">Staff Dashboard</h1>
             <p className="text-muted-foreground">
                 An overview of platform activity based on your permissions.
             </p>
         </div>
-        <div className="grid gap-4 md:grid-cols-2 md:gap-8 lg:grid-cols-4">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {permissions.view_dashboard ? (
             <>
                 <Card>
@@ -200,7 +201,7 @@ export default function StaffDashboard() {
                 </Button>
                 </CardHeader>
                 <CardContent>
-                <Table>
+                {/* <Table>
                     <TableHeader>
                     <TableRow>
                         <TableHead>Customer</TableHead>
@@ -240,7 +241,50 @@ export default function StaffDashboard() {
                     </TableRow>
                     ))}
                     </TableBody>
-                </Table>
+                </Table> */}
+                 <div className="overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Customer</TableHead>
+                          <TableHead className="hidden sm:table-cell">
+                            Type
+                          </TableHead>
+                          <TableHead className="hidden sm:table-cell">
+                            Status
+                          </TableHead>
+                          <TableHead className="hidden md:table-cell">
+                            Date
+                          </TableHead>
+                          <TableHead className="text-right">Amount</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {stats.recentTransactions.map((tx, i) => (
+                          <TableRow key={i}>
+                            <TableCell>
+                              <div className="font-medium">{tx.customerName}</div>
+                              <div className="hidden text-sm text-muted-foreground md:inline">
+                                {tx.customerEmail}
+                              </div>
+                            </TableCell>
+                            <TableCell className="hidden sm:table-cell">
+                              {tx.type}
+                            </TableCell>
+                            <TableCell className="hidden sm:table-cell">
+                              <Badge className="text-xs" variant="outline">
+                                {tx.status}
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="hidden md:table-cell">
+                              {tx.date}
+                            </TableCell>
+                            <TableCell className="text-right">${Number(tx.amount).toFixed(2)}</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
                 </CardContent>
             </Card>
           ) : (

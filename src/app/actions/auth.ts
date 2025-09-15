@@ -50,7 +50,7 @@ export async function login(input: LoginInput): Promise<{ success: boolean; mess
   const superAdminEmail = process.env.SUPER_ADMIN_EMAIL;
   if (role === 'Admin' && email === superAdminEmail) {
     try {
-      let adminUsers: any[] = await executeQuery("SELECT * FROM users WHERE email = ? AND role = 'Admin'", [email]);
+      const adminUsers: any[] = await executeQuery("SELECT * FROM users WHERE email = ? AND role = 'Admin'", [email]);
       
       let adminUser;
 

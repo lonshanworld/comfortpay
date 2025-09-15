@@ -174,7 +174,7 @@ export default function HomePage() {
                     Access the internal dashboards for each user role.
                 </CardDescription>
                 </CardHeader>
-                <CardContent className="grid grid-cols-2 gap-4">
+                <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <Link href="/login/admin" passHref>
                         <Button className="w-full" variant="outline">
                             <Shield className="mr-2 h-4 w-4"/> Admin Login

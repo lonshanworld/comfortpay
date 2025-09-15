@@ -287,10 +287,10 @@ export const columns = ({ onView, onEdit, onConfirmPayment, isConfirmingId }: Tr
         return order.paymentAccountEmail || order.paymentAccountId || "N/A";
     }
   },
-  {
-    accessorKey: "paymentGatewayTransactionId",
-    header: "Gateway ID",
-  },
+  // {
+  //   accessorKey: "paymentGatewayTransactionId",
+  //   header: "Gateway ID",
+  // },
   {
     id: "actions",
     cell: ({ row }) => {

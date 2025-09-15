@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
+import { SheetDescription, SheetTitle } from '../ui/sheet';
 
 const navLinks = [
     { href: '/admin/dashboard', label: 'Dashboard', icon: LayoutGrid },
@@ -61,17 +62,17 @@ export function AdminNav() {
                         onClick={() => handleClick(link.href)}
                         className={cn(
                             "flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary",
-                            isActive && "bg-muted text-primary",
+                            (isActive && !isLoading) && "bg-muted text-primary",
                             isLoading && "pointer-events-none"
                         )}
                     >
                         {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <link.icon className="h-4 w-4" />}
                         {link.label}
-                        {link.badge && !isLoading && (
+                        {/* {link.badge && !isLoading && (
                             <Badge className="ml-auto flex h-6 w-6 shrink-0 items-center justify-center rounded-full">
                                 {link.badge}
                             </Badge>
-                        )}
+                        )} */}
                     </Link>
                 )
             })}
@@ -100,6 +101,8 @@ export function AdminNavMobile() {
 
     return (
         <nav className="grid gap-2 text-lg font-medium">
+            <SheetTitle className="sr-only">Admin Navigation</SheetTitle>
+            <SheetDescription className="sr-only">A list of links to navigate the admin dashboard.</SheetDescription>
              <Link
                   href="#"
                   className="flex items-center gap-2 text-lg font-semibold"
@@ -119,17 +122,18 @@ export function AdminNavMobile() {
                         onClick={() => handleClick(link.href)}
                         className={cn(
                             "mx-[-0.65rem] flex items-center gap-4 rounded-xl px-3 py-2 text-muted-foreground hover:text-foreground",
-                            isActive && "bg-muted text-foreground",
+                            (isActive && !isLoading) && "bg-muted text-foreground",
                             isLoading && "pointer-events-none"
                         )}
                     >
                         {isLoading ? <Loader2 className="h-5 w-5 animate-spin" /> : <link.icon className="h-5 w-5" />}
-                        {link.label}
+                        {/* {link.label}
                         {link.badge && !isLoading && (
                             <Badge className="ml-auto flex h-6 w-6 shrink-0 items-center justify-center rounded-full">
                                 {link.badge}
                             </Badge>
-                        )}
+                        )} */}
+                         <span className="flex-1">{link.label}</span>
                     </Link>
                 )
             })}

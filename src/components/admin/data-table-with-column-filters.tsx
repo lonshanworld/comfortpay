@@ -31,6 +31,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { Input } from "@/components/ui/input"
+import { useIsMobile } from "@/hooks/use-mobile"
 
 interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[]
@@ -54,6 +55,7 @@ export function DataTableWithColumnFilters<TData, TValue>({
     React.useState<Record<string, boolean>>({})
   const [rowSelection, setRowSelection] = React.useState({})
   const [columnSizing, setColumnSizing] = React.useState<ColumnSizingState>({})
+  const isMobile = useIsMobile();
 
   const table = useReactTable({
     data,
@@ -80,6 +82,24 @@ export function DataTableWithColumnFilters<TData, TValue>({
         },
     }
   })
+
+   React.useEffect(() => {
+    console.log('isMobile changed:', isMobile);
+    if (isMobile) {
+      const newColumnSizing: ColumnSizingState = {};
+      table.getAllLeafColumns().forEach(column => {
+        // Only set a default mobile size if one isn't already specified in the column def
+        // if (column.columnDef.size === undefined) {
+        //    newColumnSizing[column.id] = 100;
+        // }
+        newColumnSizing[column.id] = 100;
+      });
+      setColumnSizing(newColumnSizing);
+    } else {
+        // On desktop, reset to default behavior
+        setColumnSizing({});
+    }
+  }, [isMobile, table.getAllLeafColumns]);
 
   return (
     <div>

@@ -77,8 +77,8 @@ export default function MerchantReportsPage() {
     }
 
     return (
-        <div className="grid flex-1 items-start gap-4 sm:py-0 md:gap-8">
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+        <div className="grid flex-1 items-start gap-4">
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                  <Card>
                     <CardHeader className="pb-2">
                         <CardDescription>This Month's Revenue</CardDescription>
@@ -98,7 +98,7 @@ export default function MerchantReportsPage() {
                     </CardContent>
                 </Card>
             </div>
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-2">
+            <div className="grid gap-4 md:grid-cols-1 lg:grid-cols-2">
                  <Card>
                     <CardHeader>
                     <CardTitle className="flex items-center gap-2"><BarChart className="h-5 w-5"/> Sales Over Time</CardTitle>

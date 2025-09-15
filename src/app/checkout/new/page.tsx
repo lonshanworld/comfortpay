@@ -3,7 +3,6 @@
 
 import { useState, Suspense, useEffect, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import Image from 'next/image';
 import {
   Card,
   CardContent,
@@ -18,12 +17,11 @@ import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import type { CreateCheckoutSessionInput, Order } from '@/lib/types';
 import { cn } from '@/lib/utils';
-import { sendOrderNotification } from '@/app/actions/send-order-notification';
 import { Elements, useStripe, useElements, CardElement } from '@stripe/react-stripe-js';
 import { loadStripe, type Stripe } from '@stripe/stripe-js';
 import { processPayment } from '@/app/actions/process-payment';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import type { Card as SquareCard } from '@square/web-payments-sdk-types';
+import type {  Card as SquareCard } from '@square/web-payments-sdk-types';
 
 const CARD_ELEMENT_OPTIONS = {
   style: {
@@ -150,15 +148,16 @@ function SquarePaymentForm({ sessionData, onPaymentSuccess, setParentProcessing 
     };
 
     return (
-      <>
-        <div ref={cardRef} style={{ minHeight: !isCardReady ? '50px' : 'auto' }}>
+     <div className="space-y-4">
+        <div ref={cardRef} style={{ minHeight: !isCardReady ? '50px' : 'auto' }} className="p-3 border rounded-md">
+          {!isCardReady && <Loader2 className="animate-spin h-5 w-5 mx-auto" />}
           {!isCardReady && <Loader2 className="animate-spin h-5 w-5 mx-auto" />}
         </div>
         <Button onClick={handlePayment} disabled={isProcessing || !isCardReady} className="w-full">
           {isProcessing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CreditCard className="mr-2 h-4 w-4" />}
           Pay ${sessionData.totalAmount?.toFixed(2)}
         </Button>
-      </>
+ </div>
     )
 }
 
@@ -203,7 +202,9 @@ function StripePaymentForm({ sessionData, onPaymentSuccess, setParentProcessing 
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
-      <CardElement options={CARD_ELEMENT_OPTIONS} />
+       <div className="p-3 border rounded-md">
+        <CardElement options={CARD_ELEMENT_OPTIONS} />
+      </div>
       <Button type="submit" disabled={!stripe || isProcessing} className="w-full">
         {isProcessing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CreditCard className="mr-2 h-4 w-4" />}
         Pay ${sessionData.totalAmount?.toFixed(2)}
