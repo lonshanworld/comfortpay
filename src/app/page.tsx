@@ -246,7 +246,7 @@ export default function HomePage() {
             </Card> */}
         </div>
         <footer className="mt-12 text-center text-sm text-muted-foreground">
-            <p>&copy; {new Date().getFullYear()} ComfortPay. This is a demonstration application.</p>
+            <p>&copy; {new Date().getFullYear()} ComfortPay. All Right Reserved</p>
         </footer>
     </div>
   );
