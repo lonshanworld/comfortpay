@@ -184,7 +184,7 @@ export function DataTableWithColumnFilters<TData, TValue>({
                   data-state={row.getIsSelected() && "selected"}
                 >
                   {row.getVisibleCells().map((cell) => (
-                    <TableCell key={cell.id} style={{ width: cell.column.getSize() }}>
+                    <TableCell key={cell.id} style={{ width: cell.column.getSize() }} className="text-xs">
                       {flexRender(
                         cell.column.columnDef.cell,
                         cell.getContext()

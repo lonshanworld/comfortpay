@@ -87,7 +87,7 @@ const ConfirmationPopover = ({ transaction, onConfirmPayment, isConfirming }: { 
     return (
         <Popover>
             <PopoverTrigger asChild>
-              <Button variant="default" size="sm" className="h-auto py-0.5 px-2.5">
+              <Button variant="default" size="sm" className="h-auto py-0.5 px-2.5 text-xs">
                 {isConfirming ? (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 ) : null}
