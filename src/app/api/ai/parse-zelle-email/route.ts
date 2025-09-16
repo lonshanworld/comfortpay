@@ -4,6 +4,7 @@ import { parseZelleEmail } from '@/ai/flows/zelle-email-parser-flow';
 import { ZelleEmailParseInputSchema, ZelleEmailParseOutput, ZelleEmailParseOutputSchema } from '@/lib/schemas/zelle-email';
 import { runQuery } from '@/lib/db';
 import { formatDateForMySQL } from '@/lib/utils';
+import { processZelleWebhook } from '@/app/actions/process-zelle-webhook';
 
 
 // The "formula" or simple regex-based parser
@@ -164,30 +165,13 @@ export async function POST(request: Request) {
         console.error("❌ [API /ai/parse-zelle-email] Failed to log parser response to database:", dbError);
     }
 
-
-    // 7. Forward the structured JSON to the main webhook for processing
-    const webhookUrl = new URL('/api/zelle-webhook', request.url);
-    console.log(`📞 [API /ai/parse-zelle-email] Forwarding parsed data to internal webhook: ${webhookUrl.toString()}`);
-    const forwardResponse = await fetch(webhookUrl.toString(), {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${zelleSecret}`, // Use the same secret for internal communication
-      },
-      body: JSON.stringify(parsedData),
-    });
-
-    if (!forwardResponse.ok) {
-        const errorBody = await forwardResponse.text();
-        console.error("❌ [API /ai/parse-zelle-email] Error forwarding data to zelle-webhook:", errorBody);
-        throw new Error(`Failed to forward parsed data to the main webhook. Status: ${forwardResponse.status}`);
-    }
-    
-    const webhookResult = await forwardResponse.json();
-    console.log("✅ [API /ai/parse-zelle-email] Internal Zelle webhook processing result:", webhookResult);
+    // 7. Directly call the server action to process the parsed data
+    console.log(`📞 [API /ai/parse-zelle-email] Calling internal action to process parsed data...`);
+    const webhookResult = await processZelleWebhook(parsedData);
+    console.log("✅ [API /ai/parse-zelle-email] Internal Zelle webhook action result:", webhookResult);
 
     // 8. Return a success response to the Rust script
-    return NextResponse.json({ success: true, message: 'Email parsed and forwarded for processing.', result: webhookResult });
+    return NextResponse.json({ success: true, message: 'Email parsed and processed.', result: webhookResult });
 
   } catch (error: any) {
     console.error("❌ [API /ai/parse-zelle-email] Internal Server Error:", error);
