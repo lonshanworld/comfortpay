@@ -26,8 +26,8 @@ export async function processZelleWebhook(
     );
     throw new Error('Invalid parsed data provided to webhook processor.');
   }
-
-  const { status, money_amount, name: nameFromEmail, payment_email } = validation.data;
+  
+  const { status, money_amount, name: nameFromEmail, payment_email,datetime } = validation.data;
 
   // If AI determined the email was invalid or key info is missing, stop processing.
   if (status !== 'confirmation' || !money_amount || !payment_email) {
@@ -42,6 +42,7 @@ export async function processZelleWebhook(
 
   // Find potential matching orders within a +/- 30-minute window and amount tolerance.
   const now = new Date();
+  const paymentTime = datetime ? new Date(datetime) : now;
   const thirtyMinutesAgo = new Date(now.getTime() - 30 * 60 * 1000)
     .toISOString()
     .slice(0, 19)
@@ -128,9 +129,34 @@ export async function processZelleWebhook(
           `🎯 [Action processZelleWebhook] Tier 3 Success: Found single match by first and last name: Order ID ${finalMatch.id}`
         );
       } else {
-        console.warn(
-          `🤷 [Action processZelleWebhook] Tier 3 Fail: ${firstNameMatches.length} matches found after first name filter. Aborting due to ambiguity.`
-        );
+         const ambiguousMatches = firstNameMatches.length > 0 ? firstNameMatches : lastNameMatches;
+        if (ambiguousMatches.length > 0) {
+            console.log(`🤔 [Action processZelleWebhook] Tier 4: ${ambiguousMatches.length} ambiguous matches remain. Applying time-based tie-breaker.`);
+            
+            let closestMatch: Order | undefined;
+            let smallestTimeDiff = Infinity;
+
+            for (const order of ambiguousMatches) {
+                const orderTime = new Date(order.orderDate);
+                const timeDiff = Math.abs(paymentTime.getTime() - orderTime.getTime());
+
+                // Ensure the order was created before the payment, but within our 30-minute window
+                if (orderTime <= paymentTime && timeDiff < smallestTimeDiff) {
+                    smallestTimeDiff = timeDiff;
+                    closestMatch = order;
+                }
+            }
+            
+            if (closestMatch) {
+                finalMatch = closestMatch;
+                console.log(`🎯 [Action processZelleWebhook] Tier 4 Success: Found closest match by time: Order ID ${finalMatch.id} (Time diff: ${smallestTimeDiff}ms)`);
+            } else {
+                 console.warn(`🤷 [Action processZelleWebhook] Tier 4 Fail: Could not find a suitable match based on time. Aborting.`);
+            }
+
+        } else {
+             console.warn(`🤷 [Action processZelleWebhook] Tier 3 Fail: No matches found after first name filter. Aborting due to ambiguity.`);
+        }
       }
     } else {
       console.warn(`🤷 [Action processZelleWebhook] Tier 2 Fail: No matches found after last name filter.`);
