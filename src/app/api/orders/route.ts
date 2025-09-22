@@ -96,8 +96,12 @@ export async function GET(request: Request) {
                     params.push(`%${value}%`, `%${value}%`);
                     break;
                 case 'status':
-                    query += " AND o.status LIKE ?";
-                    params.push(`%${value}%`);
+                    if (value === 'NOT_PENDING') {
+                        query += " AND o.status != 'Pending'";
+                    } else {
+                        query += " AND o.status LIKE ?";
+                        params.push(`%${value}%`);
+                    }
                     break;
                 case 'orderAmount':
                 case 'totalAmount':

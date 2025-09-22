@@ -191,7 +191,7 @@ export function AddAccountDialog({ open, onOpenChange, onAccountAdded }: AddAcco
           </DialogDescription>
         </DialogHeader>
         <Form {...form}>
-          <ScrollArea className="flex-grow pr-6 -mr-6">
+          <ScrollArea className="flex-grow pr-6 -mr-6 overflow-y-scroll">
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 py-4">
               <FormField
                 control={form.control}

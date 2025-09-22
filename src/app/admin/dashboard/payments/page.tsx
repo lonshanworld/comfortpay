@@ -1,7 +1,7 @@
 
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useState, useMemo } from "react"
 import { Button } from "@/components/ui/button"
 import {
   Card,
@@ -10,106 +10,21 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
-import { Progress } from "@/components/ui/progress"
 import {
   Tabs,
   TabsContent,
   TabsList,
   TabsTrigger,
 } from "@/components/ui/tabs"
-import type { PaymentAccount, PaymentAccountType } from "@/lib/types"
-import { Badge } from "@/components/ui/badge"
-import { KeyRound, Loader2, PlusCircle, ExternalLink } from "lucide-react"
+import type { PaymentAccount } from "@/lib/types"
+import { Loader2, PlusCircle } from "lucide-react"
 import { AddAccountDialog } from "@/components/admin/add-account-dialog"
 import { EditAccountDialog } from "@/components/admin/edit-account-dialog"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Terminal } from "lucide-react"
-import Link from "next/link"
-import Image from "next/image"
 import { useToast } from "@/hooks/use-toast"
-import { cn } from "@/lib/utils"
-
-const AccountCard = ({ account, onManage }: { account: PaymentAccount, onManage: (account: PaymentAccount) => void }) => {
-    const currentVolume = Number(account.currentVolume);
-    const dailyLimit = Number(account.dailyLimit);
-    
-    const isOverLimit = dailyLimit > 0 && currentVolume >= dailyLimit;
-    const progressValue = dailyLimit > 0 ? (currentVolume / dailyLimit) * 100 : 0;
-  
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL || '';
-    const fullQrCodeUrl = account.qrCodeUrl ? `${appUrl}${account.qrCodeUrl}` : null;
-    console.log("Full QR Code URL:", account,fullQrCodeUrl);
-    return (
-      <Card>
-        <CardHeader>
-          <div className="flex items-start justify-between">
-            <div>
-              <CardTitle>{account.name}</CardTitle>
-              <CardDescription>{account.type} Account</CardDescription>
-            </div>
-            <Badge variant={account.status === 'Active' ? "secondary" : "destructive"}>{account.status}</Badge>
-          </div>
-        </CardHeader>
-        <CardContent className="space-y-4">
-           <div>
-            <p className="text-sm font-medium text-muted-foreground">Account ID</p>
-            <p className="text-sm font-mono bg-muted/50 px-2 py-1 rounded-md">{account.id}</p>
-          </div>
-           {account.websiteUrl && (
-            <div>
-                <p className="text-sm font-medium text-muted-foreground">Source Website</p>
-                <Link href={account.websiteUrl} target="_blank" className="text-sm flex items-center gap-1.5 hover:underline text-primary">
-                    {new URL(account.websiteUrl).hostname} <ExternalLink className="h-3 w-3" />
-                </Link>
-            </div>
-           )}
-           {account.type === 'Zelle' && account.accountEmail && (
-            <div>
-                <p className="text-sm font-medium text-muted-foreground">Zelle Email</p>
-                <p className="text-sm">{account.accountEmail}</p>
-            </div>
-           )}
-            {account.type === 'Zelle' && fullQrCodeUrl && (
-                <div>
-                    <p className="text-sm font-medium text-muted-foreground mb-2">QR Code</p>
-                    <div className="relative w-32 h-32">
-                        <img
-                            src={fullQrCodeUrl}
-                            alt="Zelle QR Code"
-                            layout="fill"
-                            objectFit="contain"
-                            className="rounded-md border p-1"
-                        />
-                    </div>
-                </div>
-            )}
-          <div>
-            <p className="text-sm font-medium text-muted-foreground">Order Prefix</p>
-            <p className="text-sm font-semibold">{account.prefix_order_name || "Not Set"}</p>
-          </div>
-          <div>
-            <div className={cn("flex justify-between text-sm mb-1", isOverLimit ? "text-destructive font-semibold" : "text-muted-foreground")}>
-                <span>Daily Volume</span>
-                <span>${currentVolume.toLocaleString()} / ${dailyLimit.toLocaleString()}</span>
-            </div>
-            <Progress value={progressValue} className={cn(isOverLimit && "[&>div]:bg-destructive")} />
-          </div>
-          <Button variant="outline" size="sm" onClick={() => onManage(account)}>Manage Account</Button>
-        </CardContent>
-      </Card>
-    )
-}
-
-const AccountGrid = ({ accounts, type, onManage }: { accounts: PaymentAccount[], type: PaymentAccountType, onManage: (account: PaymentAccount) => void }) => {
-  const filteredAccounts = accounts.filter((acc) => acc.type === type)
-  return (
-    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-      {filteredAccounts.map((account) => (
-        <AccountCard key={account.id} account={account} onManage={onManage}/>
-      ))}
-    </div>
-  )
-}
+import { DataTable } from "@/components/admin/data-table"
+import { columns as paymentAccountColumnsDefinition } from "./columns"
 
 export default function PaymentsPage() {
     const [accounts, setAccounts] = useState<PaymentAccount[]>([]);
@@ -117,6 +32,7 @@ export default function PaymentsPage() {
     const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
     const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
     const [selectedAccount, setSelectedAccount] = useState<PaymentAccount | null>(null);
+    const [activeTab, setActiveTab] = useState("Stripe");
     const { toast } = useToast();
 
     const fetchAccounts = async () => {
@@ -171,6 +87,14 @@ export default function PaymentsPage() {
             });
         }
     };
+    
+    const paymentAccountColumns = useMemo(() => paymentAccountColumnsDefinition({
+      onManage: handleManageClick,
+    }), []);
+    
+    const filteredAccounts = useMemo(() => {
+        return accounts.filter(acc => acc.type === activeTab);
+    }, [accounts, activeTab]);
 
 
   return (
@@ -193,38 +117,45 @@ export default function PaymentsPage() {
           <Terminal className="h-4 w-4" />
           <AlertTitle>API Key Management</AlertTitle>
           <AlertDescription>
-            For security, API keys (both secret and publishable) are not stored in the database. They must be managed as environment variables. Use the unique <strong>Account ID</strong> shown on each card to name your variables.
+            For security, API keys (both secret and publishable) are not stored in the database. They must be managed as environment variables. Use the numeric <strong>ID</strong> shown on each account to name your variables.
             <br/>
-            Example for an account with ID <strong>pa_123</strong>:
+            Example for an account with ID <strong>123</strong>:
             <ul className="list-disc list-inside pl-2 font-mono text-xs">
-                <li>SECRET_KEY_pa_123=sk_test_...</li>
-                <li>PUBLIC_KEY_pa_123=pk_test_...</li>
+                <li>STRIPE_SECRET_KEY_123=sk_test_...</li>
+                <li>SQUARE_APP_ID_123=...</li>
             </ul>
           </AlertDescription>
         </Alert>
-      <Tabs defaultValue="stripe">
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList className="grid w-full grid-cols-3">
-          <TabsTrigger value="stripe">Stripe</TabsTrigger>
-          <TabsTrigger value="square">Square</TabsTrigger>
-          <TabsTrigger value="zelle">Zelle</TabsTrigger>
+          <TabsTrigger value="Stripe">Stripe</TabsTrigger>
+          <TabsTrigger value="Square">Square</TabsTrigger>
+          <TabsTrigger value="Zelle">Zelle</TabsTrigger>
         </TabsList>
-        {isLoading ? (
-            <div className="flex justify-center items-center py-10">
-                <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-            </div>
-        ) : (
-        <>
-            <TabsContent value="stripe" className="mt-4">
-            <AccountGrid accounts={accounts} type="Stripe" onManage={handleManageClick} />
+            <TabsContent value={activeTab} className="mt-4">
+               <Card>
+                <CardHeader>
+                    <CardTitle>{activeTab} Accounts</CardTitle>
+                    <CardDescription>
+                       Manage all of your {activeTab} payment accounts.
+                    </CardDescription>
+                </CardHeader>
+                <CardContent>
+                    {isLoading ? (
+                        <div className="flex justify-center items-center py-10">
+                            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                        </div>
+                    ) : (
+                        <DataTable 
+                          columns={paymentAccountColumns} 
+                          data={filteredAccounts}
+                          filterColumnId="name"
+                          filterPlaceholder="Filter by name..."
+                        />
+                    )}
+                </CardContent>
+               </Card>
             </TabsContent>
-            <TabsContent value="square" className="mt-4">
-            <AccountGrid accounts={accounts} type="Square" onManage={handleManageClick}/>
-            </TabsContent>
-            <TabsContent value="zelle" className="mt-4">
-            <AccountGrid accounts={accounts} type="Zelle" onManage={handleManageClick}/>
-            </TabsContent>
-        </>
-        )}
       </Tabs>
       <AddAccountDialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen} onAccountAdded={handleAccountAdded} />
       <EditAccountDialog 

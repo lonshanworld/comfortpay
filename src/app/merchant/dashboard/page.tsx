@@ -63,6 +63,7 @@ export default function MerchantDashboard() {
       const transactionsParams = new URLSearchParams({ 
         merchantId,
         startDate: today.toISOString(),
+        status: 'NOT_PENDING',
       });
       
       const [statsRes, transactionsRes] = await Promise.all([

@@ -116,7 +116,10 @@ export default function MerchantTransactionsPage() {
     }
     
     try {
-      const params = new URLSearchParams({ merchantId });
+      const params = new URLSearchParams({ 
+          merchantId,
+          status: 'NOT_PENDING',
+       });
       filters.forEach(filter => {
          if (filter.value) {
             // Special handling for date range filters
@@ -177,13 +180,13 @@ export default function MerchantTransactionsPage() {
       try {
         if (format === 'csv') {
           const csvData = convertToCSV(transactions);
-          downloadFile(`transactions-${new Date().toISOString()}.csv`, 'text/csv;charset=utf-8;', csvData);
+          downloadFile(csvData, `transactions-${new Date().toISOString()}.csv`, 'text/csv;charset=utf-8;');
         } else if (format === 'docs') {
           const htmlData = convertToHtmlTable(transactions);
-          downloadFile(`transactions-${new Date().toISOString()}.doc`, 'application/msword', htmlData);
+          downloadFile(htmlData, `transactions-${new Date().toISOString()}.doc`, 'application/msword');
         } else if (format === 'excel') {
           const htmlData = convertToHtmlTable(transactions);
-          downloadFile(`transactions-${new Date().toISOString()}.xls`, 'application/vnd.ms-excel', htmlData);
+          downloadFile(htmlData, `transactions-${new Date().toISOString()}.xls`, 'application/vnd.ms-excel');
         }
          toast({
           title: "Export Successful",
