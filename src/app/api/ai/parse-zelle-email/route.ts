@@ -150,7 +150,8 @@ export async function POST(request: Request) {
         parsedData = await parseZelleEmail(validation.data);
         console.log("✅ [API /ai/parse-zelle-email] AI parsing complete. Result:", parsedData);
     } catch(aiError: any) {
-        console.error("❌ [API /ai/parse-zelle-email] AI flow failed:", aiError.message);
+        console.error("❌ [API /ai/parse-zelle-email] AI flow failed:", aiError.message, validation.data);
+        console.error("⚠️ [API /ai/parse-zelle-email] Falling back to simple parser.", cleanEmailContent);
         // If AI fails, run the fallback parser
         parsedData = fallbackZelleParser(cleanEmailContent);
     }
