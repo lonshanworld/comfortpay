@@ -319,13 +319,13 @@ function CheckoutForm({ sessionData }: { sessionData: CreateCheckoutSessionInput
       
       // Only send email notifications if the payment is fully completed.
       if (status === 'Completed') {
-        const merchantDetailsRes = await fetch(`/api/merchants/${sessionData.merchantId}/details`);
-        const merchantDetails = await merchantDetailsRes.json();
-        const merchantName = merchantDetails?.name || 'Your Merchant';
+        // const merchantDetailsRes = await fetch(`/api/merchants/${sessionData.merchantId}/details`);
+        // const merchantDetails = await merchantDetailsRes.json();
+        // const merchantName = merchantDetails?.name || 'Your Merchant';
 
         // Send emails but don't wait for them
-        sendOrderNotification({ recipientType: 'customer', customerEmail: sessionData.billingDetails.email, merchantName, orderDetails: sessionData, items: sessionData.items });
-        sendOrderNotification({ recipientType: 'merchant', merchantEmail: merchantDetails.email, merchantName, orderDetails: sessionData, items: sessionData.items });
+        // sendOrderNotification({ recipientType: 'customer', customerEmail: sessionData.billingDetails.email, merchantName, orderDetails: sessionData, items: sessionData.items });
+        // sendOrderNotification({ recipientType: 'merchant', merchantEmail: merchantDetails.email, merchantName, orderDetails: sessionData, items: sessionData.items });
       }
 
     } catch (error: any) {
