@@ -145,12 +145,12 @@ export async function createCheckoutSession(input: CreateCheckoutSessionInput): 
         numericMerchantId, input.merchantOrderId, visualId, formatDateForMySQL(now),
         `${input.billingDetails.firstName} ${input.billingDetails.lastName}`, input.billingDetails.email,
         input.paymentMethod === 'card' ? 'Credit Card' : 'Zelle',
-        orderAmount, // Pure item subtotal
+        orderAmount,
         input.totalAmount, // from WooCommerce (subtotal + shipping/tax)
         input.currency || 'USD',
         selectedGateway, // e.g. "Stripe", "Square"
         selectedAccount.id,
-        JSON.stringify(input.items || []), // Store items as a JSON string
+        null, // Store items as a JSON string
         JSON.stringify(input.billingDetails || {}), // Store billing details as a JSON string
     ];
 

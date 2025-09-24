@@ -11,6 +11,7 @@ const ApiRequestSchema = CreateCheckoutSessionInputSchema.omit({ merchantId: tru
 });
 
 export async function POST(request: Request) {
+  console.log("==========================================", request);
   try {
     const body = await request.json();
     console.log("API Request Body:", body); // Debug log
