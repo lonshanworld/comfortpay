@@ -247,7 +247,7 @@ export default function TransactionsPage() {
 
       console.log("Step 3: Refreshing transaction list.");
       if(newStatus === 'Completed') {
-        notifyWooCommerce(transaction, 'Completed')
+        await notifyWooCommerce(transaction, 'Completed')
       }
       await fetchTransactions(appliedFilters);
       console.log("--- Manual Payment Confirmation Finished Successfully ---");

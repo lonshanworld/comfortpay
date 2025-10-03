@@ -181,7 +181,7 @@ export async function processZelleWebhook(
 
       if (newStatus === 'Completed') {
       // Don't wait for this to finish, let it run in the background
-      notifyWooCommerce(finalMatch, newStatus);
+      await notifyWooCommerce(finalMatch, newStatus);
     }
 
     return {
