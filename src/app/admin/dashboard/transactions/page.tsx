@@ -35,6 +35,7 @@ import { sendOrderNotification } from "@/app/actions/send-order-notification"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { DateRangePicker } from "@/components/ui/date-range-picker"
 import type { DateRange } from "react-day-picker"
+import { notifyWooCommerce } from "@/app/actions/notify-woocommerce"
 
 // Helper to download files on the client side
 const downloadFile = (content: string, fileName: string, contentType: string) => {
@@ -190,7 +191,7 @@ export default function TransactionsPage() {
     try {
       // Determine the new status and the total paid amount
       const newPaidAmount = (Number(transaction.paidAmount) || 0) + amount;
-      const isFullyPaid = newPaidAmount >= transaction.totalAmount;
+      const isFullyPaid = newPaidAmount >= (transaction.totalAmount - 3);
       const newStatus: OrderStatus = isFullyPaid ? 'Completed' : 'Partially Paid';
 
       console.log(`Step 1: Updating order. New Status: ${newStatus}, New Paid Amount: ${newPaidAmount}`);
@@ -245,6 +246,9 @@ export default function TransactionsPage() {
       });
 
       console.log("Step 3: Refreshing transaction list.");
+      if(newStatus === 'Completed') {
+        notifyWooCommerce(transaction, 'Completed')
+      }
       await fetchTransactions(appliedFilters);
       console.log("--- Manual Payment Confirmation Finished Successfully ---");
 

@@ -11,7 +11,9 @@ import {
   ZelleEmailParseOutputSchema,
   type ZelleEmailParseOutput,
 } from '@/lib/schemas/zelle-email';
-import type { Order } from '@/lib/types';
+import type { Order, OrderStatus } from '@/lib/types';
+import { notifyWooCommerce } from './notify-woocommerce';
+
 
 export async function processZelleWebhook(
   parsedData: ZelleEmailParseOutput
@@ -164,8 +166,10 @@ export async function processZelleWebhook(
   }
 
   if (finalMatch) {
+    const numericId = String(finalMatch.id).replace('CP','');
+
     const newPaidAmount = (Number(finalMatch.paidAmount) || 0) + money_amount;
-    const newStatus = newPaidAmount >= finalMatch.totalAmount ? 'Completed' : 'Partially Paid';
+    const newStatus: OrderStatus = newPaidAmount >= finalMatch.totalAmount ? 'Completed' : 'Partially Paid';
 
     console.log(
       `✍️ [Action processZelleWebhook] Updating Order ID ${finalMatch.id}. New status: ${newStatus}, New paid amount: ${newPaidAmount}`
@@ -174,6 +178,11 @@ export async function processZelleWebhook(
       `UPDATE orders SET status = ?, paidAmount = ?, paymentReceivedDate = ? WHERE id = ?`,
       [newStatus, newPaidAmount, new Date().toISOString().slice(0, 19).replace('T', ' '), finalMatch.id]
     );
+
+      if (newStatus === 'Completed') {
+      // Don't wait for this to finish, let it run in the background
+      notifyWooCommerce(finalMatch, newStatus);
+    }
 
     return {
       status: 'success',

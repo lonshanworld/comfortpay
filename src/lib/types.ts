@@ -55,6 +55,8 @@ export interface Order {
   customerFirstName?: string;
   customerLastName?: string;
   customerPhone?: string;
+  wooCommerceSiteUrl?: string;
+
 }
 
 export type IdType = "Passport" | "Driver License" | "ID Card";

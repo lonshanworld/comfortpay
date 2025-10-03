@@ -136,10 +136,14 @@ export async function createCheckoutSession(input: CreateCheckoutSessionInput): 
     const orderAmount = (input.items || []).reduce((acc, item) => acc + (item.price * item.quantity), 0);
     const now = new Date();
 
+     const wooSiteUrl = input.wooCommerceOrderReceivedUrl 
+        ? new URL(input.wooCommerceOrderReceivedUrl).origin
+        : null;
+
     const orderInsertQuery = `
       INSERT INTO orders 
-      (merchantId, merchantOrderId, visualOrderId, orderDate, customerName, customerEmail, status, paymentMethod, orderAmount, totalAmount, paidAmount, currency, paymentType, paymentAccountId, items, billingDetails) 
-      VALUES (?, ?, ?, ?, ?, ?, 'Pending', ?, ?, ?, 0, ?, ?, ?, ?, ?)
+      (merchantId, merchantOrderId, visualOrderId, orderDate, customerName, customerEmail, status, paymentMethod, orderAmount, totalAmount, paidAmount, currency, paymentType, paymentAccountId, items, billingDetails, wooCommerceSiteUrl) 
+      VALUES (?, ?, ?, ?, ?, ?, 'Pending', ?, ?, ?, 0, ?, ?, ?, ?, ?, ?)
     `;
     const orderParams = [
         numericMerchantId, input.merchantOrderId, visualId, formatDateForMySQL(now),
@@ -152,6 +156,7 @@ export async function createCheckoutSession(input: CreateCheckoutSessionInput): 
         selectedAccount.id,
         null, // Store items as a JSON string
         JSON.stringify(input.billingDetails || {}), // Store billing details as a JSON string
+        wooSiteUrl,
     ];
 
     const orderResult = await runQuery(orderInsertQuery, orderParams);

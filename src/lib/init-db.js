@@ -2,8 +2,7 @@
 require('dotenv').config({ path: require('path').resolve(process.cwd(), '.env') });
 const mysql = require('mysql2/promise');
 const bcrypt = require('bcrypt');
-const fs = require('fs/promises');
-const path = require('path');
+
 
 const saltRounds = 10;
 
@@ -111,6 +110,14 @@ async function initialize() {
             console.log("Adding 'riskDetails' column to 'orders' table...");
             await connection.query(`ALTER TABLE orders ADD COLUMN riskDetails JSON;`);
             console.log("'riskDetails' column added.");
+        }
+
+        // Add wooCommerceSiteUrl column to orders table if it doesn't exist
+        const [wooCommerceSiteUrlColumns] = await connection.query(`SHOW COLUMNS FROM orders LIKE 'wooCommerceSiteUrl'`);
+        if (wooCommerceSiteUrlColumns.length === 0) {
+            console.log("Adding 'wooCommerceSiteUrl' column to 'orders' table...");
+            await connection.query(`ALTER TABLE orders ADD COLUMN wooCommerceSiteUrl VARCHAR(255);`);
+            console.log("'wooCommerceSiteUrl' column added.");
         }
 
         await connection.query(`
