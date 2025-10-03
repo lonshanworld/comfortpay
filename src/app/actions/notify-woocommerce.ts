@@ -101,5 +101,7 @@ export async function notifyWooCommerce(order: Order, newStatus: 'Completed' | '
 
   // 4. Fire and forget the secure status update
   console.log(`   - Step 4: Dispatching sendStatusUpdate.`);
-  sendStatusUpdate(validation.data.siteUrl, merchant.token!, validation.data.payload);
+  const checkresult = await sendStatusUpdate(validation.data.siteUrl, merchant.token!, validation.data.payload);
+  console.log(`   - Step 5: sendStatusUpdate completed with result:`, checkresult);
+  return;
 }
