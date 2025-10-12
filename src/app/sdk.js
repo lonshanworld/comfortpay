@@ -4,74 +4,38 @@
         return;
     }
 
-    console.log("ComfortPay SDK Initialized.");
-
     let iframe = null;
     let overlay = null;
-    let merchantOrigin = '*'; // Default to wildcard
-
-    function createOverlay() {
-        const el = document.createElement('div');
-        el.style.position = 'fixed';
-        el.style.top = '0';
-        el.style.left = '0';
-        el.style.right = '0';
-        el.style.bottom = '0';
-        el.style.backgroundColor = 'rgba(0, 0, 0, 0.6)';
-        el.style.zIndex = '2147483646'; // Max z-index - 1
-        el.style.opacity = '0';
-        el.style.transition = 'opacity 0.3s ease-in-out';
-        document.body.appendChild(el);
-        // Trigger reflow to start transition
-        setTimeout(() => el.style.opacity = '1', 10);
-        return el;
-    }
-
-    function createIframe(sessionToken) {
-        const el = document.createElement('iframe');
-        // The base URL should be your application's domain
-        const baseUrl = window.location.origin;
-        el.src = `${baseUrl}/checkout/new?session=${sessionToken}&display=modal`;
-
-        el.style.position = 'fixed';
-        el.style.top = '50%';
-        el.style.left = '50%';
-        el.style.transform = 'translate(-50%, -50%) scale(0.95)';
-        el.style.width = '100%';
-        el.style.maxWidth = '920px';
-        el.style.height = '90%';
-        el.style.maxHeight = '720px';
-        el.style.border = 'none';
-        el.style.borderRadius = '8px';
-        el.style.boxShadow = '0 10px 25px rgba(0,0,0,0.2)';
-        el.style.zIndex = '2147483647'; // Max z-index
-        el.style.opacity = '0';
-        el.style.transition = 'opacity 0.3s ease-in-out 0.1s, transform 0.3s ease-in-out 0.1s';
-
-        document.body.appendChild(el);
-        // Trigger reflow to start transition
-        setTimeout(() => {
-            el.style.opacity = '1';
-            el.style.transform = 'translate(-50%, -50%) scale(1)';
-        }, 10);
-        return el;
-    }
+    const COMFORTPAY_HUB_URL = 'http://localhost:3000';
 
     function close() {
-        if (iframe) {
-            iframe.style.opacity = '0';
-            iframe.style.transform = 'translate(-50%, -50%) scale(0.95)';
-            setTimeout(() => {
-                document.body.removeChild(iframe);
-                iframe = null;
-            }, 300);
+        if (iframe && document.body.contains(iframe)) {
+            document.body.removeChild(iframe);
         }
-        if (overlay) {
-            overlay.style.opacity = '0';
-            setTimeout(() => {
-                document.body.removeChild(overlay);
-                overlay = null;
-            }, 300);
+        if (overlay && document.body.contains(overlay)) {
+            document.body.removeChild(overlay);
+        }
+        iframe = null;
+        overlay = null;
+    }
+
+    function handleMessage(event) {
+        if (event.origin !== COMFORTPAY_HUB_URL) {
+            return;
+        }
+
+        const { type, data } = event.data;
+        console.log('check type - ', type);
+        console.log('check data - ', data);
+
+        if (type === 'comfortPay:success' && data && data.wooCommerceOrderReceivedUrl) {
+            close();
+            window.location.href = data.wooCommerceOrderReceivedUrl;
+            
+        } else if (type === 'comfortPay:close') {
+            close();
+        }else{
+            close();
         }
     }
 
@@ -81,44 +45,24 @@
             return;
         }
 
-        // Decode session token to get merchantOrigin for secure communication
-        try {
-            const decoded = JSON.parse(atob(options.sessionToken));
-            if (decoded.merchantOrigin) {
-                merchantOrigin = decoded.merchantOrigin;
-            }
-        } catch(e) {
-            console.warn("Could not decode session token to set merchant origin. Defaulting to wildcard. This is not recommended for production.");
-            merchantOrigin = '*';
-        }
+        close(); // Close any existing modal
 
-        overlay = createOverlay();
-        iframe = createIframe(options.sessionToken);
-
+        overlay = document.createElement('div');
+        overlay.style.cssText = 'position:fixed; top:0; left:0; right:0; bottom:0; background-color:rgba(0,0,0,0.6); z-index:2147483646;';
+        document.body.appendChild(overlay);
         overlay.addEventListener('click', close);
+        
+        iframe = document.createElement('iframe');
+        iframe.src = `${COMFORTPAY_HUB_URL}/checkout/new?session=${options.sessionToken}&display=modal`;
+        iframe.style.cssText = 'position:fixed; top:50%; left:50%; transform:translate(-50%, -50%); width:100%; max-width:920px; height:90%; max-height:720px; border:none; border-radius:8px; box-shadow:0 10px 25px rgba(0,0,0,0.2); z-index:2147483647;';
+        iframe.allow = "payment"; // This is the critical fix for the permissions policy violation
+        
+        document.body.appendChild(iframe);
     }
-
-    function handleMessage(event) {
-        // Use the dynamic origin for validation if available, otherwise wildcard
-        if (merchantOrigin !== '*' && event.origin !== merchantOrigin) {
-            console.warn(`Message from unexpected origin ${event.origin} was blocked.`);
-            return;
-        }
-
-        const { type, data } = event.data;
-
-        if (type === 'comfortPay:close') {
-            close();
-        }
-        if (type === 'comfortPay:success') {
-            close();
-        }
-    }
-
-    window.ComfortPay = {
-        open: open
-    };
 
     window.addEventListener('message', handleMessage);
 
+    window.ComfortPay = { open, close };
+
+    console.log("ComfortPay SDK Initialized.");
 })();

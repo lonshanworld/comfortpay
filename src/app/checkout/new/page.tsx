@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useState, Suspense, useEffect, useRef } from 'react';
@@ -12,7 +11,7 @@ import {
 } from "@/components/ui/card"
 import { Separator } from "@/components/ui/separator"
 import { Logo } from "@/components/icons/logo"
-import { CreditCard, Loader2, User, Mail, Phone, Home, ShoppingCart, X } from "lucide-react"
+import { CreditCard, Loader2, User, Mail, Phone, Home, ShoppingCart, X, Copy } from "lucide-react"
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import type { CreateCheckoutSessionInput, Order } from '@/lib/types';
@@ -253,6 +252,22 @@ function CheckoutForm({ sessionData }: { sessionData: CreateCheckoutSessionInput
     }
   };
 
+   const handleCopy = (valueToCopy: string, fieldName: string) => {
+    navigator.clipboard.writeText(valueToCopy);
+    toast({
+      title: "Copied!",
+      description: `${fieldName} has been copied to your clipboard.`,
+    });
+  };
+
+    const updateAndNotify = async (updatedOrder: Order) => {
+      if (isModal) {
+        window.parent.postMessage({ type: 'comfortPay:success', data: { ...updatedOrder, wooCommerceOrderReceivedUrl: sessionData.wooCommerceOrderReceivedUrl } }, '*');
+      } else if(sessionData.wooCommerceOrderReceivedUrl) {
+        window.location.href = sessionData.wooCommerceOrderReceivedUrl;
+      }
+  }
+
   const handlePaymentSuccess = async (paymentMethodId: string) => {
     if (!sessionData.comfortPayOrderId || typeof sessionData.totalAmount === 'undefined') {
       toast({ variant: "destructive", title: "Payment Error", description: "Internal order ID or final amount is missing." });
@@ -269,12 +284,10 @@ function CheckoutForm({ sessionData }: { sessionData: CreateCheckoutSessionInput
     console.log("[CheckoutForm] processPayment action result:", paymentResult);
 
     if (paymentResult.success && paymentResult.transactionId) {
-      await updateOrderStatus('Completed', paymentResult.transactionId);
+      const updatedOrder = await updateOrderStatus('Completed', paymentResult.transactionId);
       
-      if (isModal) {
-        window.parent.postMessage({ type: 'comfortPay:success', data: { orderId: sessionData.comfortPayOrderId, status: 'Completed' }}, '*');
-      } else if(sessionData.wooCommerceOrderReceivedUrl) {
-        window.location.href = sessionData.wooCommerceOrderReceivedUrl;
+      if (updatedOrder) {
+        await updateAndNotify(updatedOrder);
       }
 
     } else {
@@ -282,7 +295,7 @@ function CheckoutForm({ sessionData }: { sessionData: CreateCheckoutSessionInput
     }
   };
   
-  const updateOrderStatus = async (status: 'Completed' | 'Requires Confirmation', transactionId?: string) => {
+  const updateOrderStatus = async (status: 'Completed' | 'Requires Confirmation', transactionId?: string) : Promise<Order | null> => {
     if (!sessionData.comfortPayOrderId) return;
     try {
       const payload: Partial<Order> = { status };
@@ -317,31 +330,23 @@ function CheckoutForm({ sessionData }: { sessionData: CreateCheckoutSessionInput
         console.log("[CheckoutForm] Volume update response status:", volumeResponse.status);
       }
       
-      // Only send email notifications if the payment is fully completed.
-      if (status === 'Completed') {
-        // const merchantDetailsRes = await fetch(`/api/merchants/${sessionData.merchantId}/details`);
-        // const merchantDetails = await merchantDetailsRes.json();
-        // const merchantName = merchantDetails?.name || 'Your Merchant';
-
-        // Send emails but don't wait for them
-        // sendOrderNotification({ recipientType: 'customer', customerEmail: sessionData.billingDetails.email, merchantName, orderDetails: sessionData, items: sessionData.items });
-        // sendOrderNotification({ recipientType: 'merchant', merchantEmail: merchantDetails.email, merchantName, orderDetails: sessionData, items: sessionData.items });
-      }
+      return updatedOrder;
 
     } catch (error: any) {
       console.error("Status update/notification error:", error);
       toast({ variant: "destructive", title: "Post-Payment Error", description: error.message });
+      return null;
     }
   }
   
   
   const handleZelleConfirmation = async () => {
     setIsProcessing(true);
-    if (!sessionData.comfortPayOrderId) {
-        toast({ variant: "destructive", title: "Error", description: "Order ID is missing." });
-        setIsProcessing(false);
-        return;
-    }
+    // if (!sessionData.comfortPayOrderId) {
+    //     toast({ variant: "destructive", title: "Error", description: "Order ID is missing." });
+    //     setIsProcessing(false);
+    //     return;
+    // }
     try {
         // Fetch the current order status first to prevent race conditions
         const orderRes = await fetch(`/api/orders/${sessionData.comfortPayOrderId}`);
@@ -351,22 +356,27 @@ function CheckoutForm({ sessionData }: { sessionData: CreateCheckoutSessionInput
 
         // Only update status if it's still 'Pending'
         if (currentOrder.status === 'Pending') {
-            await updateOrderStatus('Requires Confirmation');
+            const updatedOrder = await updateOrderStatus('Requires Confirmation');
             console.log("✅ [CheckoutForm] Zelle payment confirmed by user, status set to Requires Confirmation.");
+            if (updatedOrder) {
+              await updateAndNotify(updatedOrder);
+            }
         } else {
             console.log(`✅ [CheckoutForm] Zelle payment already confirmed (status is ${currentOrder.status}). No action needed.`);
         }
 
-        // Redirect regardless of whether we updated the status or not
-        if (isModal) {
-            window.parent.postMessage({ type: 'comfortPay:success', data: { orderId: sessionData.comfortPayOrderId, status: currentOrder.status === 'Pending' ? 'Requires Confirmation' : currentOrder.status }}, '*');
-        } else if (sessionData.wooCommerceOrderReceivedUrl) {
-            window.location.href = sessionData.wooCommerceOrderReceivedUrl;
-        }
+        // // Redirect regardless of whether we updated the status or not
+        // if (isModal) {
+        //     window.parent.postMessage({ type: 'comfortPay:success', data: { orderId: sessionData.comfortPayOrderId, status: currentOrder.status === 'Pending' ? 'Requires Confirmation' : currentOrder.status }}, '*');
+        // } else if (sessionData.wooCommerceOrderReceivedUrl) {
+        //     window.location.href = sessionData.wooCommerceOrderReceivedUrl;
+        // }
 
     } catch (error: any) {
         toast({ variant: "destructive", title: "Error", description: error.message });
-        setIsProcessing(false);
+        
+    }finally {
+      setIsProcessing(false);
     }
   }
 
@@ -398,7 +408,12 @@ function CheckoutForm({ sessionData }: { sessionData: CreateCheckoutSessionInput
             <div className="space-y-6 text-center">
               <div>
                 <p className="text-sm text-muted-foreground">Send payment to:</p>
-                <p className="text-2xl lg:text-4xl font-semibold text-primary">{sessionData.paymentDetails?.accountEmail}</p>
+                <div className="flex items-center justify-center gap-2">
+                    <p className="text-2xl lg:text-3xl font-semibold text-primary break-all">{sessionData.paymentDetails?.accountEmail}</p>
+                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleCopy(sessionData.paymentDetails?.accountEmail || '', 'Account Email')}>
+                        <Copy className="h-5 w-5" />
+                    </Button>
+                </div>
               </div>
               {/* {qrCodeUrl && (
                 <div className="flex justify-center">
@@ -406,7 +421,13 @@ function CheckoutForm({ sessionData }: { sessionData: CreateCheckoutSessionInput
                 </div>
               )} */}
               <div>
-                <p className="text-lg text-muted-foreground">Memo = <span className="text-2xl lg:text-4xl font-bold text-primary">{visualOrderId}</span></p>
+               <p className="text-lg text-muted-foreground">Memo</p>
+                 <div className="flex items-center justify-center gap-2">
+                    <p className="text-2xl lg:text-3xl font-bold text-primary break-all">{visualOrderId}</p>
+                     <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleCopy(visualOrderId || '', 'Order ID')}>
+                        <Copy className="h-5 w-5" />
+                    </Button>
+                </div>
               </div>
               <Alert>
                 {/* <AlertTitle>Important!</AlertTitle> */}
