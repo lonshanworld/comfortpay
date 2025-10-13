@@ -388,7 +388,7 @@ function CheckoutForm({ sessionData }: { sessionData: CreateCheckoutSessionInput
 
    const { shopName,visualOrderId, totalAmount, subtotal, taxAmount, shippingAmount, discountAmount, billingDetails, items } = sessionData;
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 w-full">
+    <div className="grid grid-cols-1 gap-8 w-full">
       <Card className="w-full">
         <CardHeader>
           <CardTitle className="flex items-center justify-between">
