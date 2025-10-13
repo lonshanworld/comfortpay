@@ -120,6 +120,26 @@ async function initialize() {
             console.log("'wooCommerceSiteUrl' column added.");
         }
 
+        // Add new columns for subtotal, tax, shipping, and discount amounts
+        const columnsToAdd = [
+            { name: 'subtotal', definition: 'DECIMAL(10, 2) DEFAULT 0.00' },
+            { name: 'taxAmount', definition: 'DECIMAL(10, 2) DEFAULT 0.00' },
+            { name: 'shippingAmount', definition: 'DECIMAL(10, 2) DEFAULT 0.00' },
+            { name: 'discountAmount', definition: 'DECIMAL(10, 2) DEFAULT 0.00' },
+        ];
+
+        for (const col of columnsToAdd) {
+            const [existing] = await connection.query(`SHOW COLUMNS FROM orders LIKE '${col.name}'`);
+            if (existing.length === 0) {
+                console.log(`Adding '${col.name}' column to 'orders' table...`);
+                await connection.query(`ALTER TABLE orders ADD COLUMN ${col.name} ${col.definition};`);
+                console.log(`'${col.name}' column added.`);
+            } else {
+                console.log(`Column '${col.name}' already exists in 'orders' table. Skipping.`);
+            }
+        }
+
+
         await connection.query(`
             CREATE TABLE IF NOT EXISTS payment_accounts (
                 id INT PRIMARY KEY AUTO_INCREMENT,

@@ -142,21 +142,25 @@ export async function createCheckoutSession(input: CreateCheckoutSessionInput): 
 
     const orderInsertQuery = `
       INSERT INTO orders 
-      (merchantId, merchantOrderId, visualOrderId, orderDate, customerName, customerEmail, status, paymentMethod, orderAmount, totalAmount, paidAmount, currency, paymentType, paymentAccountId, items, billingDetails, wooCommerceSiteUrl) 
-      VALUES (?, ?, ?, ?, ?, ?, 'Pending', ?, ?, ?, 0, ?, ?, ?, ?, ?, ?)
+      (merchantId, merchantOrderId, visualOrderId, orderDate, customerName, customerEmail, status, paymentMethod, subtotal, taxAmount, shippingAmount, discountAmount, totalAmount, paidAmount, currency, paymentType, paymentAccountId, items, billingDetails, wooCommerceSiteUrl, orderAmount) 
+      VALUES (?, ?, ?, ?, ?, ?, 'Pending', ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?)
     `;
     const orderParams = [
         numericMerchantId, input.merchantOrderId, visualId, formatDateForMySQL(now),
         `${input.billingDetails.firstName} ${input.billingDetails.lastName}`, input.billingDetails.email,
         input.paymentMethod === 'card' ? 'Credit Card' : 'Zelle',
-        orderAmount,
+        input.subtotal ?? 0,
+        input.taxAmount ?? 0,
+        input.shippingAmount ?? 0,
+        input.discountAmount ?? 0,
         input.totalAmount, // from WooCommerce (subtotal + shipping/tax)
         input.currency || 'USD',
         selectedGateway, // e.g. "Stripe", "Square"
         selectedAccount.id,
-        null, // Store items as a JSON string
+        input.items ? JSON.stringify(input.items) : null, // Store items as a JSON string
         JSON.stringify(input.billingDetails || {}), // Store billing details as a JSON string
         wooSiteUrl,
+        orderAmount
     ];
 
     const orderResult = await runQuery(orderInsertQuery, orderParams);

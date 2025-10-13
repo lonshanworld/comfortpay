@@ -39,6 +39,10 @@ const PaymentDetailsSchema = z.object({
 // Schema for creating a checkout session
 export const CreateCheckoutSessionInputSchema = z.object({
   totalAmount: z.number().positive().describe('The total transaction amount.'),
+   subtotal: z.number().min(0).optional().describe('The subtotal before taxes and shipping.'),
+  taxAmount: z.number().min(0).optional().describe('The total tax amount.'),
+  shippingAmount: z.number().min(0).optional().describe('The total shipping amount.'),
+  discountAmount: z.number().min(0).optional().describe('The total discount amount.'),
   merchantId: z.string().optional().describe("The ID of the merchant for this transaction."),
   merchantOrderId: z.string().describe("The merchant's unique transaction identifier."),
   visualOrderId: z.string().optional().describe('The transaction ID that is shown to the customer and sent to the payment processor.'),
@@ -50,6 +54,8 @@ export const CreateCheckoutSessionInputSchema = z.object({
   items: z.array(OrderItemSchema).describe('The list of items in the transaction.'),
   paymentDetails: PaymentDetailsSchema.optional().describe('Details specific to the payment processor account.'),
   currency: z.string().optional().describe('The currency of the transaction.'),
+  merchantLogoUrl: z.string().url().optional().nullable().describe("The URL of the merchant's logo to display on checkout."),
+  shopName: z.string().optional().describe("The name of the merchant's shop."),
 });
 
 // Schema for the transaction notification action

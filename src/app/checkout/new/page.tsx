@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useState, Suspense, useEffect, useRef } from 'react';
@@ -12,7 +11,7 @@ import {
 } from "@/components/ui/card"
 import { Separator } from "@/components/ui/separator"
 import { Logo } from "@/components/icons/logo"
-import { CreditCard, Loader2, User, Mail, Phone, Home, ShoppingCart, X } from "lucide-react"
+import { CreditCard, Loader2, User, Mail, Phone, Home, ShoppingCart, X, Copy } from "lucide-react"
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import type { CreateCheckoutSessionInput, Order } from '@/lib/types';
@@ -22,6 +21,7 @@ import { loadStripe, type Stripe } from '@stripe/stripe-js';
 import { processPayment } from '@/app/actions/process-payment';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import type {  Card as SquareCard } from '@square/web-payments-sdk-types';
+
 
 const CARD_ELEMENT_OPTIONS = {
   style: {
@@ -249,13 +249,34 @@ function CheckoutForm({ sessionData }: { sessionData: CreateCheckoutSessionInput
     if (isModal) {
       window.parent.postMessage({ type: 'comfortPay:close' }, '*');
     } else {
-      router.push('/');
+       if (sessionData.merchantOrigin) {
+        router.push(sessionData.merchantOrigin);
+      } else {
+        router.push('/');
+      }
     }
   };
+
+   const handleCopy = (valueToCopy: string, fieldName: string) => {
+    navigator.clipboard.writeText(valueToCopy);
+    toast({
+      title: "Copied!",
+      description: `${fieldName} has been copied to your clipboard.`,
+    });
+  };
+
+    const updateAndNotify = async (updatedOrder: Order) => {
+      if (isModal) {
+        window.parent.postMessage({ type: 'comfortPay:success', data: { ...updatedOrder, wooCommerceOrderReceivedUrl: sessionData.wooCommerceOrderReceivedUrl } }, '*');
+      } else if(sessionData.wooCommerceOrderReceivedUrl) {
+        window.location.href = sessionData.wooCommerceOrderReceivedUrl;
+      }
+  }
 
   const handlePaymentSuccess = async (paymentMethodId: string) => {
     if (!sessionData.comfortPayOrderId || typeof sessionData.totalAmount === 'undefined') {
       toast({ variant: "destructive", title: "Payment Error", description: "Internal order ID or final amount is missing." });
+      setIsProcessing(false);
       return;
     }
     console.log("🚀 [CheckoutForm] Calling processPayment action...");
@@ -269,12 +290,10 @@ function CheckoutForm({ sessionData }: { sessionData: CreateCheckoutSessionInput
     console.log("[CheckoutForm] processPayment action result:", paymentResult);
 
     if (paymentResult.success && paymentResult.transactionId) {
-      await updateOrderStatus('Completed', paymentResult.transactionId);
+      const updatedOrder = await updateOrderStatus('Completed', paymentResult.transactionId);
       
-      if (isModal) {
-        window.parent.postMessage({ type: 'comfortPay:success', data: { orderId: sessionData.comfortPayOrderId, status: 'Completed' }}, '*');
-      } else if(sessionData.wooCommerceOrderReceivedUrl) {
-        window.location.href = sessionData.wooCommerceOrderReceivedUrl;
+      if (updatedOrder) {
+        await updateAndNotify(updatedOrder);
       }
 
     } else {
@@ -282,7 +301,7 @@ function CheckoutForm({ sessionData }: { sessionData: CreateCheckoutSessionInput
     }
   };
   
-  const updateOrderStatus = async (status: 'Completed' | 'Requires Confirmation', transactionId?: string) => {
+  const updateOrderStatus = async (status: 'Completed' | 'Requires Confirmation', transactionId?: string) : Promise<Order | null> => {
     if (!sessionData.comfortPayOrderId) return;
     try {
       const payload: Partial<Order> = { status };
@@ -317,31 +336,23 @@ function CheckoutForm({ sessionData }: { sessionData: CreateCheckoutSessionInput
         console.log("[CheckoutForm] Volume update response status:", volumeResponse.status);
       }
       
-      // Only send email notifications if the payment is fully completed.
-      if (status === 'Completed') {
-        // const merchantDetailsRes = await fetch(`/api/merchants/${sessionData.merchantId}/details`);
-        // const merchantDetails = await merchantDetailsRes.json();
-        // const merchantName = merchantDetails?.name || 'Your Merchant';
-
-        // Send emails but don't wait for them
-        // sendOrderNotification({ recipientType: 'customer', customerEmail: sessionData.billingDetails.email, merchantName, orderDetails: sessionData, items: sessionData.items });
-        // sendOrderNotification({ recipientType: 'merchant', merchantEmail: merchantDetails.email, merchantName, orderDetails: sessionData, items: sessionData.items });
-      }
+      return updatedOrder;
 
     } catch (error: any) {
       console.error("Status update/notification error:", error);
       toast({ variant: "destructive", title: "Post-Payment Error", description: error.message });
+      return null;
     }
   }
   
   
   const handleZelleConfirmation = async () => {
     setIsProcessing(true);
-    if (!sessionData.comfortPayOrderId) {
-        toast({ variant: "destructive", title: "Error", description: "Order ID is missing." });
-        setIsProcessing(false);
-        return;
-    }
+    // if (!sessionData.comfortPayOrderId) {
+    //     toast({ variant: "destructive", title: "Error", description: "Order ID is missing." });
+    //     setIsProcessing(false);
+    //     return;
+    // }
     try {
         // Fetch the current order status first to prevent race conditions
         const orderRes = await fetch(`/api/orders/${sessionData.comfortPayOrderId}`);
@@ -351,38 +362,41 @@ function CheckoutForm({ sessionData }: { sessionData: CreateCheckoutSessionInput
 
         // Only update status if it's still 'Pending'
         if (currentOrder.status === 'Pending') {
-            await updateOrderStatus('Requires Confirmation');
+            const updatedOrder = await updateOrderStatus('Requires Confirmation');
             console.log("✅ [CheckoutForm] Zelle payment confirmed by user, status set to Requires Confirmation.");
+            if (updatedOrder) {
+              await updateAndNotify(updatedOrder);
+            }
         } else {
             console.log(`✅ [CheckoutForm] Zelle payment already confirmed (status is ${currentOrder.status}). No action needed.`);
         }
 
-        // Redirect regardless of whether we updated the status or not
-        if (isModal) {
-            window.parent.postMessage({ type: 'comfortPay:success', data: { orderId: sessionData.comfortPayOrderId, status: currentOrder.status === 'Pending' ? 'Requires Confirmation' : currentOrder.status }}, '*');
-        } else if (sessionData.wooCommerceOrderReceivedUrl) {
-            window.location.href = sessionData.wooCommerceOrderReceivedUrl;
-        }
+        // // Redirect regardless of whether we updated the status or not
+        // if (isModal) {
+        //     window.parent.postMessage({ type: 'comfortPay:success', data: { orderId: sessionData.comfortPayOrderId, status: currentOrder.status === 'Pending' ? 'Requires Confirmation' : currentOrder.status }}, '*');
+        // } else if (sessionData.wooCommerceOrderReceivedUrl) {
+        //     window.location.href = sessionData.wooCommerceOrderReceivedUrl;
+        // }
 
     } catch (error: any) {
         toast({ variant: "destructive", title: "Error", description: error.message });
-        setIsProcessing(false);
+        
+    }finally {
+      setIsProcessing(false);
     }
   }
 
-  const { visualOrderId, totalAmount, billingDetails, items } = sessionData;
-  const orderAmount = (items || []).reduce((acc, item) => acc + (item.price * item.quantity), 0);
-
+   const { shopName,visualOrderId, totalAmount, subtotal, taxAmount, shippingAmount, discountAmount, billingDetails, items } = sessionData;
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 w-full">
       <Card className="w-full">
         <CardHeader>
           <CardTitle className="flex items-center justify-between">
-            <span>Payment Details</span>
+            <span>{shopName ?? "Payment Details"}</span>
             <Button variant="ghost" size="icon" onClick={handleClose}><X className="h-4 w-4" /></Button>
           </CardTitle>
           <CardDescription>
-            Complete your secure payment for transaction <span className="font-semibold text-foreground">{visualOrderId}</span>.
+            Complete your secure payment for order <span className="font-semibold text-foreground">{visualOrderId}</span>.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -395,25 +409,39 @@ function CheckoutForm({ sessionData }: { sessionData: CreateCheckoutSessionInput
             <SquarePaymentForm sessionData={sessionData} onPaymentSuccess={handlePaymentSuccess} setParentProcessing={setIsProcessing} />
           )}
           {sessionData.processor === 'Zelle' && (
-            <div className="space-y-6 text-center">
-              <div>
+             <div className="space-y-4">
+              <div className="space-y-1">
                 <p className="text-sm text-muted-foreground">Send payment to:</p>
-                <p className="text-2xl lg:text-4xl font-semibold text-primary">{sessionData.paymentDetails?.accountEmail}</p>
+               <div className="relative flex items-center">
+                    <div className="flex-1 text-lg font-semibold text-primary break-all border border-input rounded-md px-3 py-2 pr-10">
+                        {sessionData.paymentDetails?.accountEmail}
+                    </div>
+                     <Button type="button" variant="ghost" size="sm" className="absolute right-1 top-1 h-8 px-2 hover:bg-blue-300 active:bg-blue-400" onClick={() => handleCopy(sessionData.paymentDetails?.accountEmail || '', 'Account Email')}>
+                        Copy
+                    </Button>
+                </div>
               </div>
               {/* {qrCodeUrl && (
                 <div className="flex justify-center">
                   <Image src={qrCodeUrl} alt="Zelle QR Code" width={200} height={200} className="rounded-lg border shadow-sm" />
                 </div>
               )} */}
-              <div>
-                <p className="text-lg text-muted-foreground">Memo = <span className="text-2xl lg:text-4xl font-bold text-primary">{visualOrderId}</span></p>
+               <div className="space-y-1">
+                <p className="text-sm text-muted-foreground">Memo for zelle - write order number only</p>
+                <div className="relative flex items-center">
+                    <div className="flex-1 text-lg font-bold text-primary break-all border border-input rounded-md px-3 py-2 pr-10">
+                        {visualOrderId}
+                    </div>
+                     <Button type="button" variant="ghost" size="sm" className="absolute right-1 top-1 h-8 px-2 hover:bg-blue-300 active:bg-blue-400" onClick={() => handleCopy(sessionData.paymentDetails?.accountEmail || '', 'Account Email')}>
+                        Copy
+                    </Button>
+                </div>
               </div>
-              <Alert>
-                {/* <AlertTitle>Important!</AlertTitle> */}
+              {/* <Alert>
                 <AlertDescription>
                   Memo for zelle- Memo write order number only.                
                 </AlertDescription>
-              </Alert>
+              </Alert> */}
               <Button onClick={handleZelleConfirmation} className="w-full" disabled={isProcessing}>
                 {isProcessing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                 I Have Sent The Zelle Payment
@@ -438,14 +466,31 @@ function CheckoutForm({ sessionData }: { sessionData: CreateCheckoutSessionInput
           </div>
           <Separator />
           <div className="space-y-1 text-sm">
-            <div className="flex justify-between">
-              <p>Subtotal</p>
-              <p>${orderAmount.toFixed(2)}</p>
-            </div>
-            <div className="flex justify-between">
-              <p>Shipping & Taxes</p>
-              <p>${(totalAmount - orderAmount).toFixed(2)}</p>
-            </div>
+              {typeof subtotal === 'number'  && (
+                <div className="flex justify-between">
+                    <p>Subtotal</p>
+                    <p>${subtotal.toFixed(2)}</p>
+                </div>
+             )}
+             {typeof discountAmount === 'number' && discountAmount > 0 && (
+                <div className="flex justify-between text-green-600">
+                    <p>Discount</p>
+                    <p>-${discountAmount.toFixed(2)}</p>
+                </div>
+            )}
+            {typeof shippingAmount === 'number' && (
+                <div className="flex justify-between">
+                    <p>Shipping</p>
+                    <p>${shippingAmount.toFixed(2)}</p>
+                </div>
+            )}
+            {typeof taxAmount === 'number' && (
+                 <div className="flex justify-between">
+                    <p>Tax</p>
+                    <p>${taxAmount.toFixed(2)}</p>
+                </div>
+            )}
+            <Separator className="my-2"/>
             <div className="flex justify-between font-bold text-base">
               <p>Total</p>
               <p>${totalAmount.toFixed(2)}</p>
@@ -470,6 +515,7 @@ function CheckoutForm({ sessionData }: { sessionData: CreateCheckoutSessionInput
 function CheckoutPage() {
   const searchParams = useSearchParams();
   const sessionToken = searchParams.get('session');
+  const displayMode = searchParams.get('display');
   const [sessionData, setSessionData] = useState<CreateCheckoutSessionInput | null>(null);
 
   useEffect(() => {
@@ -485,11 +531,29 @@ function CheckoutPage() {
     }
   }, [sessionToken]);
 
+  const isModal = displayMode === 'modal';
+
   return (
-    <div className="min-h-screen bg-background flex flex-col items-center justify-center p-4">
+     <div className={cn(
+        "min-h-screen flex flex-col items-center justify-center p-4",
+        isModal ? "bg-transparent" : "bg-background"
+      )}>
       <div className="w-full max-w-5xl mx-auto">
-        <div className="mb-8 text-center">
-          <Logo className="h-10 w-auto mx-auto text-primary" />
+         <div className="mb-8 flex flex-col sm:flex-row items-center justify-start gap-4 text-center">
+                <Logo className="h-12 w-auto text-primary" />
+                 
+                {sessionData?.merchantLogoUrl && (
+                  <>
+                    <Separator orientation="vertical" className="h-10 hidden sm:block" />
+                    <img 
+                      src={sessionData.merchantLogoUrl} 
+                      alt="Merchant Logo" 
+                      width={150}
+                      height={50}
+                      className="object-contain max-h-12"
+                    />
+                  </>
+                )}
         </div>
         {sessionData ? <CheckoutForm sessionData={sessionData} /> : (
           <Card className="w-full max-w-md mx-auto">
