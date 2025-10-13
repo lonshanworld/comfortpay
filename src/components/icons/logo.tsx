@@ -28,11 +28,11 @@ export function Logo(props: SVGProps<SVGSVGElement>) {
       <Image 
     src={LogoImage}
     alt='Comfortpay'
-    width={300}
+    width={150}
+    height={50}
   
     style={{
-      borderRadius: 20,
-     
+      borderRadius: 10,
     }}
     />
     </div>

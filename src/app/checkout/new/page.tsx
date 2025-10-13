@@ -22,6 +22,7 @@ import { processPayment } from '@/app/actions/process-payment';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import type {  Card as SquareCard } from '@square/web-payments-sdk-types';
 
+
 const CARD_ELEMENT_OPTIONS = {
   style: {
     base: {
@@ -248,7 +249,11 @@ function CheckoutForm({ sessionData }: { sessionData: CreateCheckoutSessionInput
     if (isModal) {
       window.parent.postMessage({ type: 'comfortPay:close' }, '*');
     } else {
-      router.push('/');
+       if (sessionData.merchantOrigin) {
+        router.push(sessionData.merchantOrigin);
+      } else {
+        router.push('/');
+      }
     }
   };
 
@@ -271,6 +276,7 @@ function CheckoutForm({ sessionData }: { sessionData: CreateCheckoutSessionInput
   const handlePaymentSuccess = async (paymentMethodId: string) => {
     if (!sessionData.comfortPayOrderId || typeof sessionData.totalAmount === 'undefined') {
       toast({ variant: "destructive", title: "Payment Error", description: "Internal order ID or final amount is missing." });
+      setIsProcessing(false);
       return;
     }
     console.log("🚀 [CheckoutForm] Calling processPayment action...");
@@ -380,9 +386,7 @@ function CheckoutForm({ sessionData }: { sessionData: CreateCheckoutSessionInput
     }
   }
 
-  const { visualOrderId, totalAmount, billingDetails, items } = sessionData;
-  const orderAmount = (items || []).reduce((acc, item) => acc + (item.price * item.quantity), 0);
-
+   const { visualOrderId, totalAmount, subtotal, taxAmount, shippingAmount, discountAmount, billingDetails, items } = sessionData;
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 w-full">
       <Card className="w-full">
@@ -405,13 +409,15 @@ function CheckoutForm({ sessionData }: { sessionData: CreateCheckoutSessionInput
             <SquarePaymentForm sessionData={sessionData} onPaymentSuccess={handlePaymentSuccess} setParentProcessing={setIsProcessing} />
           )}
           {sessionData.processor === 'Zelle' && (
-            <div className="space-y-6 text-center">
-              <div>
+             <div className="space-y-4">
+              <div className="space-y-1">
                 <p className="text-sm text-muted-foreground">Send payment to:</p>
-                <div className="flex items-center justify-center gap-2">
-                    <p className="text-2xl lg:text-3xl font-semibold text-primary break-all">{sessionData.paymentDetails?.accountEmail}</p>
-                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleCopy(sessionData.paymentDetails?.accountEmail || '', 'Account Email')}>
-                        <Copy className="h-5 w-5" />
+               <div className="relative flex items-center">
+                    <div className="flex-1 text-lg font-semibold text-primary break-all border border-input rounded-md px-3 py-2 pr-10">
+                        {sessionData.paymentDetails?.accountEmail}
+                    </div>
+                    <Button variant="ghost" size="icon" className="absolute right-1 top-1 h-8 w-8" onClick={() => handleCopy(sessionData.paymentDetails?.accountEmail || '', 'Account Email')}>
+                        {/* <Copy className="h-4 w-4" /> */} Copy
                     </Button>
                 </div>
               </div>
@@ -420,21 +426,22 @@ function CheckoutForm({ sessionData }: { sessionData: CreateCheckoutSessionInput
                   <Image src={qrCodeUrl} alt="Zelle QR Code" width={200} height={200} className="rounded-lg border shadow-sm" />
                 </div>
               )} */}
-              <div>
-               <p className="text-lg text-muted-foreground">Memo</p>
-                 <div className="flex items-center justify-center gap-2">
-                    <p className="text-2xl lg:text-3xl font-bold text-primary break-all">{visualOrderId}</p>
-                     <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleCopy(visualOrderId || '', 'Order ID')}>
-                        <Copy className="h-5 w-5" />
+               <div className="space-y-1">
+                <p className="text-sm text-muted-foreground">Memo for zelle - write order number only</p>
+                <div className="relative flex items-center">
+                    <div className="flex-1 text-lg font-bold text-primary break-all border border-input rounded-md px-3 py-2 pr-10">
+                        {visualOrderId}
+                    </div>
+                     <Button variant="ghost" size="icon" className="absolute right-1 top-1 h-8 w-8" onClick={() => handleCopy(visualOrderId || '', 'Order ID')}>
+                        {/* <Copy className="h-4 w-4" /> */} Copy
                     </Button>
                 </div>
               </div>
-              <Alert>
-                {/* <AlertTitle>Important!</AlertTitle> */}
+              {/* <Alert>
                 <AlertDescription>
                   Memo for zelle- Memo write order number only.                
                 </AlertDescription>
-              </Alert>
+              </Alert> */}
               <Button onClick={handleZelleConfirmation} className="w-full" disabled={isProcessing}>
                 {isProcessing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                 I Have Sent The Zelle Payment
@@ -459,14 +466,31 @@ function CheckoutForm({ sessionData }: { sessionData: CreateCheckoutSessionInput
           </div>
           <Separator />
           <div className="space-y-1 text-sm">
-            <div className="flex justify-between">
-              <p>Subtotal</p>
-              <p>${orderAmount.toFixed(2)}</p>
-            </div>
-            <div className="flex justify-between">
-              <p>Shipping & Taxes</p>
-              <p>${(totalAmount - orderAmount).toFixed(2)}</p>
-            </div>
+              {typeof subtotal === 'number'  && (
+                <div className="flex justify-between">
+                    <p>Subtotal</p>
+                    <p>${subtotal.toFixed(2)}</p>
+                </div>
+             )}
+             {typeof discountAmount === 'number' && (
+                <div className="flex justify-between text-green-600">
+                    <p>Discount</p>
+                    <p>-${discountAmount.toFixed(2)}</p>
+                </div>
+            )}
+            {typeof shippingAmount === 'number' && (
+                <div className="flex justify-between">
+                    <p>Shipping</p>
+                    <p>${shippingAmount.toFixed(2)}</p>
+                </div>
+            )}
+            {typeof taxAmount === 'number' && (
+                 <div className="flex justify-between">
+                    <p>Tax</p>
+                    <p>${taxAmount.toFixed(2)}</p>
+                </div>
+            )}
+            <Separator className="my-2"/>
             <div className="flex justify-between font-bold text-base">
               <p>Total</p>
               <p>${totalAmount.toFixed(2)}</p>
@@ -491,6 +515,7 @@ function CheckoutForm({ sessionData }: { sessionData: CreateCheckoutSessionInput
 function CheckoutPage() {
   const searchParams = useSearchParams();
   const sessionToken = searchParams.get('session');
+  const displayMode = searchParams.get('display');
   const [sessionData, setSessionData] = useState<CreateCheckoutSessionInput | null>(null);
 
   useEffect(() => {
@@ -506,11 +531,29 @@ function CheckoutPage() {
     }
   }, [sessionToken]);
 
+  const isModal = displayMode === 'modal';
+
   return (
-    <div className="min-h-screen bg-background flex flex-col items-center justify-center p-4">
+     <div className={cn(
+        "min-h-screen flex flex-col items-center justify-center p-4",
+        isModal ? "bg-transparent" : "bg-background"
+      )}>
       <div className="w-full max-w-5xl mx-auto">
-        <div className="mb-8 text-center">
-          <Logo className="h-10 w-auto mx-auto text-primary" />
+         <div className="mb-8 flex flex-col sm:flex-row items-center justify-start gap-4 text-center">
+                <Logo className="h-12 w-auto text-primary" />
+                 
+                {sessionData?.merchantLogoUrl && (
+                  <>
+                    <Separator orientation="vertical" className="h-10 hidden sm:block" />
+                    <img 
+                      src={sessionData.merchantLogoUrl} 
+                      alt="Merchant Logo" 
+                      width={150}
+                      height={50}
+                      className="object-contain max-h-12"
+                    />
+                  </>
+                )}
         </div>
         {sessionData ? <CheckoutForm sessionData={sessionData} /> : (
           <Card className="w-full max-w-md mx-auto">
