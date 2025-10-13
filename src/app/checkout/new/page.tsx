@@ -386,17 +386,17 @@ function CheckoutForm({ sessionData }: { sessionData: CreateCheckoutSessionInput
     }
   }
 
-   const { visualOrderId, totalAmount, subtotal, taxAmount, shippingAmount, discountAmount, billingDetails, items } = sessionData;
+   const { shopName,visualOrderId, totalAmount, subtotal, taxAmount, shippingAmount, discountAmount, billingDetails, items } = sessionData;
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 w-full">
       <Card className="w-full">
         <CardHeader>
           <CardTitle className="flex items-center justify-between">
-            <span>Payment Details</span>
+            <span>{shopName ?? "Payment Details"}</span>
             <Button variant="ghost" size="icon" onClick={handleClose}><X className="h-4 w-4" /></Button>
           </CardTitle>
           <CardDescription>
-            Complete your secure payment for transaction <span className="font-semibold text-foreground">{visualOrderId}</span>.
+            Complete your secure payment for order <span className="font-semibold text-foreground">{visualOrderId}</span>.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -416,8 +416,8 @@ function CheckoutForm({ sessionData }: { sessionData: CreateCheckoutSessionInput
                     <div className="flex-1 text-lg font-semibold text-primary break-all border border-input rounded-md px-3 py-2 pr-10">
                         {sessionData.paymentDetails?.accountEmail}
                     </div>
-                    <Button variant="ghost" size="icon" className="absolute right-1 top-1 h-8 w-8" onClick={() => handleCopy(sessionData.paymentDetails?.accountEmail || '', 'Account Email')}>
-                        {/* <Copy className="h-4 w-4" /> */} Copy
+                     <Button type="button" variant="ghost" size="sm" className="absolute right-1 top-1 h-8 px-2 hover:bg-blue-300 active:bg-blue-400" onClick={() => handleCopy(sessionData.paymentDetails?.accountEmail || '', 'Account Email')}>
+                        Copy
                     </Button>
                 </div>
               </div>
@@ -432,8 +432,8 @@ function CheckoutForm({ sessionData }: { sessionData: CreateCheckoutSessionInput
                     <div className="flex-1 text-lg font-bold text-primary break-all border border-input rounded-md px-3 py-2 pr-10">
                         {visualOrderId}
                     </div>
-                     <Button variant="ghost" size="icon" className="absolute right-1 top-1 h-8 w-8" onClick={() => handleCopy(visualOrderId || '', 'Order ID')}>
-                        {/* <Copy className="h-4 w-4" /> */} Copy
+                     <Button type="button" variant="ghost" size="sm" className="absolute right-1 top-1 h-8 px-2 hover:bg-blue-300 active:bg-blue-400" onClick={() => handleCopy(sessionData.paymentDetails?.accountEmail || '', 'Account Email')}>
+                        Copy
                     </Button>
                 </div>
               </div>
@@ -472,7 +472,7 @@ function CheckoutForm({ sessionData }: { sessionData: CreateCheckoutSessionInput
                     <p>${subtotal.toFixed(2)}</p>
                 </div>
              )}
-             {typeof discountAmount === 'number' && (
+             {typeof discountAmount === 'number' && discountAmount > 0 && (
                 <div className="flex justify-between text-green-600">
                     <p>Discount</p>
                     <p>-${discountAmount.toFixed(2)}</p>

@@ -55,6 +55,7 @@ export const CreateCheckoutSessionInputSchema = z.object({
   paymentDetails: PaymentDetailsSchema.optional().describe('Details specific to the payment processor account.'),
   currency: z.string().optional().describe('The currency of the transaction.'),
   merchantLogoUrl: z.string().url().optional().nullable().describe("The URL of the merchant's logo to display on checkout."),
+  shopName: z.string().optional().describe("The name of the merchant's shop."),
 });
 
 // Schema for the transaction notification action

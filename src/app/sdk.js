@@ -6,7 +6,7 @@
 
     let iframe = null;
     let overlay = null;
-    const COMFORTPAY_HUB_URL = 'http://localhost:3000';
+    const COMFORTPAY_HUB_URL = 'https://portal.comfortpay.me';
 
     function close() {
         if (iframe && document.body.contains(iframe)) {
@@ -54,7 +54,7 @@
         
         iframe = document.createElement('iframe');
         iframe.src = `${COMFORTPAY_HUB_URL}/checkout/new?session=${options.sessionToken}&display=modal`;
-        iframe.style.cssText = 'position:fixed; top:50%; left:50%; transform:translate(-50%, -50%); width:100%; max-width:920px; height:90%; max-height:720px; border:none; border-radius:8px; box-shadow:0 10px 25px rgba(0,0,0,0.2); z-index:2147483647;';
+        iframe.style.cssText = 'position:fixed; top:50%; left:50%; transform:translate(-50%, -50%); width:90%; max-width:820px; height:90%; max-height:720px; border:none; border-radius:8px; box-shadow:0 10px 25px rgba(0,0,0,0.2); z-index:2147483647;';
         iframe.allow = "payment; clipboard-write";// This is the critical fix for the permissions policy violation
         
         document.body.appendChild(iframe);
