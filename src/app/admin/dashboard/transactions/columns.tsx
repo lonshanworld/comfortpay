@@ -136,19 +136,6 @@ const ConfirmationPopover = ({ transaction, onConfirmPayment, isConfirming }: { 
 
 
 export const columns = ({ onView, onEdit, onConfirmPayment, isConfirmingId }: TransactionColumnsProps): ColumnDef<Order>[] => [
-    {
-    accessorKey: "orderDate",
-    header: "Order Date",
-    cell: ({ row }) =>{
-      console.log("Order Date Cell:", JSON.stringify(row));  
-      return  formatDate(row.original.orderDate);
-    }
-  },
-  {
-    accessorKey: "id",
-    header: "ComfortPay ID",
-    cell: ({ row }) => <div className="font-mono">{row.getValue("id")}</div>,
-  },
    {
     accessorKey: "merchantId",
     header: "Merchant ID",
@@ -167,6 +154,20 @@ export const columns = ({ onView, onEdit, onConfirmPayment, isConfirmingId }: Tr
         return `user_${numericId}`;
     }
   },
+  {
+    accessorKey: "orderDate",
+    header: "Order Date",
+    cell: ({ row }) =>{
+      console.log("Order Date Cell:", JSON.stringify(row));  
+      return  formatDate(row.original.orderDate);
+    }
+  },
+  {
+    accessorKey: "id",
+    header: "ComfortPay ID",
+    cell: ({ row }) => <div className="font-mono">{row.getValue("id")}</div>,
+  },
+  
   // {
   //   accessorKey: "merchantName",
   //   header: "Merchant Name",

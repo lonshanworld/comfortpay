@@ -36,6 +36,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { DateRangePicker } from "@/components/ui/date-range-picker"
 import type { DateRange } from "react-day-picker"
 import { notifyWooCommerce } from "@/app/actions/notify-woocommerce"
+import { confirmOrderPayment } from "@/app/actions/confirm-order-payment"
 
 // Helper to download files on the client side
 const downloadFile = (content: string, fileName: string, contentType: string) => {
@@ -184,85 +185,25 @@ export default function TransactionsPage() {
   }
 
   const handleConfirmPayment = async (transaction: Order, amount: number) => {
-    console.log("--- Starting Manual Payment Confirmation ---");
-    console.log(`Transaction to confirm: ${transaction.id}, Amount: ${amount}`);
+   
     setIsConfirming(transaction.id);
 
-    try {
-      // Determine the new status and the total paid amount
-      const newPaidAmount = (Number(transaction.paidAmount) || 0) + amount;
-      const isFullyPaid = newPaidAmount >= (transaction.totalAmount - 3);
-      const newStatus: OrderStatus = isFullyPaid ? 'Completed' : 'Partially Paid';
+     const result = await confirmOrderPayment({ order: transaction, amountReceived: amount });
 
-      console.log(`Step 1: Updating order. New Status: ${newStatus}, New Paid Amount: ${newPaidAmount}`);
-
-      const response = await fetch(`/api/orders/${transaction.id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          status: newStatus, 
-          paidAmount: newPaidAmount,
-          paymentReceivedDate: new Date().toISOString() // Update payment date on each confirmation
-        }),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        console.error("Error on Step 1:", errorData);
-        throw new Error('Failed to update order status');
-      }
-        
-      const updatedTransaction = await response.json();
-      console.log("Step 1 successful. API returned updated transaction:", updatedTransaction);
-
-      // Only update payment account volume if the payment makes the order completed
-      if (isFullyPaid && updatedTransaction.paymentAccountId && typeof updatedTransaction.totalAmount !== 'undefined') {
-        console.log(`Step 2: Updating volume for Payment Account ID: ${updatedTransaction.paymentAccountId}`);
-        const numericAccountId = String(updatedTransaction.paymentAccountId).replace('pa_','');
-        const payload = { amount: Number(updatedTransaction.totalAmount) };
-        console.log("Payload for volume update:", payload);
-
-        const volumeResponse = await fetch(`/api/payments/accounts/${numericAccountId}/update-volume`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload),
-        });
-            
-        if (!volumeResponse.ok) {
-          const errorData = await volumeResponse.json();
-          console.error("Error on Step 2:", errorData);
-          // Don't throw error here, let the main flow complete
-          toast({ variant: "destructive", title: "Volume Update Failed", description: errorData.message || 'Failed to update payment account volume.'});
-        } else {
-          console.log("Step 2 successful: Volume updated.");
-        }
-      } else {
-        console.warn("Skipping volume update: Order is not fully paid or is missing data.");
-      }
-        
+    if (result.success) {
+      await fetchTransactions(appliedFilters, true);
       toast({
         title: "Payment Confirmed",
-        description: `Transaction ${transaction.id} has been marked as ${newStatus}.`
+        description: result.message
       });
-
-      console.log("Step 3: Refreshing transaction list.");
-      if(newStatus === 'Completed') {
-        await notifyWooCommerce(transaction, 'Completed')
-      }
-      await fetchTransactions(appliedFilters);
-      console.log("--- Manual Payment Confirmation Finished Successfully ---");
-
-    } catch (error: any) {
-        console.error("--- Manual Payment Confirmation FAILED ---");
-        console.error("Full error object:", error);
-        toast({
-            variant: 'destructive',
-            title: "Confirmation Failed",
-            description: error.message || `There was a problem confirming payment for transaction ${transaction.id}.`
-        });
-    } finally {
-        setIsConfirming(null);
+     } else {
+      toast({
+        variant: 'destructive',
+        title: "Confirmation Failed",
+        description: result.message
+      });
     }
+    setIsConfirming(null);
   }
 
 

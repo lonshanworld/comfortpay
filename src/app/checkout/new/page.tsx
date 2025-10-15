@@ -325,16 +325,20 @@ function CheckoutForm({ sessionData }: { sessionData: CreateCheckoutSessionInput
       const updatedOrder = await response.json();
       console.log("[CheckoutForm] Order status update result:", updatedOrder);
       
-      // Update payment account volume
-      if (updatedOrder.paymentAccountId && typeof sessionData.totalAmount !== 'undefined') {
-        console.log("[CheckoutForm] Updating payment account volume...");
-        const volumeResponse = await fetch(`/api/payments/accounts/${updatedOrder.paymentAccountId}/update-volume`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ amount: Number(sessionData.totalAmount) }),
-        });
-        console.log("[CheckoutForm] Volume update response status:", volumeResponse.status);
-      }
+      // // Update payment account volume
+      // if (status === 'Completed' && updatedOrder.paymentAccountId && typeof sessionData.totalAmount !== 'undefined') {
+      //   console.log("[CheckoutForm] Updating payment account volume for card transaction...");
+      //   const volumeResponse = await fetch(`/api/payments/accounts/${updatedOrder.paymentAccountId}/update-volume`, {
+      //     method: 'POST',
+      //     headers: { 'Content-Type': 'application/json' },
+      //     body: JSON.stringify({ amount: Number(sessionData.totalAmount) }),
+      //   });
+      //   if (!volumeResponse.ok) {
+      //       console.error("Failed to update payment account volume.");
+      //       // Non-fatal, so we don't throw an error here.
+      //   }
+      //   console.log("[CheckoutForm] Volume update response status:", volumeResponse.status);
+      // }
       
       return updatedOrder;
 
