@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 import { executeQuery, runQuery } from '@/lib/db';
 import { formatDateForMySQL } from '@/lib/utils';
 import type { Order } from '@/lib/types';
+import { notifyWooCommerce } from '@/app/actions/notify-woocommerce';
 
 export async function GET(
   request: Request,
@@ -32,6 +33,12 @@ export async function PUT(
   const body = await request.json();
 
   try {
+     const [currentOrder]: any[] = await executeQuery("SELECT * FROM orders WHERE id = ?", [numericId]);
+    if (!currentOrder) {
+      return NextResponse.json({ message: 'Order not found' }, { status: 404 });
+    }
+
+
     const validColumns = [
       'merchantId', 'merchantOrderId', 'visualOrderId', 'orderDate', 'paymentReceivedDate',
       'customerName', 'customerEmail', 'status', 'paymentMethod', 'orderAmount', 'totalAmount',
@@ -75,6 +82,18 @@ export async function PUT(
     queryParams.push(numericId);
     
     await runQuery(query, queryParams);
+
+    const newStatus = body.status;
+
+     if (newStatus === 'Completed') {
+        const updatedOrderResult: any[] = await executeQuery("SELECT * FROM orders WHERE id = ?", [numericId]);
+        if (updatedOrderResult.length > 0 && updatedOrderResult[0].wooCommerceSiteUrl) {
+            console.log(`[API Order PUT] Status is 'Completed'. Triggering WooCommerce notification for order ${id}.`);
+            const orderForNotification: Order = { ...updatedOrderResult[0], id: `CP${numericId}` };
+            await notifyWooCommerce(orderForNotification, 'Completed');
+        }
+    }
+
 
     // Fetch the fully updated order to return
     const finalOrderResult: any[] = await executeQuery("SELECT * FROM orders WHERE id = ?", [numericId]);

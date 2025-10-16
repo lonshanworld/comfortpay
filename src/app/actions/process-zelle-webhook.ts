@@ -13,6 +13,7 @@ import {
 } from '@/lib/schemas/zelle-email';
 import type { Order, OrderStatus } from '@/lib/types';
 import { notifyWooCommerce } from './notify-woocommerce';
+import { confirmOrderPayment } from './confirm-order-payment';
 
 
 export async function processZelleWebhook(
@@ -56,7 +57,7 @@ export async function processZelleWebhook(
   const amountLowerBound = money_amount - 3.0;
 
   console.log(`🔎 [Action processZelleWebhook] Searching for orders with criteria:`, {
-    status: ['Pending', 'Requires Confirmation'],
+    status: ['Pending', 'Requires Confirmation', 'Partially Paid', 'On-Hold'],
     paymentMethod: 'Zelle',
     timeRange: `${thirtyMinutesAgo} to ${thirtyMinutesFromNow}`,
     amountRange: `>= ${amountLowerBound}`,
@@ -64,10 +65,13 @@ export async function processZelleWebhook(
   });
 
   const potentialMatches: Order[] = await executeQuery(
-    `SELECT o.*, JSON_UNQUOTE(JSON_EXTRACT(o.billingDetails, '$.firstName')) as customerFirstName, JSON_UNQUOTE(JSON_EXTRACT(o.billingDetails, '$.lastName')) as customerLastName
+     `SELECT o.*, pa.accountEmail as paymentAccountEmail, u.name as merchantName, u.websiteUrl as merchantWebsiteUrl,
+            JSON_UNQUOTE(JSON_EXTRACT(o.billingDetails, '$.firstName')) as customerFirstName, 
+            JSON_UNQUOTE(JSON_EXTRACT(o.billingDetails, '$.lastName')) as customerLastName
              FROM orders o
              JOIN payment_accounts pa ON o.paymentAccountId = pa.id
-             WHERE o.status IN ('Pending', 'Requires Confirmation')
+              LEFT JOIN users u ON o.merchantId = u.id
+             WHERE o.status IN ('Pending', 'Requires Confirmation', 'Partially Paid', 'On-Hold')
                AND o.paymentMethod = 'Zelle'
                AND o.orderDate BETWEEN ? AND ?
                AND o.totalAmount >= ?
@@ -166,28 +170,24 @@ export async function processZelleWebhook(
   }
 
   if (finalMatch) {
-    const numericId = String(finalMatch.id).replace('CP','');
+  
+     // Use the new centralized action to confirm the payment
+    const result = await confirmOrderPayment({
+      order: { ...finalMatch, id: `CP${finalMatch.id}` },
+      amountReceived: money_amount,
+    });
 
-    const newPaidAmount = (Number(finalMatch.paidAmount) || 0) + money_amount;
-    const newStatus: OrderStatus = newPaidAmount >= finalMatch.totalAmount ? 'Completed' : 'Partially Paid';
-
-    console.log(
-      `✍️ [Action processZelleWebhook] Updating Order ID ${finalMatch.id}. New status: ${newStatus}, New paid amount: ${newPaidAmount}`
-    );
-    await runQuery(
-      `UPDATE orders SET status = ?, paidAmount = ?, paymentReceivedDate = ? WHERE id = ?`,
-      [newStatus, newPaidAmount, new Date().toISOString().slice(0, 19).replace('T', ' '), finalMatch.id]
-    );
-
-      if (newStatus === 'Completed') {
-      // Don't wait for this to finish, let it run in the background
-      await notifyWooCommerce(finalMatch, newStatus);
+    if (result.success) {
+      return {
+        status: 'success',
+        message: `Order ${finalMatch.id} updated to '${result.newStatus}'.`,
+      };
+    } else {
+      return {
+        status: 'update_failed',
+        reason: result.message,
+      };
     }
-
-    return {
-      status: 'success',
-      message: `Order ${finalMatch.id} updated to '${newStatus}'.`,
-    };
   } else {
     console.warn("🤷 [Action processZelleWebhook] No single, confident match found. No action taken.");
     return {

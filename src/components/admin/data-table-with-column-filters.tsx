@@ -80,6 +80,9 @@ export function DataTableWithColumnFilters<TData, TValue>({
         pagination: {
             pageSize: 75,
         },
+        columnVisibility : {
+          id : false,
+        }
     }
   })
 

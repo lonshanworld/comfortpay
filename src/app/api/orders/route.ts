@@ -114,8 +114,8 @@ export async function GET(request: Request) {
                 case 'paymentType':
                 case 'paymentGatewayTransactionId':
                 case 'wooCommerceSiteUrl':
-                    query += ` AND o.${key} LIKE ?`;
-                    params.push(`%${value}%`);
+                    query += " AND o.wooCommerceSiteUrl LIKE ?";
+                    params.push(`%${decodeURIComponent(value)}%`);
                     break;
                 case 'paymentAccountId':
                     query += ` AND o.paymentAccountId = ?`;
