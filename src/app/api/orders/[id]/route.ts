@@ -4,6 +4,7 @@ import { executeQuery, runQuery } from '@/lib/db';
 import { formatDateForMySQL } from '@/lib/utils';
 import type { Order } from '@/lib/types';
 import { notifyWooCommerce } from '@/app/actions/notify-woocommerce';
+import { confirmOrderPayment } from '@/app/actions/confirm-order-payment';
 
 export async function GET(
   request: Request,
@@ -33,67 +34,73 @@ export async function PUT(
   const body = await request.json();
 
   try {
-     const [currentOrder]: any[] = await executeQuery("SELECT * FROM orders WHERE id = ?", [numericId]);
+    const [currentOrder]: any[] = await executeQuery("SELECT * FROM orders WHERE id = ?", [numericId]);
     if (!currentOrder) {
       return NextResponse.json({ message: 'Order not found' }, { status: 404 });
     }
 
+    const wasCompleted = currentOrder.status === 'Completed';
+    const isNowBeingCompleted = body.status === 'Completed';
 
-    const validColumns = [
-      'merchantId', 'merchantOrderId', 'visualOrderId', 'orderDate', 'paymentReceivedDate',
-      'customerName', 'customerEmail', 'status', 'paymentMethod', 'orderAmount', 'totalAmount',
-      'paidAmount', 'currency', 'paymentType', 'paymentGatewayTransactionId', 'billingDetails'
-    ];
-
-    const fieldsToUpdate: string[] = [];
-    const queryParams: any[] = [];
-
-    for (const key of validColumns) {
-      if (Object.prototype.hasOwnProperty.call(body, key)) {
-        let value = body[key];
+    // If the order is being manually marked as 'Completed' for the first time
+    if (isNowBeingCompleted && !wasCompleted) {
+        console.log(`[API Order PUT] Manual status change to 'Completed' detected for order ${id}.`);
         
-        // Fix: Strip the 'user_' prefix from merchantId if it exists
-        if (key === 'merchantId' && typeof value === 'string' && value.startsWith('user_')) {
-          value = value.split('_')[1];
+        // The amount received is the difference between the total and what was already paid.
+        const amountReceived = Math.max(0, currentOrder.totalAmount - currentOrder.paidAmount);
+
+        // Use the centralized action to ensure all logic (volume update, etc.) is run.
+        const result = await confirmOrderPayment({
+            order: { ...currentOrder, id: `CP${numericId}` },
+            amountReceived: amountReceived
+        });
+
+        if (!result.success) {
+            throw new Error(`Failed to confirm payment via action: ${result.message}`);
         }
         
-        if (key === 'orderDate' || key === 'paymentReceivedDate') {
-          value = value ? formatDateForMySQL(new Date(value)) : null;
-        } else if (typeof value === 'object' && value !== null) {
-          value = JSON.stringify(value);
-        } else if (value === undefined || value === '') {
-           value = null;
+    } else {
+        // For all other status updates, or if it was already complete, just update the fields.
+        const validColumns = [
+          'merchantId', 'merchantOrderId', 'visualOrderId', 'orderDate', 'paymentReceivedDate',
+          'customerName', 'customerEmail', 'status', 'paymentMethod', 'orderAmount', 'totalAmount',
+          'paidAmount', 'currency', 'paymentType', 'paymentGatewayTransactionId', 'billingDetails'
+        ];
+
+        const fieldsToUpdate: string[] = [];
+        const queryParams: any[] = [];
+
+        for (const key of validColumns) {
+          if (Object.prototype.hasOwnProperty.call(body, key)) {
+            let value = body[key];
+            
+            if (key === 'merchantId' && typeof value === 'string' && value.startsWith('user_')) {
+              value = value.split('_')[1];
+            }
+            
+            if (key === 'orderDate' || key === 'paymentReceivedDate') {
+              value = value ? formatDateForMySQL(new Date(value)) : null;
+            } else if (typeof value === 'object' && value !== null) {
+              value = JSON.stringify(value);
+            } else if (value === undefined || value === '') {
+               value = null;
+            }
+            
+            fieldsToUpdate.push(`${key} = ?`);
+            queryParams.push(value);
+          }
         }
-        
-        fieldsToUpdate.push(`${key} = ?`);
-        queryParams.push(value);
-      }
-    }
 
-    if (fieldsToUpdate.length === 0) {
-      return NextResponse.json({ message: "No valid fields to update." }, { status: 400 });
-    }
-
-    const query = `
-      UPDATE orders SET
-      ${fieldsToUpdate.join(', ')}
-      WHERE id = ?
-    `;
-    queryParams.push(numericId);
-    
-    await runQuery(query, queryParams);
-
-    const newStatus = body.status;
-
-     if (newStatus === 'Completed') {
-        const updatedOrderResult: any[] = await executeQuery("SELECT * FROM orders WHERE id = ?", [numericId]);
-        if (updatedOrderResult.length > 0 && updatedOrderResult[0].wooCommerceSiteUrl) {
-            console.log(`[API Order PUT] Status is 'Completed'. Triggering WooCommerce notification for order ${id}.`);
-            const orderForNotification: Order = { ...updatedOrderResult[0], id: `CP${numericId}` };
-            await notifyWooCommerce(orderForNotification, 'Completed');
+        if (fieldsToUpdate.length > 0) {
+            const query = `
+              UPDATE orders SET
+              ${fieldsToUpdate.join(', ')}
+              WHERE id = ?
+            `;
+            queryParams.push(numericId);
+            await runQuery(query, queryParams);
         }
     }
-
 
     // Fetch the fully updated order to return
     const finalOrderResult: any[] = await executeQuery("SELECT * FROM orders WHERE id = ?", [numericId]);
