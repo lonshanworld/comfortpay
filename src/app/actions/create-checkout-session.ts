@@ -136,20 +136,25 @@ export async function createCheckoutSession(input: CreateCheckoutSessionInput): 
     const orderAmount = (input.items || []).reduce((acc, item) => acc + (item.price * item.quantity), 0);
     const now = new Date();
 
-    const initialStatus = input.paymentMethod === 'zelle' ? 'On-Hold' : 'Pending';
-
      const wooSiteUrl = input.wooCommerceOrderReceivedUrl 
         ? new URL(input.wooCommerceOrderReceivedUrl).origin
         : null;
 
+    const initialStatus = input.paymentMethod === 'zelle' ? 'On-Hold' : 'Pending';
+
     const orderInsertQuery = `
       INSERT INTO orders 
       (merchantId, merchantOrderId, visualOrderId, orderDate, customerName, customerEmail, status, paymentMethod, subtotal, taxAmount, shippingAmount, discountAmount, totalAmount, paidAmount, currency, paymentType, paymentAccountId, items, billingDetails, wooCommerceSiteUrl, orderAmount) 
-      VALUES (?, ?, ?, ?, ?, ?, ${initialStatus}, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?)
     `;
     const orderParams = [
-        numericMerchantId, input.merchantOrderId, visualId, formatDateForMySQL(now),
-        `${input.billingDetails.firstName} ${input.billingDetails.lastName}`, input.billingDetails.email,
+        numericMerchantId,
+        input.merchantOrderId, 
+        visualId, 
+        formatDateForMySQL(now),
+        `${input.billingDetails.firstName} ${input.billingDetails.lastName}`, 
+        input.billingDetails.email,
+        initialStatus,
         input.paymentMethod === 'card' ? 'Credit Card' : 'Zelle',
         input.subtotal ?? 0,
         input.taxAmount ?? 0,
