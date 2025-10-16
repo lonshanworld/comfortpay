@@ -196,6 +196,7 @@ export function EditOrderDialog({ open, onOpenChange, onOrderUpdated, order: tra
                         <SelectContent>
                           <SelectItem value="Pending">Pending</SelectItem>
                           <SelectItem value="Completed">Completed</SelectItem>
+                           <SelectItem value="On-Hold">On-Hold</SelectItem>
                           <SelectItem value="Failed">Failed</SelectItem>
                           <SelectItem value="Requires Confirmation">Requires Confirmation</SelectItem>
                           <SelectItem value="Partially Paid">Partially Paid</SelectItem>

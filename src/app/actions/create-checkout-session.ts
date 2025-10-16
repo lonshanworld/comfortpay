@@ -136,6 +136,8 @@ export async function createCheckoutSession(input: CreateCheckoutSessionInput): 
     const orderAmount = (input.items || []).reduce((acc, item) => acc + (item.price * item.quantity), 0);
     const now = new Date();
 
+    const initialStatus = input.paymentMethod === 'zelle' ? 'On-Hold' : 'Pending';
+
      const wooSiteUrl = input.wooCommerceOrderReceivedUrl 
         ? new URL(input.wooCommerceOrderReceivedUrl).origin
         : null;
@@ -143,7 +145,7 @@ export async function createCheckoutSession(input: CreateCheckoutSessionInput): 
     const orderInsertQuery = `
       INSERT INTO orders 
       (merchantId, merchantOrderId, visualOrderId, orderDate, customerName, customerEmail, status, paymentMethod, subtotal, taxAmount, shippingAmount, discountAmount, totalAmount, paidAmount, currency, paymentType, paymentAccountId, items, billingDetails, wooCommerceSiteUrl, orderAmount) 
-      VALUES (?, ?, ?, ?, ?, ?, 'Pending', ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ${initialStatus}, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?)
     `;
     const orderParams = [
         numericMerchantId, input.merchantOrderId, visualId, formatDateForMySQL(now),

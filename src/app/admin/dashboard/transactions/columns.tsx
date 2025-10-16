@@ -29,6 +29,8 @@ const getStatusVariant = (status: OrderStatus) => {
       return 'outline';
     case 'Partially Paid':
         return 'warning'
+    case 'On-Hold':
+      return 'secondary';
     case 'Requires Confirmation':
       return 'info';
     case 'Failed':
