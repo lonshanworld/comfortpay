@@ -57,7 +57,7 @@ export async function processZelleWebhook(
   const amountLowerBound = money_amount - 3.0;
 
   console.log(`🔎 [Action processZelleWebhook] Searching for orders with criteria:`, {
-    status: ['Pending', 'Requires Confirmation', 'Partially Paid'],
+    status: ['Pending', 'Requires Confirmation', 'Partially Paid', 'On-Hold'],
     paymentMethod: 'Zelle',
     timeRange: `${thirtyMinutesAgo} to ${thirtyMinutesFromNow}`,
     amountRange: `>= ${amountLowerBound}`,
@@ -71,7 +71,7 @@ export async function processZelleWebhook(
              FROM orders o
              JOIN payment_accounts pa ON o.paymentAccountId = pa.id
               LEFT JOIN users u ON o.merchantId = u.id
-             WHERE o.status IN ('Pending', 'Requires Confirmation', 'Partially Paid')
+             WHERE o.status IN ('Pending', 'Requires Confirmation', 'Partially Paid', 'On-Hold')
                AND o.paymentMethod = 'Zelle'
                AND o.orderDate BETWEEN ? AND ?
                AND o.totalAmount >= ?
