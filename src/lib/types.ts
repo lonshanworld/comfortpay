@@ -142,8 +142,8 @@ export interface PaymentAccount {
   type: PaymentAccountType;
   name: string;
   status: "Active" | "Inactive";
-  dailyLimit: number;
-  currentVolume: number;
+  dailyLimit: any;
+  currentVolume: any;
   prefix_order_name?: string;
   websiteUrl: string;
   accountEmail?: string; // For Zelle

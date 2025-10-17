@@ -19,6 +19,8 @@ import {
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import type { Order, OrderStatus } from "@/lib/types"
 import Link from "next/link"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+
 
 const getStatusVariant = (status: OrderStatus) => {
   switch (status) {
@@ -53,7 +55,9 @@ type TransactionColumnsProps = {
   onView: (transaction: Order) => void;
   onEdit: (transaction: Order) => void;
   onConfirmPayment: (transaction: Order, paidAmount: number) => void;
+  onStatusChange: (transaction: Order, newStatus: OrderStatus) => void;
   isConfirmingId: string | null;
+  isUpdatingStatusId: string | null;
 };
 
 const formatCurrency = (amount: number, currency: string) => {
@@ -79,26 +83,30 @@ const formatDate = (dateString: string | undefined | null) => {
 const ConfirmationPopover = ({ transaction, onConfirmPayment, isConfirming }: { transaction: Order, onConfirmPayment: (transaction: Order, paidAmount: number) => void, isConfirming: boolean}) => {
     const [amount, setAmount] = React.useState<string>('');
 
-    const getTitle = () => {
-        if (transaction.status === 'Partially Paid') return "Confirm Additional Payment";
-        return "Confirm Payment";
-    }
+    // const getTitle = () => {
+    //     if (transaction.status === 'Partially Paid') return "Confirm Additional Payment";
+    //     return "Confirm Payment";
+    // }
 
     const getRemaining = () => transaction.totalAmount - transaction.paidAmount;
 
     return (
         <Popover>
             <PopoverTrigger asChild>
-              <Button variant="default" size="sm" className="h-auto py-0.5 px-2.5 text-xs">
+              <Button variant="link" size="sm" className="h-auto p-0">
                 {isConfirming ? (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 ) : null}
-                {transaction.status}
+                  <Badge variant={getStatusVariant(transaction.status)} className="cursor-pointer hover:opacity-80">
+                        {transaction.status}
+                    </Badge>
               </Button>
             </PopoverTrigger>
             <PopoverContent className="w-auto p-4 space-y-4">
                 <div className="space-y-1">
-                    <p className="text-sm font-medium">{getTitle()}</p>
+                     <p className="text-sm font-medium">
+                        {transaction.status === 'Partially Paid' ? "Confirm Additional Payment" : "Confirm Payment"}
+                    </p>
                     <p className="text-xs text-muted-foreground">
                         Order Total: {formatCurrency(transaction.totalAmount, transaction.currency)}
                     </p>
@@ -137,7 +145,35 @@ const ConfirmationPopover = ({ transaction, onConfirmPayment, isConfirming }: { 
 }
 
 
-export const columns = ({ onView, onEdit, onConfirmPayment, isConfirmingId }: TransactionColumnsProps): ColumnDef<Order>[] => [
+const StatusDropdown = ({ transaction, onStatusChange, isUpdating }: { transaction: Order, onStatusChange: (transaction: Order, newStatus: OrderStatus) => void, isUpdating: boolean}) => {
+    const statuses: OrderStatus[] = ["Pending","On-Hold", "Completed", "Failed", "Requires Confirmation", "Partially Paid", "Refunded", "Reconciled"];
+    return (
+        <div className="flex items-center gap-2">
+            {isUpdating && <Loader2 className="h-4 w-4 animate-spin" />}
+            <Select 
+                value={transaction.status} 
+                onValueChange={(newStatus: OrderStatus) => onStatusChange(transaction, newStatus)}
+                disabled={isUpdating}
+            >
+                <SelectTrigger className="h-8 w-[150px] border-none bg-transparent shadow-none focus:ring-0 focus:ring-offset-0">
+                    <SelectValue>
+                        <Badge variant={getStatusVariant(transaction.status)}>{transaction.status}</Badge>
+                    </SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                    {statuses.map(s => (
+                        <SelectItem key={s} value={s}>
+                            {s}
+                        </SelectItem>
+                    ))}
+                </SelectContent>
+            </Select>
+        </div>
+    )
+}
+
+
+export const columns = ({ onView, onEdit, onConfirmPayment, onStatusChange, isConfirmingId, isUpdatingStatusId }: TransactionColumnsProps): ColumnDef<Order>[] => [
    {
     accessorKey: "merchantId",
     header: "Merchant ID",
@@ -216,13 +252,14 @@ export const columns = ({ onView, onEdit, onConfirmPayment, isConfirmingId }: Tr
       const transaction = row.original;
       const status = transaction.status;
       const isConfirming = isConfirmingId === transaction.id;
+      const isUpdating = isUpdatingStatusId === transaction.id;
 
-      if (status === 'Requires Confirmation' || status === 'Partially Paid') {
+      if (status === 'Requires Confirmation' || status === 'Partially Paid' || status === 'On-Hold') {
         return (
           <ConfirmationPopover transaction={transaction} onConfirmPayment={onConfirmPayment} isConfirming={isConfirming} />
         );
       }
-      return <Badge variant={getStatusVariant(status)}>{status}</Badge>
+       return <StatusDropdown transaction={transaction} onStatusChange={onStatusChange} isUpdating={isUpdating} />;
     }
   },
    {
@@ -274,10 +311,10 @@ export const columns = ({ onView, onEdit, onConfirmPayment, isConfirmingId }: Tr
     header: "Paid Amount",
     cell: ({ row }) => formatCurrency(row.original.paidAmount, row.original.currency)
   },
-  {
-    accessorKey: "paymentMethod",
-    header: "Payment Method",
-  },
+  // {
+  //   accessorKey: "paymentMethod",
+  //   header: "Payment Method",
+  // },
   {
     accessorKey: "paymentType",
     header: "Processor",

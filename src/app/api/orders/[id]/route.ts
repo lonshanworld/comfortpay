@@ -64,17 +64,53 @@ export async function PUT(
         const validColumns = [
           'merchantId', 'merchantOrderId', 'visualOrderId', 'orderDate', 'paymentReceivedDate',
           'customerName', 'customerEmail', 'status', 'paymentMethod', 'orderAmount', 'totalAmount',
-          'paidAmount', 'currency', 'paymentType', 'paymentGatewayTransactionId', 'billingDetails'
+          'paidAmount', 'currency', 'paymentType', 'paymentGatewayTransactionId', 'billingDetails',
+          'paymentAccountId'
         ];
 
         const fieldsToUpdate: string[] = [];
         const queryParams: any[] = [];
+
+        const newPaymentAccountId = body.paymentAccountId ? String(body.paymentAccountId).replace('pa_', '') : null;
+        const oldPaymentAccountId = currentOrder.paymentAccountId;
+
+        // Check if the payment account has been changed
+        if ('paymentAccountId' in body && newPaymentAccountId != oldPaymentAccountId && oldPaymentAccountId && currentOrder.status === 'Completed') {
+            console.log(`[API Order PUT] Reassigning completed order ${id} from account ${oldPaymentAccountId} to ${newPaymentAccountId}.`);
+            
+            await runQuery('START TRANSACTION');
+            try {
+                 // Decrement volume from the old account
+                await runQuery(
+                    'UPDATE payment_accounts SET currentVolume = currentVolume - ? WHERE id = ?',
+                    [currentOrder.totalAmount, oldPaymentAccountId]
+                );
+
+                // Increment volume on the new account
+                 await runQuery(
+                    'UPDATE payment_accounts SET currentVolume = currentVolume + ? WHERE id = ?',
+                    [currentOrder.totalAmount, newPaymentAccountId]
+                );
+                
+                await runQuery('COMMIT');
+                console.log(`[API Order PUT] Volume transferred successfully.`);
+
+            } catch (error) {
+                await runQuery('ROLLBACK');
+                console.error(`[API Order PUT] Error during volume transfer, transaction rolled back.`, error);
+                throw new Error("Failed to transfer payment volume between accounts.");
+            }
+        }
 
         for (const key of validColumns) {
           if (Object.prototype.hasOwnProperty.call(body, key)) {
             let value = body[key];
             
             if (key === 'merchantId' && typeof value === 'string' && value.startsWith('user_')) {
+              value = value.split('_')[1];
+            }
+
+             if (key === 'paymentAccountId' && typeof value === 'string' && value.startsWith('pa_')) {
               value = value.split('_')[1];
             }
             
