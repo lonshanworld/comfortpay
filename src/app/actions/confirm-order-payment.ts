@@ -38,7 +38,7 @@ export async function confirmOrderPayment({ order, amountReceived }: ConfirmPaym
         const newPaidAmount = (Number(currentOrder.paidAmount) || 0) + amountReceived;
         
         // Use a small tolerance for floating point comparisons
-        const isFullyPaid = Math.abs(newPaidAmount - currentOrder.totalAmount) < 0.01;
+        const isFullyPaid = Math.abs(newPaidAmount - currentOrder.totalAmount) < 3.00;
         const newStatus: OrderStatus = isFullyPaid ? 'Completed' : 'Partially Paid';
         
         console.log(`   - Step 1: Updating order. New Status: ${newStatus}, New Paid Amount: ${newPaidAmount}`);
@@ -72,12 +72,14 @@ export async function confirmOrderPayment({ order, amountReceived }: ConfirmPaym
                 await notifyWooCommerce(completeOrderForNotification, 'Completed');
                 console.log(`   - Step 3 Succeeded.`);
             }
-        } else if (newStatus === 'Partially Paid' && currentOrder.wooCommerceSiteUrl) {
-            console.log(`   - Step 3: Triggering WooCommerce 'Partially Paid' notification.`);
-            const partialOrderForNotification = { ...currentOrder, id: order.id, status: newStatus };
-            await notifyWooCommerce(partialOrderForNotification, 'Partially Paid');
-            console.log(`   - Step 3 Succeeded.`);
-        } else {
+        }
+        //  else if (newStatus === 'Partially Paid' && currentOrder.wooCommerceSiteUrl) {
+        //     console.log(`   - Step 3: Triggering WooCommerce 'Partially Paid' notification.`);
+        //     const partialOrderForNotification = { ...currentOrder, id: order.id, status: newStatus };
+        //     await notifyWooCommerce(partialOrderForNotification, 'Partially Paid');
+        //     console.log(`   - Step 3 Succeeded.`);
+        // }
+         else {
              console.log(`   - Steps 2 & 3 Skipped or not applicable.`);
         }
         

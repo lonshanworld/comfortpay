@@ -82,6 +82,7 @@ export function DataTableWithColumnFilters<TData, TValue>({
         },
         columnVisibility : {
           id : false,
+          paymentMethod : false,
         }
     }
   })

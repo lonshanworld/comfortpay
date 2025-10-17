@@ -116,6 +116,7 @@ export default function TransactionsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isExporting, setIsExporting] = useState(false);
   const [isConfirming, setIsConfirming] = useState<string | null>(null);
+  const [isUpdatingStatus, setIsUpdatingStatus] = useState<string | null>(null);
   const [isViewDialogOpen, setIsViewDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [selectedTransaction, setSelectedTransaction] = useState<Order | null>(null);
@@ -206,6 +207,41 @@ export default function TransactionsPage() {
     setIsConfirming(null);
   }
 
+   const handleStatusUpdate = async (transaction: Order, newStatus: OrderStatus) => {
+    if (transaction.status === newStatus) return;
+
+    setIsUpdatingStatus(transaction.id);
+    try {
+      const response = await fetch(`/api/orders/${transaction.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: newStatus }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to update status');
+      }
+
+      toast({
+        title: "Status Updated",
+        description: `Order ${transaction.id} status changed to ${newStatus}.`,
+      });
+
+      // Refresh the data in the background to show the update
+      fetchTransactions(appliedFilters, true);
+
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Update Failed",
+        description: error.message,
+      });
+    } finally {
+      setIsUpdatingStatus(null);
+    }
+  };
+
 
   const handleSearch = () => {
     setAppliedFilters(columnFilters);
@@ -255,8 +291,10 @@ export default function TransactionsPage() {
     onView: handleViewClick,
     onEdit: handleEditClick,
     onConfirmPayment: handleConfirmPayment,
+    onStatusChange: handleStatusUpdate,
     isConfirmingId: isConfirming,
-  }), [isConfirming]);
+isUpdatingStatusId: isUpdatingStatus,
+  }), [isConfirming, isUpdatingStatus]);
 
 
   return (

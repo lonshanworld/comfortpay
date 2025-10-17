@@ -1,7 +1,7 @@
 
 "use client"
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useForm } from "react-hook-form";
 import {
   Dialog,
@@ -14,6 +14,7 @@ import {
 import {
   Form,
   FormControl,
+  FormDescription,
   FormField,
   FormItem,
   FormLabel,
@@ -33,7 +34,7 @@ import {
   SelectValue,
 } from "../ui/select";
 import { Separator } from "../ui/separator";
-import type { Order, OrderStatus, PaymentMethod, PaymentType } from "@/lib/types";
+import type { Order, PaymentAccount } from "@/lib/types";
 import { ScrollArea } from "../ui/scroll-area";
 
 
@@ -47,6 +48,7 @@ const transactionFormSchema = z.object({
   paidAmount: z.coerce.number().min(0, "Amount must be zero or positive."),
   paymentMethod: z.enum(["Credit Card", "Zelle"]),
   paymentType: z.enum(["Stripe", "Square", "Zelle"]),
+  paymentAccountId: z.string().optional(),
   orderDate: z.string().refine(val => !isNaN(Date.parse(val)), { message: "Invalid date format" }),
   paymentReceivedDate: z.string().optional().or(z.literal('')).refine(val => !val || !isNaN(Date.parse(val)), { message: "Invalid date format" }),
 });
@@ -83,10 +85,36 @@ const toDateTimeLocal = (isoString?: string | null) => {
 export function EditOrderDialog({ open, onOpenChange, onOrderUpdated, order: transaction }: EditTransactionDialogProps) {
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
+   const [allZelleAccounts, setAllZelleAccounts] = useState<PaymentAccount[]>([]);
+  const [availableZelleAccounts, setAvailableZelleAccounts] = useState<PaymentAccount[]>([]);
+
 
   const form = useForm<TransactionFormValues>({
     resolver: zodResolver(transactionFormSchema),
   });
+
+   useEffect(() => {
+    if (open) {
+      const fetchZelleAccounts = async () => {
+        try {
+          const response = await fetch('/api/payments/accounts?type=Zelle');
+          if (response.ok) {
+            const data: PaymentAccount[] = await response.json();
+            setAllZelleAccounts(data);
+            console.log("Fetched Zelle accounts:", data);
+            const availableAccounts = data.filter((acc) =>
+              acc.status === 'Active' && parseFloat(acc.currentVolume.toString())< parseFloat(acc.dailyLimit.toString())
+            );
+            setAvailableZelleAccounts(availableAccounts);
+          }
+        } catch (error) {
+          console.error("Failed to fetch Zelle accounts", error);
+        }
+      };
+      fetchZelleAccounts();
+    }
+  }, [open]);
+
 
   useEffect(() => {
     if (transaction && open) {
@@ -100,6 +128,7 @@ export function EditOrderDialog({ open, onOpenChange, onOrderUpdated, order: tra
           paidAmount: transaction.paidAmount,
           paymentMethod: transaction.paymentMethod,
           paymentType: transaction.paymentType,
+          paymentAccountId: transaction.paymentAccountId, 
           orderDate: toDateTimeLocal(transaction.orderDate),
           paymentReceivedDate: toDateTimeLocal(transaction.paymentReceivedDate)
         });
@@ -156,6 +185,30 @@ export function EditOrderDialog({ open, onOpenChange, onOrderUpdated, order: tra
 
   if (!transaction) return null;
 
+  const selectedPaymentType = form.watch('paymentType');
+  const zelleDropdownOptions = useMemo(() => {
+    if (!transaction?.paymentAccountId && availableZelleAccounts.length === 0) {
+        return [];
+    }
+
+    const optionsMap = new Map<string, PaymentAccount>();
+
+    // 1. Add the currently assigned account, if it exists, to ensure it's always in the list.
+    const currentAccount = allZelleAccounts.find(acc => acc.id.toString() === transaction?.paymentAccountId?.toString());
+    if (currentAccount) {
+        optionsMap.set(currentAccount.id.toString(), currentAccount);
+    }
+
+    // 2. Add all other available accounts. The Map will handle de-duplication automatically.
+    availableZelleAccounts.forEach(acc => {
+        optionsMap.set(acc.id.toString(), acc);
+    });
+
+    return Array.from(optionsMap.values());
+  }, [transaction, allZelleAccounts, availableZelleAccounts]);
+
+
+  if (!transaction) return null;
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="sm:max-w-lg">
@@ -292,6 +345,35 @@ export function EditOrderDialog({ open, onOpenChange, onOrderUpdated, order: tra
                     </FormItem>
                   )}
                 />
+                 {selectedPaymentType === 'Zelle' && (
+                  <FormField
+                    control={form.control}
+                    name="paymentAccountId"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Zelle Payment Account</FormLabel>
+                        <Select onValueChange={field.onChange} value={field.value} disabled={isLoading}>
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select a Zelle account" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                             {zelleDropdownOptions.map(acc => (
+                                <SelectItem key={acc.id} value={acc.id.toString()}>
+                                  {acc.name} ({acc.accountEmail})
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <FormDescription>
+                          Change the Zelle account this payment is assigned to.
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                )}
                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <FormField
                         control={form.control}

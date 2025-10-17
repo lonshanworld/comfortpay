@@ -7,34 +7,37 @@ import { promises as fs } from 'fs';
 import path from 'path';
 import crypto from 'crypto';
 
-
 const parseDbAccount = (dbAccount: any) => {
     if (!dbAccount) return null;
-        return {
-                ...dbAccount,
-                        id: `pa_${dbAccount.id}`
-                            }
-                            }
+    return {
+        ...dbAccount,
+        id: `pa_${dbAccount.id}`
+    }
+}
 
-                            export async function GET(request: Request) {
-                              const { searchParams } = new URL(request.url);
-                                const type = searchParams.get('type');
+export async function GET(request: Request) {
+  const { searchParams } = new URL(request.url);
+  const type = searchParams.get('type');
 
-                                  try {
-                                            let query = "SELECT * FROM payment_accounts";
-                                                const params = [];
-                                                    if (type) {
-                                                            query += " WHERE type = ?";
-                                                                    params.push(type);
-                                                                        }
-                                                                        query += " ORDER BY id DESC";
-                                                                            const dbAccounts = await executeQuery(query, params);
-                                                                                return NextResponse.json(dbAccounts.map(parseDbAccount));
-                                                                                  } catch (error) {
-                                                                                      console.error("Failed to fetch payment accounts from DB:", error);
-                                                                                          return NextResponse.json({ message: "Failed to fetch payment accounts" }, { status: 500 });
-                                                                                                                      }
-                                                                                                                      }
+  try {
+    let query = "SELECT * FROM payment_accounts";
+    const params = [];
+    
+    if (type) {
+        query += " WHERE type = ?";
+        params.push(type);
+    }
+    
+    query += " ORDER BY id DESC";
+
+    const dbAccounts = await executeQuery(query, params);
+    return NextResponse.json(dbAccounts.map(parseDbAccount));
+
+  } catch (error) {
+    console.error("Failed to fetch payment accounts from DB:", error);
+    return NextResponse.json({ message: "Failed to fetch payment accounts" }, { status: 500 });
+  }
+}
 
 export async function POST(request: Request) {
   try {
@@ -86,4 +89,3 @@ export async function POST(request: Request) {
       return NextResponse.json({ message: `Failed to create payment account: ${error.message}` }, { status: 500 });
   }
 }
-                                                                                                                                                                                                                                               
