@@ -78,7 +78,7 @@ const convertToHtmlTable = (data: Order[]): string => {
 };
 
 const StatusFilter = ({ column }: { column: any }) => {
-  const statuses: OrderStatus[] = ["Pending", "Completed", "Failed", "Requires Confirmation", "Refunded", "Reconciled", "Partially Paid", "On-Hold"];
+  const statuses: OrderStatus[] = ["Pending", "Completed", "Failed", "Requires Confirmation", "Refunded", "Partially Paid", "On-Hold", "Over-paid Refunded"];
   return (
     <Select
       value={(column.getFilterValue() ?? '') as string}

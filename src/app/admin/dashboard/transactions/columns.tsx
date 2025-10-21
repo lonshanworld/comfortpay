@@ -20,15 +20,17 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import type { Order, OrderStatus } from "@/lib/types"
 import Link from "next/link"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { cn } from "@/lib/utils"
 
 
 const getStatusVariant = (status: OrderStatus) => {
   switch (status) {
     case 'Completed':
-    case 'Reconciled':
       return 'success';
+    case 'Over-paid Refunded':
+        return 'success-dark';
     case 'Pending':
-      return 'outline';
+      return 'pending';
     case 'Partially Paid':
         return 'warning'
     case 'On-Hold':
@@ -93,7 +95,7 @@ const ConfirmationPopover = ({ transaction, onConfirmPayment, isConfirming }: { 
     return (
         <Popover>
             <PopoverTrigger asChild>
-              <Button variant="link" size="sm" className="h-auto p-0">
+              <Button variant="ghost" className="p-0 h-auto">
                 {isConfirming ? (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 ) : null}
@@ -144,20 +146,56 @@ const ConfirmationPopover = ({ transaction, onConfirmPayment, isConfirming }: { 
     )
 }
 
+const OverpaymentPopover = ({ transaction, onStatusChange }: { transaction: Order, onStatusChange: (transaction: Order, newStatus: OrderStatus) => void }) => {
+    const overpaidAmount = transaction.paidAmount - transaction.totalAmount;
+    console.log("Overpaid Amount:", overpaidAmount);
+    return (
+        <Popover>
+            <PopoverTrigger asChild>
+                 <Badge className="h-auto py-0.5 px-1.5 text-xs border-green-500 text-green-500 bg-transparent hover:bg-green-500/10 cursor-pointer">
+                    + {formatCurrency(overpaidAmount, transaction.currency)}
+                </Badge>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-4 space-y-4">
+                 <div className="space-y-1">
+                    <p className="text-sm font-medium">Handle Overpayment</p>
+                    <p className="text-xs text-muted-foreground">
+                       Mark this order to indicate the overpayment has been refunded or handled.
+                    </p>
+                </div>
+                <Button
+                    size="sm"
+                    onClick={() => onStatusChange(transaction, 'Over-paid Refunded')}
+                    className="w-full"
+                >
+                    Change to Over-paid Refunded
+                </Button>
+            </PopoverContent>
+        </Popover>
+    );
+};
 
 const StatusDropdown = ({ transaction, onStatusChange, isUpdating }: { transaction: Order, onStatusChange: (transaction: Order, newStatus: OrderStatus) => void, isUpdating: boolean}) => {
-    const statuses: OrderStatus[] = ["Pending","On-Hold", "Completed", "Failed", "Requires Confirmation", "Partially Paid", "Refunded", "Reconciled"];
+    const statuses: OrderStatus[] = ["Pending","On-Hold", "Completed", "Failed", "Requires Confirmation", "Partially Paid", "Refunded",  "Over-paid Refunded"];
+
+   const isOverpaid = transaction.status === 'Completed' && transaction.paidAmount > transaction.totalAmount;
+
     return (
-        <div className="flex items-center gap-2">
+        <div className="flex flex-row items-start gap-1">
             {isUpdating && <Loader2 className="h-4 w-4 animate-spin" />}
             <Select 
                 value={transaction.status} 
                 onValueChange={(newStatus: OrderStatus) => onStatusChange(transaction, newStatus)}
                 disabled={isUpdating}
             >
-                <SelectTrigger className="h-8 w-[150px] border-none bg-transparent shadow-none focus:ring-0 focus:ring-offset-0">
-                    <SelectValue>
-                        <Badge variant={getStatusVariant(transaction.status)}>{transaction.status}</Badge>
+                <SelectTrigger className={cn(
+                    "h-auto w-auto border-none p-0 shadow-none focus:ring-0 focus:ring-offset-0 [&>svg]:hidden",
+                    "bg-transparent hover:bg-transparent"
+                )}>
+                     <SelectValue asChild>
+                        <Badge variant={getStatusVariant(transaction.status)} className="cursor-pointer">
+                            {transaction.status}
+                        </Badge>
                     </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
@@ -168,6 +206,9 @@ const StatusDropdown = ({ transaction, onStatusChange, isUpdating }: { transacti
                     ))}
                 </SelectContent>
             </Select>
+             {isOverpaid && (
+                <OverpaymentPopover transaction={transaction} onStatusChange={onStatusChange} />
+            )}
         </div>
     )
 }
@@ -200,11 +241,11 @@ export const columns = ({ onView, onEdit, onConfirmPayment, onStatusChange, isCo
       return  formatDate(row.original.orderDate);
     }
   },
-  {
-    accessorKey: "id",
-    header: "ComfortPay ID",
-    cell: ({ row }) => <div className="font-mono">{row.getValue("id")}</div>,
-  },
+  // {
+  //   accessorKey: "id",
+  //   header: "ComfortPay ID",
+  //   cell: ({ row }) => <div className="font-mono">{row.getValue("id")}</div>,
+  // },
   
   // {
   //   accessorKey: "merchantName",
@@ -262,36 +303,36 @@ export const columns = ({ onView, onEdit, onConfirmPayment, onStatusChange, isCo
        return <StatusDropdown transaction={transaction} onStatusChange={onStatusChange} isUpdating={isUpdating} />;
     }
   },
-   {
-    accessorKey: "riskDetails",
-    header: "Risk Level",
-    cell: ({ row }) => {
-        const riskDetails = row.original.riskDetails;
-        if (!riskDetails) return <span className="text-xs text-muted-foreground">N/A</span>;
+  //  {
+  //   accessorKey: "riskDetails",
+  //   header: "Risk Level",
+  //   cell: ({ row }) => {
+  //       const riskDetails = row.original.riskDetails;
+  //       if (!riskDetails) return <span className="text-xs text-muted-foreground">N/A</span>;
         
-        const riskLevel = riskDetails.risk_level || riskDetails.riskLevel; // Stripe or Square
-        if (!riskLevel) return <span className="text-xs text-muted-foreground">Unknown</span>;
+  //       const riskLevel = riskDetails.risk_level || riskDetails.riskLevel; // Stripe or Square
+  //       if (!riskLevel) return <span className="text-xs text-muted-foreground">Unknown</span>;
 
-        return (
-             <Popover>
-                <PopoverTrigger asChild>
-                    <Badge variant={getRiskVariant(riskLevel)} className="cursor-pointer">
-                        <ShieldQuestion className="mr-1.5 h-3.5 w-3.5" />
-                        {riskLevel.charAt(0).toUpperCase() + riskLevel.slice(1).toLowerCase()}
-                    </Badge>
-                </PopoverTrigger>
-                <PopoverContent className="w-80">
-                    <div className="space-y-2">
-                        <h4 className="font-medium leading-none">Risk Details</h4>
-                        <pre className="mt-2 w-full text-xs overflow-auto rounded-md bg-muted p-2 font-mono">
-                           {JSON.stringify(riskDetails, null, 2)}
-                        </pre>
-                    </div>
-                </PopoverContent>
-            </Popover>
-        )
-    }
-  },
+  //       return (
+  //            <Popover>
+  //               <PopoverTrigger asChild>
+  //                   <Badge variant={getRiskVariant(riskLevel)} className="cursor-pointer">
+  //                       <ShieldQuestion className="mr-1.5 h-3.5 w-3.5" />
+  //                       {riskLevel.charAt(0).toUpperCase() + riskLevel.slice(1).toLowerCase()}
+  //                   </Badge>
+  //               </PopoverTrigger>
+  //               <PopoverContent className="w-80">
+  //                   <div className="space-y-2">
+  //                       <h4 className="font-medium leading-none">Risk Details</h4>
+  //                       <pre className="mt-2 w-full text-xs overflow-auto rounded-md bg-muted p-2 font-mono">
+  //                          {JSON.stringify(riskDetails, null, 2)}
+  //                       </pre>
+  //                   </div>
+  //               </PopoverContent>
+  //           </Popover>
+  //       )
+  //   }
+  // },
   // {
   //   accessorKey: "orderAmount",
   //   header: "Order Amount",

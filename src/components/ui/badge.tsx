@@ -21,6 +21,9 @@ const badgeVariants = cva(
           "border-transparent bg-blue-500 text-white hover:bg-blue-500/80",
         info:
           "border-transparent bg-purple-500 text-white hover:bg-purple-500/80",
+        "success-dark":
+          "border-transparent bg-green-800 text-white hover:bg-green-800/80",
+        pending: "text-foreground font-normal"
       },
     },
     defaultVariants: {

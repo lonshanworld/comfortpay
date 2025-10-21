@@ -18,7 +18,6 @@ import type { Order, OrderStatus } from "@/lib/types"
 const getStatusVariant = (status: OrderStatus) => {
   switch (status) {
     case 'Completed':
-    case 'Reconciled':
       return 'success';
     case 'Pending':
       return 'outline';
