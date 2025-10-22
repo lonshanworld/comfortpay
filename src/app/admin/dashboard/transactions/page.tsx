@@ -37,6 +37,7 @@ import { DateRangePicker } from "@/components/ui/date-range-picker"
 import type { DateRange } from "react-day-picker"
 import { notifyWooCommerce } from "@/app/actions/notify-woocommerce"
 import { confirmOrderPayment } from "@/app/actions/confirm-order-payment"
+import { useDebounce } from "use-debounce"
 
 // Helper to download files on the client side
 const downloadFile = (content: string, fileName: string, contentType: string) => {
@@ -124,6 +125,8 @@ export default function TransactionsPage() {
   
   // State for temporary filters in inputs
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([])
+  const [debouncedColumnFilters] = useDebounce(columnFilters, 500);
+
   // State for applied filters which triggers the fetch
   const [appliedFilters, setAppliedFilters] = React.useState<ColumnFiltersState>([])
 
@@ -163,13 +166,16 @@ export default function TransactionsPage() {
   }, [toast]);
 
   useEffect(() => {
-    fetchTransactions(appliedFilters);
+    fetchTransactions(debouncedColumnFilters);
+  }, [debouncedColumnFilters, fetchTransactions]);
+
+   useEffect(() => {
     const intervalId = setInterval(() => {
-        fetchTransactions(appliedFilters, true);
+        fetchTransactions(columnFilters);
     }, 3 * 60 * 1000); // 3 minutes
 
-    return () => clearInterval(intervalId); // Cleanup on unmount
-  }, [appliedFilters, fetchTransactions]);
+    return () => clearInterval(intervalId);
+  }, [columnFilters, fetchTransactions]);
   
   const handleViewClick = (transaction: Order) => {
     setSelectedTransaction(transaction);

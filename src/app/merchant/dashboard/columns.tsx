@@ -69,6 +69,7 @@ export const columns = ({ onView }: TransactionColumnsProps): ColumnDef<Order>[]
     accessorKey: "customerName",
     header: "Customer",
   },
+  
   {
     accessorKey: "status",
     header: "Status",

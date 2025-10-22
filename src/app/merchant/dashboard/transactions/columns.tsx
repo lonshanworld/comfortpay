@@ -85,6 +85,10 @@ export const columns = ({ onView }: TransactionColumnsProps): ColumnDef<Order>[]
     header: "Customer Email",
   },
   {
+    accessorKey: "customerPhone",
+    header: "Phone",
+  },
+  {
     accessorKey: "status",
     header: "Status",
     cell: ({ row }) => <Badge variant={getStatusVariant(row.original.status)}>{row.original.status}</Badge>

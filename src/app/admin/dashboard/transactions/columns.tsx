@@ -231,7 +231,8 @@ export const columns = ({ onView, onEdit, onConfirmPayment, onStatusChange, isCo
             }
         }
         return `user_${numericId}`;
-    }
+    },
+    size: 300,
   },
   {
     accessorKey: "orderDate",
@@ -239,7 +240,7 @@ export const columns = ({ onView, onEdit, onConfirmPayment, onStatusChange, isCo
     cell: ({ row }) =>{
       console.log("Order Date Cell:", JSON.stringify(row));  
       return  formatDate(row.original.orderDate);
-    }
+    },
   },
   // {
   //   accessorKey: "id",
@@ -285,6 +286,10 @@ export const columns = ({ onView, onEdit, onConfirmPayment, onStatusChange, isCo
   {
     accessorKey: "customerEmail",
     header: "Customer Email",
+  },
+  {
+    accessorKey: "customerPhone",
+    header: "Phone",
   },
   {
     accessorKey: "status",
