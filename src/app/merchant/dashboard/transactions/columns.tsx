@@ -18,7 +18,6 @@ import type { Order, OrderStatus } from "@/lib/types"
 const getStatusVariant = (status: OrderStatus) => {
   switch (status) {
     case 'Completed':
-    case 'Reconciled':
       return 'success';
     case 'Pending':
       return 'outline';
@@ -84,6 +83,10 @@ export const columns = ({ onView }: TransactionColumnsProps): ColumnDef<Order>[]
   {
     accessorKey: "customerEmail",
     header: "Customer Email",
+  },
+  {
+    accessorKey: "customerPhone",
+    header: "Phone",
   },
   {
     accessorKey: "status",

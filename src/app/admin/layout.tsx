@@ -6,6 +6,7 @@ import Link from 'next/link';
 import {
   Bell,
   Home,
+  Menu,
   Package2,
   Undo2,
 } from 'lucide-react';
@@ -103,8 +104,8 @@ export default function AdminLayout({
   }
 
   return (
-    <div className="grid min-h-screen w-full md:grid-cols-[220px_1fr] lg:grid-cols-[280px_1fr]">
-      <div className="hidden border-r bg-card md:block">
+    <div className="grid min-h-screen w-svw md:grid-cols-[220px_1fr] lg:grid-cols-[280px_1fr]">
+      {/* <div className="hidden border-r bg-card md:block">
         <div className="flex h-full max-h-screen flex-col gap-2">
           <div className="flex h-14 items-center border-b px-4 lg:h-[60px] lg:px-6">
             <Link href="/" className="flex items-center gap-2 font-semibold">
@@ -130,18 +131,18 @@ export default function AdminLayout({
             <AdminNav />
           </div>
         </div>
-      </div>
+      </div> */}
       <div className="flex flex-col ">
-        <header className="flex h-14 items-center gap-4 border-b bg-card px-4 lg:h-[60px] lg:px-6">
+        <header className="flex h-14 items-center gap-4 border-b bg-card px-4 lg:h-[60px] lg:px-6 w-svw">
           <Sheet>
             <SheetTrigger asChild>
               <Button
                 variant="outline"
-                size="icon"
-                className="shrink-0 md:hidden"
+                className="px-3 bg-black text-white"
               >
-                <Home className="h-5 w-5" />
-                <span className="sr-only">Toggle navigation menu</span>
+                {/* <Home className="h-5 w-5" /> */}
+                <span className="px-2">Menu</span>
+                <Menu className="h-5 w-5" />
               </Button>
             </SheetTrigger>
             <SheetContent side="left" className="flex flex-col">
@@ -214,7 +215,7 @@ export default function AdminLayout({
             </DropdownMenuContent>
           </DropdownMenu>
         </header>
-        <main className="flex flex-1 flex-col gap-4 p-4 lg:gap-6 lg:p-6 bg-background w-screen">
+        <main className="flex flex-1 flex-col gap-4 p-4 lg:gap-6 lg:p-6 bg-background w-11/12">
           {children}
         </main>
       </div>

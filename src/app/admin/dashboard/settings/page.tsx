@@ -93,8 +93,10 @@ export default function AdminSettingsPage() {
     }
 
   return (
-    <div className="grid gap-6">
-        <div>
+    <div className="grid gap-6 w-svw">
+        <div
+        className="w-11/12 grid gap-6">
+               <div>
             <h1 className="text-2xl font-bold tracking-tight">Settings</h1>
             <p className="text-muted-foreground">
                 Manage your account settings and platform configurations.
@@ -180,6 +182,7 @@ export default function AdminSettingsPage() {
             </form>
          </Form>
       </Card>
+        </div>
     </div>
   )
 }

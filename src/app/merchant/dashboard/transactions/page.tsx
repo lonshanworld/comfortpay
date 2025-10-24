@@ -109,25 +109,23 @@ export default function MerchantTransactionsPage() {
     setMerchantId(id);
   }, []);
 
-  const fetchTransactions = useCallback(async (filters: ColumnFiltersState, isBackgroundRefresh = false) => {
+const fetchTransactions = useCallback(async (filters: ColumnFiltersState) => {
     if (!merchantId) return;
-    if (!isBackgroundRefresh) {
-        setIsLoading(true);
-    }
+    setIsLoading(true);
     
     try {
-      const params = new URLSearchParams({ 
+       const params = new URLSearchParams({ 
           merchantId,
           status: 'NOT_PENDING',
        });
       filters.forEach(filter => {
          if (filter.value) {
             // Special handling for date range filters
-            if (filter.id === 'orderDate' || filter.id === 'paymentReceivedDate') {
+            if ((filter.id === 'orderDate' || filter.id === 'paymentReceivedDate') && typeof filter.value === 'object' && filter.value !== null) {
                 const range = filter.value as DateRange;
-                if (range.from) params.append(`${filter.id}_start`, range.from.toISOString());
-                if (range.to) params.append(`${filter.id}_end`, range.to.toISOString());
-            } else {
+                if (range.from) params.append(`${filter.id}_start`, range.from.toISOString().split('T')[0]);
+                if (range.to) params.append(`${filter.id}_end`, range.to.toISOString().split('T')[0]);
+            } else if (typeof filter.value === 'string' || typeof filter.value === 'number') {
                 params.append(String(filter.id), String(filter.value));
             }
         }
@@ -139,9 +137,7 @@ export default function MerchantTransactionsPage() {
     } catch (error) {
       console.error("Failed to fetch transactions", error);
     } finally {
-      if (!isBackgroundRefresh) {
-        setIsLoading(false);
-      }
+      setIsLoading(false);
     }
   }, [merchantId]);
 

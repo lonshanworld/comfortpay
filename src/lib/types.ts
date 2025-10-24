@@ -2,7 +2,7 @@
 import type { CreateCheckoutSessionInputSchema, SendOrderNotificationInputSchema } from "./schemas";
 import type { z } from "zod";
 
-export type OrderStatus = "Pending" | "Completed" | "Failed" | "Requires Confirmation" | "Refunded" | "Reconciled" | "Partially Paid" | "On-Hold";
+export type OrderStatus = "Pending" | "Completed" | "Failed" | "Requires Confirmation" | "Refunded"  | "Partially Paid" | "On-Hold" | "Over-paid Refunded";
 export type PaymentMethod = "Credit Card" | "Zelle";
 export type PaymentType = "Stripe" | "Square" | "Zelle";
 

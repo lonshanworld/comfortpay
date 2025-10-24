@@ -20,7 +20,6 @@ import Link from "next/link"
 const getStatusVariant = (status: OrderStatus) => {
   switch (status) {
     case 'Completed':
-    case 'Reconciled':
       return 'success';
     case 'Pending':
       return 'outline';

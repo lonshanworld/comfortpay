@@ -62,9 +62,9 @@ export default function MerchantLayout({
           <div className="flex-1">
             <MerchantNav />
           </div>
-          <div className="mt-auto p-4">
+          {/* <div className="mt-auto p-4">
             <ContactSupport />
-          </div>
+          </div> */}
         </div>
       </div>
       <div className="flex flex-col">
@@ -82,9 +82,9 @@ export default function MerchantLayout({
             </SheetTrigger>
             <SheetContent side="left" className="flex flex-col">
               <MerchantNavMobile />
-               <div className="mt-auto p-4">
+               {/* <div className="mt-auto p-4">
                 <ContactSupport />
-              </div>
+              </div> */}
             </SheetContent>
           </Sheet>
           <div className="w-full flex-1">

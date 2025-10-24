@@ -98,8 +98,9 @@ export default function PaymentsPage() {
 
 
   return (
-    <div className="flex flex-col gap-4">
-        <div className="flex items-center justify-between">
+    <div className="flex flex-col gap-4 w-svw">
+        <div className="w-11/12">
+          <div className="flex items-center justify-between">
             <div>
                 <h1 className="text-2xl font-bold tracking-tight">Payment Accounts</h1>
                 <p className="text-muted-foreground">
@@ -165,6 +166,7 @@ export default function PaymentsPage() {
         onAccountDeleted={handleAccountDeleted}
         account={selectedAccount} 
       />
+        </div>
     </div>
   )
 }
