@@ -185,11 +185,11 @@ export default function HomePage() {
                            <User className="mr-2 h-4 w-4"/> Merchant Login
                         </Button>
                     </Link>
-                    <Link href="/login/staff" passHref>
+                    {/* <Link href="/login/staff" passHref>
                         <Button className="w-full" variant="outline">
                            <UserCheck className="mr-2 h-4 w-4"/> Staff Login
                         </Button>
-                    </Link>
+                    </Link> */}
                     {/* <Link href="/login/sale-agent" passHref>
                         <Button className="w-full" variant="outline">
                             <Briefcase className="mr-2 h-4 w-4"/> Sales Login

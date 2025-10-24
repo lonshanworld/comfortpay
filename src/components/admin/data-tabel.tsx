@@ -74,7 +74,12 @@ export function DataTable<TData, TValue>({
         pagination: {
             pageSize: 5,
         },
-    }
+    },
+    defaultColumn: {
+      size: 50, // default column size
+      minSize: 50,
+      maxSize: 500,
+    },
   })
 
   return (

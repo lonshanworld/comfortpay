@@ -34,10 +34,14 @@ import { useToast } from "@/hooks/use-toast"
 import { sendOrderNotification } from "@/app/actions/send-order-notification"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { DateRangePicker } from "@/components/ui/date-range-picker"
-import type { DateRange } from "react-day-picker"
 import { notifyWooCommerce } from "@/app/actions/notify-woocommerce"
 import { confirmOrderPayment } from "@/app/actions/confirm-order-payment"
 import { useDebounce } from "use-debounce"
+import { DateRange } from "react-day-picker"
+import { MerchantFilter } from "@/components/admin/merchant-filter"
+import { AccountInfoFilter } from "@/components/admin/account-info-filter"
+
+
 
 // Helper to download files on the client side
 const downloadFile = (content: string, fileName: string, contentType: string) => {
@@ -86,7 +90,7 @@ const StatusFilter = ({ column }: { column: any }) => {
       onValueChange={value => column.setFilterValue(value === 'all' ? '' : value)}
     >
       <SelectTrigger className="h-8 text-xs max-w-sm">
-        <SelectValue placeholder="Filter by status..." />
+        <SelectValue placeholder="Filter..." />
       </SelectTrigger>
       <SelectContent>
         <SelectItem value="all">All Statuses</SelectItem>
@@ -130,26 +134,22 @@ export default function TransactionsPage() {
   // State for applied filters which triggers the fetch
   const [appliedFilters, setAppliedFilters] = React.useState<ColumnFiltersState>([])
 
-  const fetchTransactions = useCallback(async (filters: ColumnFiltersState, isBackgroundRefresh = false) => {
-    if (!isBackgroundRefresh) {
-        setIsLoading(true);
-    }
+const fetchTransactions = useCallback(async (filters: ColumnFiltersState) => {
+    setIsLoading(true);
     try {
       const params = new URLSearchParams();
-      // Add column filters to params
+      
       filters.forEach(filter => {
-         if (filter.value) {
-            // Special handling for date range filters
-            if (filter.id === 'orderDate' || filter.id === 'paymentReceivedDate') {
-                const range = filter.value as DateRange;
-                if (range.from) params.append(`${filter.id}_start`, range.from.toISOString());
-                if (range.to) params.append(`${filter.id}_end`, range.to.toISOString());
-            } else {
-                params.append(String(filter.id), String(filter.value));
+        if (filter.value) {
+            if (typeof filter.value === 'object' && filter.value !== null && (filter.id === 'orderDate' || filter.id === 'paymentReceivedDate')) {
+                 params.append(String(filter.id), JSON.stringify(filter.value))
+            } else if (typeof filter.value === 'string' || typeof filter.value === 'number') {
+                 params.append(String(filter.id), String(filter.value))
             }
         }
       })
 
+      console.log("Fetching transactions with params:", params.toString());
       const response = await fetch(`/api/orders?${params.toString()}`);
       if (!response.ok) throw new Error("Failed to fetch transactions");
 
@@ -159,13 +159,12 @@ export default function TransactionsPage() {
       console.error("Failed to fetch data", error);
       toast({ variant: "destructive", title: "Fetch Error", description: "Could not fetch transactions."})
     } finally {
-       if (!isBackgroundRefresh) {
-            setIsLoading(false);
-        }
+      setIsLoading(false);
     }
   }, [toast]);
 
   useEffect(() => {
+  
     fetchTransactions(debouncedColumnFilters);
   }, [debouncedColumnFilters, fetchTransactions]);
 
@@ -367,6 +366,8 @@ isUpdatingStatusId: isUpdatingStatus,
                   columnFilters={columnFilters}
                   setColumnFilters={setColumnFilters}
                   customFilterComponents={{ 
+                     merchantId: MerchantFilter,
+                     paymentAccountId: AccountInfoFilter,
                     status: StatusFilter,
                     orderDate: DateRangeColumnFilter,
                     paymentReceivedDate: DateRangeColumnFilter,

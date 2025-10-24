@@ -70,7 +70,6 @@ const formatCurrency = (amount: number, currency: string) => {
 }
 
 const formatDate = (dateString: string | undefined | null) => {
-    console.log("Formatting date:", dateString);
      if (!dateString) return "N/A";
     const date = new Date(dateString.endsWith('Z') ? dateString : dateString + 'Z');
     const options: Intl.DateTimeFormatOptions = {
@@ -148,7 +147,6 @@ const ConfirmationPopover = ({ transaction, onConfirmPayment, isConfirming }: { 
 
 const OverpaymentPopover = ({ transaction, onStatusChange }: { transaction: Order, onStatusChange: (transaction: Order, newStatus: OrderStatus) => void }) => {
     const overpaidAmount = transaction.paidAmount - transaction.totalAmount;
-    console.log("Overpaid Amount:", overpaidAmount);
     return (
         <Popover>
             <PopoverTrigger asChild>
@@ -232,13 +230,12 @@ export const columns = ({ onView, onEdit, onConfirmPayment, onStatusChange, isCo
         }
         return `user_${numericId}`;
     },
-    size: 300,
+    size : 20
   },
   {
     accessorKey: "orderDate",
     header: "Order Date",
     cell: ({ row }) =>{
-      console.log("Order Date Cell:", JSON.stringify(row));  
       return  formatDate(row.original.orderDate);
     },
   },
@@ -306,7 +303,7 @@ export const columns = ({ onView, onEdit, onConfirmPayment, onStatusChange, isCo
         );
       }
        return <StatusDropdown transaction={transaction} onStatusChange={onStatusChange} isUpdating={isUpdating} />;
-    }
+    },
   },
   //  {
   //   accessorKey: "riskDetails",
@@ -350,7 +347,7 @@ export const columns = ({ onView, onEdit, onConfirmPayment, onStatusChange, isCo
   },
   {
     accessorKey: "currency",
-    header: "Currency",
+    header: "Curr:",
   },
   {
     accessorKey: "paidAmount",
@@ -363,7 +360,7 @@ export const columns = ({ onView, onEdit, onConfirmPayment, onStatusChange, isCo
   // },
   {
     accessorKey: "paymentType",
-    header: "Processor",
+    header: "Pymnt",
   },
   {
     accessorKey: "paymentAccountId",

@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "next dev --turbopack",
     "build": "next build --turbopack",
-    "build-test" : "npm run db:init && next build",
+    "build-test": "npm run db:init && next build",
     "dev-noTurbo": "next dev",
     "start": "next start",
     "lint": "eslint",
@@ -53,6 +53,7 @@
     "nodemailer": "^7.0.5",
     "patch-package": "^8.0.0",
     "react": "19.1.0",
+    "react-datepicker": "^8.8.0",
     "react-day-picker": "^9.9.0",
     "react-dom": "19.1.0",
     "react-hook-form": "^7.62.0",

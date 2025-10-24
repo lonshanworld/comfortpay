@@ -99,7 +99,7 @@ function EmailTemplatesTab() {
     });
 
   return (
-        <div className="grid gap-6 xl:grid-cols-2">
+        <div className="grid gap-6 xl:grid-cols-2 ">
            <EmailPreviewCard 
                 title="Customer Invoice Email"
                 description="This email is sent to the customer after a successful payment."
@@ -486,25 +486,28 @@ function EmailSettingsTab() {
 
 export default function EmailPage() {
     return (
-        <div className="grid gap-6">
-            <div>
-                <h1 className="text-2xl font-bold tracking-tight">Email Management</h1>
-                <p className="text-muted-foreground">
-                    Configure email services and preview transactional email templates.
-                </p>
+        <div className="grid gap-6 w-svw">
+            <div
+            className="w-11/12 grid gap-6">
+                <div>
+                    <h1 className="text-2xl font-bold tracking-tight">Email Management</h1>
+                    <p className="text-muted-foreground">
+                        Configure email services and preview transactional email templates.
+                    </p>
+                </div>
+                <Tabs defaultValue="settings">
+                    <TabsList>
+                        <TabsTrigger value="settings">Settings</TabsTrigger>
+                        <TabsTrigger value="templates">Templates</TabsTrigger>
+                    </TabsList>
+                    <TabsContent value="templates" className="mt-4">
+                        <EmailTemplatesTab />
+                    </TabsContent>
+                    <TabsContent value="settings" className="mt-4">
+                        <EmailSettingsTab />
+                    </TabsContent>
+                </Tabs>
             </div>
-            <Tabs defaultValue="settings">
-                <TabsList>
-                    <TabsTrigger value="settings">Settings</TabsTrigger>
-                    <TabsTrigger value="templates">Templates</TabsTrigger>
-                </TabsList>
-                <TabsContent value="templates" className="mt-4">
-                    <EmailTemplatesTab />
-                </TabsContent>
-                <TabsContent value="settings" className="mt-4">
-                    <EmailSettingsTab />
-                </TabsContent>
-            </Tabs>
         </div>
     )
 }

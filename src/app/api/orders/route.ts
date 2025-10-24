@@ -95,6 +95,10 @@ export async function GET(request: Request) {
                     query += " AND (o.customerEmail LIKE ? OR JSON_UNQUOTE(JSON_EXTRACT(o.billingDetails, '$.email')) LIKE ?)";
                     params.push(`%${value}%`, `%${value}%`);
                     break;
+                case 'customerPhone':
+                    query += " AND JSON_UNQUOTE(JSON_EXTRACT(o.billingDetails, '$.phone')) LIKE ?";
+                    params.push(`%${value}%`);
+                    break;
                 case 'status':
                     if (value === 'NOT_PENDING') {
                         query += " AND o.status != 'Pending'";
@@ -119,24 +123,54 @@ export async function GET(request: Request) {
                     break;
                 case 'paymentAccountId':
                     query += ` AND o.paymentAccountId = ?`;
-                    params.push(value.replace('pa_', ''));
+                     params.push(value);
                     break;
-                  case 'orderDate_start':
-                    query += ` AND o.orderDate >= ?`;
-                    params.push(value);
+                // case 'orderDate_start':
+                //     query += ` AND o.orderDate >= ?`;
+                //     params.push(value);
+                //     break;
+                // case 'orderDate_end':
+                //     query += ` AND o.orderDate <= ?`;
+                //     params.push(value);
+                //     break;
+                // case 'paymentReceivedDate_start':
+                //     query += ` AND o.paymentReceivedDate >= ?`;
+                //     params.push(value);
+                //     break;
+                // case 'paymentReceivedDate_end':
+                //     query += ` AND o.paymentReceivedDate <= ?`;
+                //     params.push(value);
+                //     break;
+                case 'orderDate':
+                case 'paymentReceivedDate':
+                    try {
+                        const dateRange = JSON.parse(value);
+                        if (dateRange.from) {
+                            query += ` AND DATE(o.${key}) >= ?`;
+                            params.push(dateRange.from.split('T')[0]);
+                        }
+                        if (dateRange.to) {
+                            query += ` AND DATE(o.${key}) <= ?`;
+                            params.push(dateRange.to.split('T')[0]);
+                        }
+                    } catch (e) {
+                        console.error(`Invalid date range format for ${key}:`, value);
+                    }
                     break;
+                case 'orderDate_start':
+                case 'paymentReceivedDate_start': {
+                    const dbKey = key.replace('_start', '');
+                    query += ` AND DATE(o.${dbKey}) >= ?`;
+                    params.push(value.split('T')[0]);
+                    break;
+                }
                 case 'orderDate_end':
-                    query += ` AND o.orderDate <= ?`;
-                    params.push(value);
+                case 'paymentReceivedDate_end': {
+                    const dbKey = key.replace('_end', '');
+                    query += ` AND DATE(o.${dbKey}) <= ?`;
+                    params.push(value.split('T')[0]);
                     break;
-                case 'paymentReceivedDate_start':
-                    query += ` AND o.paymentReceivedDate >= ?`;
-                    params.push(value);
-                    break;
-                case 'paymentReceivedDate_end':
-                    query += ` AND o.paymentReceivedDate <= ?`;
-                    params.push(value);
-                    break;
+                }
                 case 'startDate':
                     query += ` AND DATE(o.orderDate) >= ?`;
                     params.push(value.split('T')[0]); // Use just the date part
@@ -145,6 +179,7 @@ export async function GET(request: Request) {
                     query += ` AND DATE(o.orderDate) <= ?`;
                     params.push(value.split('T')[0]); // Use just the date part
                     break;
+
             }
         }
     })

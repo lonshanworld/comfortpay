@@ -77,8 +77,8 @@ export default function AdminDashboard() {
     }
 
   return (
-      <div className="flex flex-col gap-4">
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="flex flex-col gap-4 w-svw overflow-x-clip">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 w-11/12">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">
@@ -134,7 +134,7 @@ export default function AdminDashboard() {
             </Card>
           )}
         </div>
-        <div className="grid gap-4 lg:grid-cols-2 xl:grid-cols-3">
+        <div className="grid gap-4 lg:grid-cols-2 xl:grid-cols-3 w-11/12">
           <Card className="xl:col-span-2">
             <CardHeader className="flex flex-row items-center">
               <div className="grid gap-2">
