@@ -30,7 +30,9 @@ export function DateRangePicker({
 }: DateRangePickerProps) {
   
   const [localDate, setLocalDate] = React.useState<DateRange | undefined>(externalDate);
-
+    React.useEffect(() => {
+    setLocalDate(externalDate);
+  }, [externalDate]);
   const toUTCDate = (date: Date): Date => {
     return new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
   }
@@ -96,7 +98,7 @@ export function DateRangePicker({
                     id="date-to"
                     variant={"outline"}
                     className={cn(
-                    "w-full justify-start text-left font-normal h-8 text-xs",
+                    "w-full justify-start text-left font-normal  h-8 text-xs",
                     !localDate?.to && "text-muted-foreground"
                     )}
                 >

@@ -230,7 +230,7 @@ export const columns = ({ onView, onEdit, onConfirmPayment, onStatusChange, isCo
         }
         return `user_${numericId}`;
     },
-    size : 20
+    size : 70
   },
   {
     accessorKey: "orderDate",
@@ -238,6 +238,7 @@ export const columns = ({ onView, onEdit, onConfirmPayment, onStatusChange, isCo
     cell: ({ row }) =>{
       return  formatDate(row.original.orderDate);
     },
+    size : 90
   },
   // {
   //   accessorKey: "id",
@@ -264,29 +265,35 @@ export const columns = ({ onView, onEdit, onConfirmPayment, onStatusChange, isCo
   // },
   {
     accessorKey: "merchantOrderId",
-    header: "Order Number",
+    header: "Order No:",
+    size: 75,
   },
 
   {
     accessorKey: "paymentReceivedDate",
-    header: "Payment Date",
-    cell: ({ row }) => formatDate(row.original.paymentReceivedDate)
+    header: "Pymnt Date",
+    cell: ({ row }) => formatDate(row.original.paymentReceivedDate),
+    size : 90
   },
   {
     accessorKey: "customerFirstName",
     header: "Cust. First Name",
+    size : 70
   },
   {
     accessorKey: "customerLastName",
     header: "Cust. Last Name",
+    size : 70
   },
   {
     accessorKey: "customerEmail",
     header: "Customer Email",
+    size : 180
   },
   {
     accessorKey: "customerPhone",
     header: "Phone",
+    size : 80
   },
   {
     accessorKey: "status",
@@ -304,6 +311,7 @@ export const columns = ({ onView, onEdit, onConfirmPayment, onStatusChange, isCo
       }
        return <StatusDropdown transaction={transaction} onStatusChange={onStatusChange} isUpdating={isUpdating} />;
     },
+    size : 160
   },
   //  {
   //   accessorKey: "riskDetails",
@@ -343,16 +351,19 @@ export const columns = ({ onView, onEdit, onConfirmPayment, onStatusChange, isCo
   {
     accessorKey: "totalAmount",
     header: "Order Amount",
-    cell: ({ row }) => formatCurrency(row.original.totalAmount, row.original.currency)
+    cell: ({ row }) => formatCurrency(row.original.totalAmount, row.original.currency),
+    size : 80
   },
   {
     accessorKey: "currency",
     header: "Curr:",
+    size : 50
   },
   {
     accessorKey: "paidAmount",
     header: "Paid Amount",
-    cell: ({ row }) => formatCurrency(row.original.paidAmount, row.original.currency)
+    cell: ({ row }) => formatCurrency(row.original.paidAmount, row.original.currency),
+    size : 80
   },
   // {
   //   accessorKey: "paymentMethod",
@@ -361,6 +372,7 @@ export const columns = ({ onView, onEdit, onConfirmPayment, onStatusChange, isCo
   {
     accessorKey: "paymentType",
     header: "Pymnt",
+    size : 40
   },
   {
     accessorKey: "paymentAccountId",
@@ -368,7 +380,8 @@ export const columns = ({ onView, onEdit, onConfirmPayment, onStatusChange, isCo
     cell: ({ row }) => {
         const order = row.original;
         return order.paymentAccountEmail || order.paymentAccountId || "N/A";
-    }
+    },
+    size : 150
   },
   // {
   //   accessorKey: "paymentGatewayTransactionId",
@@ -400,5 +413,6 @@ export const columns = ({ onView, onEdit, onConfirmPayment, onStatusChange, isCo
         </DropdownMenu>
       )
     },
+    size : 40
   },
 ]

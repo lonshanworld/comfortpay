@@ -12,6 +12,7 @@ import {
   useReactTable,
   ColumnFiltersState,
   ColumnSizingState,
+  VisibilityState
 } from "@tanstack/react-table"
 import { SlidersHorizontal } from "lucide-react"
 
@@ -38,6 +39,8 @@ interface DataTableProps<TData, TValue> {
   data: TData[]
   columnFilters: ColumnFiltersState;
   setColumnFilters: React.Dispatch<React.SetStateAction<ColumnFiltersState>>;
+   columnVisibility: VisibilityState;
+  setColumnVisibility: React.Dispatch<React.SetStateAction<VisibilityState>>;
   customFilterComponents?: Record<string, React.ElementType<{ column: any }>>;
 }
 
@@ -47,12 +50,13 @@ export function DataTableWithColumnFilters<TData, TValue>({
   data,
   columnFilters,
   setColumnFilters,
+    columnVisibility,
+  setColumnVisibility,
   customFilterComponents = {},
 }: DataTableProps<TData, TValue>) {
   
   const [sorting, setSorting] = React.useState<any[]>([])
-  const [columnVisibility, setColumnVisibility] =
-    React.useState<Record<string, boolean>>({})
+
   const [rowSelection, setRowSelection] = React.useState({})
   const [columnSizing, setColumnSizing] = React.useState<ColumnSizingState>({})
   const isMobile = useIsMobile();
@@ -85,10 +89,7 @@ export function DataTableWithColumnFilters<TData, TValue>({
           paymentMethod : false,
         }
     },
-     defaultColumn: {
-      size: 50, // default column size
-    
-    },
+  
   })
 
    React.useEffect(() => {
@@ -142,7 +143,7 @@ export function DataTableWithColumnFilters<TData, TValue>({
         </DropdownMenu>
       </div>
       <div className="rounded-md border overflow-x-auto">
-        <Table style={{ width: table.getTotalSize() }}>
+        <Table id="transactions-table" style={{ width: table.getTotalSize(), tableLayout: 'fixed' }}>
           <TableHeader>
             {table.getHeaderGroups().map((headerGroup) => (
               <TableRow key={headerGroup.id}>

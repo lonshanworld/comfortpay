@@ -261,7 +261,7 @@ export function EditOrderDialog({ open, onOpenChange, onOrderUpdated, order: tra
                   )}
                 />
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                    <FormField
+                    {/* <FormField
                         control={form.control}
                         name="orderAmount"
                         render={({ field }) => (
@@ -273,7 +273,7 @@ export function EditOrderDialog({ open, onOpenChange, onOrderUpdated, order: tra
                             <FormMessage />
                         </FormItem>
                         )}
-                    />
+                    /> */}
                      <FormField
                         control={form.control}
                         name="totalAmount"
