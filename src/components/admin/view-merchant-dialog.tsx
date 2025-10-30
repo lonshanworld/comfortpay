@@ -198,7 +198,7 @@ export function ViewMerchantDialog({ open, onOpenChange, merchant }: ViewMerchan
                      <h4 className="text-sm font-semibold text-primary mb-2">Personal & ID</h4>
                      <div className="space-y-1">
                         <DetailRow label="Nationality" value={merchant.nationality} />
-                        <DetailRow label="Date of Birth" value={merchant.dateOfBirth ? new Date(merchant.dateOfBirth).toLocaleDateString() : undefined} />
+                        <DetailRow label="Date of Birth" value={merchant.dateOfBirth ? new Date(merchant.dateOfBirth).toLocaleDateString('en-US', { timeZone: 'GMT' }) : undefined} />
                         <DetailRow label="ID Type" value={merchant.idType} />
                         <DocumentRow label="Photo ID" url={merchant.photoIdUrl} type="image"/>
                         <DocumentRow label="Business Document" url={merchant.businessDocumentUrl} type="document" />

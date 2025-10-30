@@ -12,7 +12,8 @@ import {
   useReactTable,
   ColumnFiltersState,
   ColumnSizingState,
-  VisibilityState
+  VisibilityState,
+  PaginationState,
 } from "@tanstack/react-table"
 import { SlidersHorizontal } from "lucide-react"
 
@@ -42,6 +43,9 @@ interface DataTableProps<TData, TValue> {
    columnVisibility: VisibilityState;
   setColumnVisibility: React.Dispatch<React.SetStateAction<VisibilityState>>;
   customFilterComponents?: Record<string, React.ElementType<{ column: any }>>;
+    pagination: PaginationState;
+  setPagination: React.Dispatch<React.SetStateAction<PaginationState>>;
+  pageCount: number;
 }
 
 
@@ -53,6 +57,9 @@ export function DataTableWithColumnFilters<TData, TValue>({
     columnVisibility,
   setColumnVisibility,
   customFilterComponents = {},
+  pagination,
+  setPagination,
+  pageCount,
 }: DataTableProps<TData, TValue>) {
   
   const [sorting, setSorting] = React.useState<any[]>([])
@@ -64,6 +71,7 @@ export function DataTableWithColumnFilters<TData, TValue>({
   const table = useReactTable({
     data,
     columns,
+    pageCount,
     onSortingChange: setSorting,
     onColumnFiltersChange: setColumnFilters,
     getCoreRowModel: getCoreRowModel(),
@@ -72,6 +80,9 @@ export function DataTableWithColumnFilters<TData, TValue>({
     onColumnVisibilityChange: setColumnVisibility,
     onRowSelectionChange: setRowSelection,
     onColumnSizingChange: setColumnSizing,
+    onPaginationChange: setPagination,
+    manualPagination: true,
+    manualFiltering: true,
     columnResizeMode: "onChange",
     state: {
       sorting,
@@ -81,9 +92,7 @@ export function DataTableWithColumnFilters<TData, TValue>({
       columnSizing,
     },
     initialState: {
-        pagination: {
-            pageSize: 75,
-        },
+       
         columnVisibility : {
           id : false,
           paymentMethod : false,
@@ -192,7 +201,7 @@ export function DataTableWithColumnFilters<TData, TValue>({
                   data-state={row.getIsSelected() && "selected"}
                 >
                   {row.getVisibleCells().map((cell) => (
-                    <TableCell key={cell.id} style={{ width: cell.column.getSize() }} className="text-xs">
+                    <TableCell key={cell.id} style={{ width: cell.column.getSize() }} className="text-xs break-words">
                       {flexRender(
                         cell.column.columnDef.cell,
                         cell.getContext()
@@ -216,7 +225,8 @@ export function DataTableWithColumnFilters<TData, TValue>({
       </div>
       <div className="flex items-center justify-end space-x-2 py-4">
         <div className="flex-1 text-sm text-muted-foreground">
-          {table.getFilteredRowModel().rows.length} row(s) found.
+          {table.getFilteredSelectedRowModel().rows.length} of{" "}
+          {table.getFilteredRowModel().rows.length} row(s) selected.
         </div>
         <div className="space-x-2">
           <Button

@@ -30,17 +30,16 @@ export function DateRangePicker({
 }: DateRangePickerProps) {
   
   const [localDate, setLocalDate] = React.useState<DateRange | undefined>(externalDate);
+  
     React.useEffect(() => {
     setLocalDate(externalDate);
   }, [externalDate]);
-  const toUTCDate = (date: Date): Date => {
-    return new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
-  }
+
+
+
 
   const handleFromChange = (newFromDate: Date | null) => {
-    if (!newFromDate) return;
-    const utcFrom = toUTCDate(newFromDate);
-    const newRange = { from: utcFrom, to: localDate?.to };
+    const newRange = { from: newFromDate || undefined, to: localDate?.to };
     setLocalDate(newRange);
     if (newRange.from && newRange.to) {
         setExternalDate(newRange);
@@ -48,21 +47,23 @@ export function DateRangePicker({
   }
   
   const handleToChange = (newToDate: Date | null) => {
-     if (!newToDate) return;
-    const utcTo = toUTCDate(newToDate);
-    const newRange = { from: localDate?.from, to: utcTo };
+    const newRange = { from: localDate?.from, to: newToDate || undefined };
     setLocalDate(newRange);
-     if (newRange.from && newRange.to) {
+    if (newRange.from && newRange.to) {
         setExternalDate(newRange);
     }
   }
 
-  const formatDateForDisplay = (date: Date) => {
-    // Adjust for timezone offset to display the correct GMT date
-    const userTimezoneOffset = date.getTimezoneOffset() * 60000;
-    const adjustedDate = new Date(date.getTime() + userTimezoneOffset);
-    return format(adjustedDate, "LLL dd, y", { locale: enUS });
-  };
+      const formatDateForDisplay = (date: Date): string => {
+        return date.toLocaleString('en-US', {
+            month: 'short',
+            day: '2-digit',
+            year: 'numeric',
+            hour: 'numeric',
+            minute: '2-digit',
+            hour12: true,
+        });
+    };
 
   return (
     <div className={cn("flex flex-col", className)}>
@@ -87,7 +88,9 @@ export function DateRangePicker({
                 selectsStart
                 startDate={localDate?.from}
                 endDate={localDate?.to}
-                dateFormat="MMM dd, yyyy"
+                showTimeSelect
+                dateFormat="MMM dd, yyyy h:mm aa"
+                locale={""}
                 inline
                 />
             </PopoverContent>
@@ -114,7 +117,8 @@ export function DateRangePicker({
                 startDate={localDate?.from}
                 endDate={localDate?.to}
                 minDate={localDate?.from}
-                dateFormat="MMM dd, yyyy"
+                showTimeSelect
+                dateFormat="MMM dd, yyyy h:mm aa"
                 inline
                 />
             </PopoverContent>

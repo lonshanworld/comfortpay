@@ -7,8 +7,12 @@ import {
   Search,
   X,
   ChevronDown,
+   DollarSign,
+  CheckCircle,
+  TrendingUp,
+  Clock,
 } from "lucide-react"
-import type { ColumnFiltersState } from "@tanstack/react-table"
+import type { ColumnFiltersState, PaginationState } from "@tanstack/react-table"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -42,9 +46,20 @@ import { MerchantFilter } from "@/components/admin/merchant-filter"
 import { AccountInfoFilter } from "@/components/admin/account-info-filter"
 import { Input } from "@/components/ui/input"
 import type { VisibilityState } from "@tanstack/react-table"
+import { Label } from "@/components/ui/label"
 
 
-
+ function toLocalISOString(date : any) {
+  const pad = n => String(n).padStart(2, '0');
+  return (
+    date.getFullYear() + '-' +
+    pad(date.getMonth() + 1) + '-' +
+    pad(date.getDate()) + 'T' +
+    pad(date.getHours()) + ':' +
+    pad(date.getMinutes()) + ':' +
+    pad(date.getSeconds()) + '.000Z'
+  );
+}
 
 // Helper to download files on the client side
 const downloadFile = (content: string, fileName: string, contentType: string) => {
@@ -125,6 +140,8 @@ const DateRangeColumnFilter = ({ column }: { column: { id: string; setFilterValu
 export default function TransactionsPage() {
   const [transactions, setTransactions] = useState<Order[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [pageCount, setPageCount] = useState(0);
+  const [totalCount, setTotalCount] = useState(0);
   const [isExporting, setIsExporting] = useState(false);
   const [isConfirming, setIsConfirming] = useState<string | null>(null);
   const [isUpdatingStatus, setIsUpdatingStatus] = useState<string | null>(null);
@@ -137,22 +154,29 @@ export default function TransactionsPage() {
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([])
     const [stagedFilters, setStagedFilters] = React.useState<ColumnFiltersState>([])
     const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState>({ id: false });
+     const [pagination, setPagination] = useState<PaginationState>({
+    pageIndex: 0,
+    pageSize: 200,
+  })
 
-    const [debouncedColumnFilters] = useDebounce(columnFilters, 1000);
+   const [debouncedFilters] = useDebounce(columnFilters, 1000);
 
- 
 
-const fetchTransactions = useCallback(async (filters: ColumnFiltersState) => {
+
+const fetchTransactions = useCallback(async (filters: ColumnFiltersState, pageState: PaginationState) => {
     setIsLoading(true);
     try {
       const params = new URLSearchParams();
+       params.append('page', String(pageState.pageIndex + 1));
+      params.append('pageSize', String(pageState.pageSize));
       
      filters.forEach(filter => {
         if (filter.value) {
             if (filter.id === 'orderDate' || filter.id === 'paymentReceivedDate') {
                 const dateValue = filter.value as DateRange;
-                if (dateValue.from) params.append(`${filter.id}_start`, dateValue.from.toISOString().split('T')[0]);
-                if (dateValue.to) params.append(`${filter.id}_end`, dateValue.to.toISOString().split('T')[0]);
+
+                 if (dateValue.from) params.append(`${filter.id}_start`, toLocalISOString(dateValue.from));
+                if (dateValue.to) params.append(`${filter.id}_end`, toLocalISOString(dateValue.to));
             } else if (typeof filter.value === 'string' || typeof filter.value === 'number') {
                  params.append(String(filter.id), String(filter.value))
             }
@@ -163,8 +187,10 @@ const fetchTransactions = useCallback(async (filters: ColumnFiltersState) => {
       const response = await fetch(`/api/orders?${params.toString()}`);
       if (!response.ok) throw new Error("Failed to fetch transactions");
 
-      const data = await response.json();
+     const { data, pageCount, totalCount } = await response.json();
       setTransactions(data);
+      setPageCount(pageCount);
+      setTotalCount(totalCount);
     } catch (error) {
       console.error("Failed to fetch data", error);
       toast({ variant: "destructive", title: "Fetch Error", description: "Could not fetch transactions."})
@@ -177,22 +203,22 @@ const fetchTransactions = useCallback(async (filters: ColumnFiltersState) => {
   // const getActiveFilters = useCallback(() => {
   //   // This function now correctly combines filters, giving stagedFilters precedence
   //   const activeFiltersMap = new Map(stagedFilters.map(f => [f.id, f.value]));
-  //   debouncedColumnFilters.forEach(f => {
+  //   debouncedFilters.forEach(f => {
   //     if (!activeFiltersMap.has(f.id)) {
   //       activeFiltersMap.set(f.id, f.value);
   //     }
   //   });
   //   return Array.from(activeFiltersMap, ([id, value]) => ({ id, value }));
-  // }, [debouncedColumnFilters, stagedFilters]);
+  // }, [debouncedFilters, stagedFilters]);
 
   useEffect(() => {
-    fetchTransactions(debouncedColumnFilters);
-  }, [debouncedColumnFilters, fetchTransactions]);
+    fetchTransactions(debouncedFilters, pagination);
+  }, [debouncedFilters, fetchTransactions]);
 
   
   useEffect(() => {
     const intervalId = setInterval(() => {
-          fetchTransactions(columnFilters);
+        fetchTransactions(columnFilters, pagination);
     }, 3 * 60 * 1000); // 3 minutes
 
     return () => clearInterval(intervalId); // Cleanup on unmount
@@ -209,7 +235,7 @@ const fetchTransactions = useCallback(async (filters: ColumnFiltersState) => {
   };
 
   const handleTransactionUpdated = () => {
-    fetchTransactions(columnFilters);
+    fetchTransactions(columnFilters, pagination);
   }
 
   const handleConfirmPayment = async (transaction: Order, amount: number) => {
@@ -219,7 +245,7 @@ const fetchTransactions = useCallback(async (filters: ColumnFiltersState) => {
      const result = await confirmOrderPayment({ order: transaction, amountReceived: amount });
 
     if (result.success) {
-      await fetchTransactions(columnFilters);
+      fetchTransactions(columnFilters, pagination);
       toast({
         title: "Payment Confirmed",
         description: result.message
@@ -256,7 +282,7 @@ const fetchTransactions = useCallback(async (filters: ColumnFiltersState) => {
       });
 
       // Refresh the data in the background to show the update
-      await fetchTransactions(columnFilters);
+      fetchTransactions(columnFilters, pagination);
 
     } catch (error: any) {
       toast({
@@ -363,6 +389,33 @@ isUpdatingStatusId: isUpdatingStatus,
     });
   };
 
+  
+  const summaryStats = React.useMemo(() => {
+    const completedOrders = transactions.filter(
+      (t) => t.status === 'Completed' || t.status === 'Over-paid Refunded'
+    );
+    const onHoldOrders = transactions.filter((t) => t.status === 'On-Hold');
+    const cancelledOrders = transactions.filter((t) => t.status === 'Refunded' || t.status === 'Failed');
+
+    const completedAmount = completedOrders.reduce(
+      (acc, order) => acc + Number(order.totalAmount),
+      0
+    );
+
+    const completionPercentage =
+      transactions.length > 0
+        ? (completedOrders.length / transactions.length) * 100
+        : 0;
+
+    return {
+      completedAmount,
+      completedCount: completedOrders.length,
+      completionPercentage,
+      onHoldCount: onHoldOrders.length,
+      cancelledCount: cancelledOrders.length,
+    };
+  }, [transactions]);
+
   return (
     <div className="grid flex-1 items-start gap-4 sm:py-0 md:gap-8">
         {selectedTransaction && (
@@ -380,6 +433,7 @@ isUpdatingStatusId: isUpdatingStatus,
                 onOrderUpdated={handleTransactionUpdated}
             />
         )}
+   
         <Card className="">
             <CardHeader className="w-11/12 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
               <div className="flex-1">
@@ -415,44 +469,102 @@ isUpdatingStatusId: isUpdatingStatus,
                 </DropdownMenu>
             </div>
             </CardHeader>
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5 px-4 mb-4 w-11/12">
+              <div
+              className="bg-green-800 rounded-sm px-3 py-1 flex flex-col items-center text-white">
+                <p className="text-xs">Completed Amount</p>
+                <p className="text-sm font-bold">${summaryStats.completedAmount}</p>
+              </div>
+              <div
+              className="bg-green-300 rounded-sm px-3 py-1 flex flex-col items-center text-white">
+                <p className="text-xs">Completed Count</p>
+                <p className="text-sm font-bold">{summaryStats.completedCount}</p>
+              </div>
+              <div
+              className="bg-gray-500 rounded-sm px-3 py-1 flex flex-col items-center text-white">
+                <p className="text-xs">Completion Rate</p>
+                <p className="text-sm font-bold">{parseFloat(summaryStats.completionPercentage.toString()).toFixed(2)}%</p>
+              </div>
+              <div
+              className="bg-yellow-400 rounded-sm px-3 py-1 flex flex-col items-center text-white">
+                <p className="text-xs">On-Hold</p>
+                <p className="text-sm font-bold">{summaryStats.onHoldCount}</p>
+              </div>
+              <div
+              className="bg-red-500 rounded-sm px-3 py-1 flex flex-col items-center text-white">
+                <p className="text-xs">Refunded/Failed</p>
+                <p className="text-sm font-bold">{summaryStats.cancelledCount}</p>
+              </div>
+            </div>
             <CardContent>
-               <div className="w-11/12 grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-2 mb-4 p-4 border rounded-lg">
-                    <DateRangePicker 
-                      date={stagedFilters.find(f => f.id === 'paymentReceivedDate')?.value}
-                      setDate={(value) => setStagedFilterValue('paymentReceivedDate', value)}
-                    />
-                      <Select value={stagedFilters.find(f => f.id === 'status')?.value as string ?? ''} onValueChange={value => setStagedFilterValue('status', value === 'all' ? '' : value)}>
-                        <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Order Status" /></SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value="all">All Statuses</SelectItem>
-                            <SelectItem value="Pending">Pending</SelectItem>
-                            <SelectItem value="Completed">Completed</SelectItem>
-                            <SelectItem value="On-Hold">On-Hold</SelectItem>
-                            <SelectItem value="Failed">Failed</SelectItem>
-                            <SelectItem value="Requires Confirmation">Requires Confirmation</SelectItem>
-                            <SelectItem value="Partially Paid">Partially Paid</SelectItem>
-                            <SelectItem value="Refunded">Refunded</SelectItem>
-                            <SelectItem value="Over-paid Refunded">Over-paid Refunded</SelectItem>
-                        </SelectContent>
-                     </Select>
-                     {/* <Select value={columnFilters.find(f => f.id === 'currency')?.value as string ?? ''} onValueChange={value => setFilter('currency', value === 'all' ? '' : value)}>
-                        <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Currency" /></SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value="all">All Currencies</SelectItem>
-                            <SelectItem value="USD">USD</SelectItem>
-                            <SelectItem value="EUR">EUR</SelectItem>
-                            <SelectItem value="GBP">GBP</SelectItem>
-                        </SelectContent>
-                     </Select> */}
-                     <Input placeholder="Order ID" className="h-8 text-xs" value={stagedFilters.find(f => f.id === 'merchantOrderId')?.value as string ?? ''} onChange={e => setStagedFilterValue('merchantOrderId', e.target.value)} />
-                    <Input placeholder="Order Amount" className="h-8 text-xs" type="number" value={stagedFilters.find(f => f.id === 'totalAmount')?.value as string ?? ''} onChange={e => setStagedFilterValue('totalAmount', e.target.value)} />
-                    <Input placeholder="Paid Amount" className="h-8 text-xs" type="number" value={stagedFilters.find(f => f.id === 'paidAmount')?.value as string ?? ''} onChange={e => setStagedFilterValue('paidAmount', e.target.value)} />
-                    <Input placeholder="Cust. Email" className="h-8 text-xs" value={stagedFilters.find(f => f.id === 'customerEmail')?.value as string ?? ''} onChange={e => setStagedFilterValue('customerEmail', e.target.value)} />
-                    <Input placeholder="Cust. First Name" className="h-8 text-xs" value={stagedFilters.find(f => f.id === 'customerFirstName')?.value as string ?? ''} onChange={e => setStagedFilterValue('customerFirstName', e.target.value)} />
-                    <Input placeholder="Cust. Last Name" className="h-8 text-xs" value={stagedFilters.find(f => f.id === 'customerLastName')?.value as string ?? ''} onChange={e => setStagedFilterValue('customerLastName', e.target.value)} />
-                    <MerchantFilter column={{ setFilterValue: (value: any) => setStagedFilterValue('merchantId', value), getFilterValue: () => stagedFilters.find(f => f.id === 'merchantId')?.value }} />
-                    <AccountInfoFilter column={{ setFilterValue: (value: any) => setStagedFilterValue('paymentAccountId', value), getFilterValue: () => stagedFilters.find(f => f.id === 'paymentAccountId')?.value }} />
-                </div>
+               <div className="flex flex-col gap-4 mb-4 p-4 border rounded-lg">
+                    <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4 w-11/12">
+                        <div className="grid gap-2">
+                           <Label htmlFor="orderDate" className="text-xs">Order Date</Label>
+                           <DateRangePicker 
+                            id="orderDate"
+                            date={stagedFilters.find(f => f.id === 'orderDate')?.value}
+                            setDate={(value) => setStagedFilterValue('orderDate', value)}
+                           />
+                        </div>
+                        <div className="grid gap-2">
+                           <Label htmlFor="paymentReceivedDate" className="text-xs">Payment Date</Label>
+                           <DateRangePicker 
+                            id="paymentReceivedDate"
+                            date={stagedFilters.find(f => f.id === 'paymentReceivedDate')?.value}
+                            setDate={(value) => setStagedFilterValue('paymentReceivedDate', value)}
+                           />
+                        </div>
+                        <div className="grid gap-2">
+                           {/* <Label className="text-xs">Status</Label> */}
+                            <Select value={stagedFilters.find(f => f.id === 'status')?.value as string ?? ''} onValueChange={value => setStagedFilterValue('status', value === 'all' ? '' : value)}>
+                                <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Order Status" /></SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="all">All Statuses</SelectItem>
+                                    <SelectItem value="Pending">Pending</SelectItem>
+                                    <SelectItem value="Completed">Completed</SelectItem>
+                                    <SelectItem value="On-Hold">On-Hold</SelectItem>
+                                    <SelectItem value="Failed">Failed</SelectItem>
+                                    <SelectItem value="Requires Confirmation">Requires Confirmation</SelectItem>
+                                    <SelectItem value="Partially Paid">Partially Paid</SelectItem>
+                                    <SelectItem value="Refunded">Refunded</SelectItem>
+                                    <SelectItem value="Over-paid Refunded">Over-paid Refunded</SelectItem>
+                                </SelectContent>
+                            </Select>
+                        </div>
+                        <div className="grid gap-2">
+                            {/* <Label className="text-xs">Order ID</Label> */}
+                            <Input placeholder="Order ID" className="h-8 text-xs" value={stagedFilters.find(f => f.id === 'merchantOrderId')?.value as string ?? ''} onChange={e => setStagedFilterValue('merchantOrderId', e.target.value)} />
+                        </div>
+                         <div className="grid gap-2">
+                            {/* <Label className="text-xs">Order Amount</Label> */}
+                            <Input placeholder="Amount" className="h-8 text-xs" type="number" value={stagedFilters.find(f => f.id === 'totalAmount')?.value as string ?? ''} onChange={e => setStagedFilterValue('totalAmount', e.target.value)} />
+                        </div>
+                         <div className="grid gap-2">
+                            {/* <Label className="text-xs">Paid Amount</Label> */}
+                            <Input placeholder="Amount" className="h-8 text-xs" type="number" value={stagedFilters.find(f => f.id === 'paidAmount')?.value as string ?? ''} onChange={e => setStagedFilterValue('paidAmount', e.target.value)} />
+                        </div>
+                        <div className="grid gap-2">
+                            {/* <Label className="text-xs">Cust. Email</Label> */}
+                            <Input placeholder="Email" className="h-8 text-xs" value={stagedFilters.find(f => f.id === 'customerEmail')?.value as string ?? ''} onChange={e => setStagedFilterValue('customerEmail', e.target.value)} />
+                        </div>
+                        <div className="grid gap-2">
+                            {/* <Label className="text-xs">Cust. First Name</Label> */}
+                            <Input placeholder="First Name" className="h-8 text-xs" value={stagedFilters.find(f => f.id === 'customerFirstName')?.value as string ?? ''} onChange={e => setStagedFilterValue('customerFirstName', e.target.value)} />
+                        </div>
+                        <div className="grid gap-2">
+                           {/* <Label className="text-xs">Cust. Last Name</Label> */}
+                            <Input placeholder="Last Name" className="h-8 text-xs" value={stagedFilters.find(f => f.id === 'customerLastName')?.value as string ?? ''} onChange={e => setStagedFilterValue('customerLastName', e.target.value)} />
+                        </div>
+                        <div className="grid gap-2">
+                             {/* <Label className="text-xs">Merchant</Label> */}
+                            <MerchantFilter column={{ setFilterValue: (value: any) => setStagedFilterValue('merchantId', value), getFilterValue: () => stagedFilters.find(f => f.id === 'merchantId')?.value }} />
+                        </div>
+                        <div className="grid gap-2">
+                            {/* <Label className="text-xs">Payment Account</Label> */}
+                            <AccountInfoFilter column={{ setFilterValue: (value: any) => setStagedFilterValue('paymentAccountId', value), getFilterValue: () => stagedFilters.find(f => f.id === 'paymentAccountId')?.value }} />
+                        </div>
+                    </div>
               {isLoading ? (
                 <div className="flex justify-center items-center py-10">
                   <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
@@ -465,6 +577,9 @@ isUpdatingStatusId: isUpdatingStatus,
                   setColumnFilters={setColumnFilters}
                     columnVisibility={columnVisibility}
                   setColumnVisibility={setColumnVisibility}
+                  pagination={pagination}
+                  setPagination={setPagination}
+                  pageCount={pageCount}
                   customFilterComponents={{ 
                      merchantId: MerchantFilter,
                      paymentAccountId: AccountInfoFilter,
@@ -474,10 +589,11 @@ isUpdatingStatusId: isUpdatingStatus,
                    }}
                 />
               )}
+              </div>
             </CardContent>
             <CardFooter>
               <div className="text-xs text-muted-foreground">
-                Showing <strong>{transactions.length}</strong> transactions
+                 Showing <strong>{transactions.length}</strong> of <strong>{totalCount}</strong> transactions.
               </div>
             </CardFooter>
           </Card>

@@ -79,38 +79,47 @@ export async function createCheckoutSession(input: CreateCheckoutSessionInput): 
     }
     
     // 2. Query for all active payment accounts of the enabled types that are NOT already over their limit.
-    const placeholders = enabledProcessors.map(() => '?').join(',');
-    const eligiblePaymentAccounts: PaymentAccount[] = await executeQuery(
-        `SELECT * FROM payment_accounts WHERE type IN (${placeholders}) AND status = 'Active' AND currentVolume < dailyLimit`,
-        [...enabledProcessors]
-    );
-
-    if (eligiblePaymentAccounts.length === 0) {
-        console.error(`❌ [createCheckoutSession] Error: No payment accounts available for method '${input.paymentMethod}' that are under their daily processing limit.`);
-        return { error: `This payment method is temporarily unavailable due to high volume. Please try again later or contact support. (Ref: ALL_ACCOUNTS_AT_CAPACITY)` };
-    }
-    console.log(`[createCheckoutSession] Found ${eligiblePaymentAccounts.length} eligible accounts under their limit.`);
-    console.log(`[createCheckoutSession] Eligible accounts result:`, eligiblePaymentAccounts.map(a => ({id: a.id, type: a.type, currentVolume: a.currentVolume, dailyLimit: a.dailyLimit})));
-
-    // 3. From the eligible accounts, select the best one.
     let selectedAccount: PaymentAccount | null = null;
     
-    if (eligiblePaymentAccounts.length === 1) {
-        selectedAccount = eligiblePaymentAccounts[0];
-    } else {
-        // Find the account with the lowest current volume to balance the load.
-        const minCurrentVolume = Math.min(...eligiblePaymentAccounts.map(acc => Number(acc.currentVolume)));
-        const bestAccounts = eligiblePaymentAccounts.filter(acc => Number(acc.currentVolume) === minCurrentVolume);
+    if (input.paymentMethod === 'zelle') {
+        console.log(`[createCheckoutSession] Zelle method detected. Using round-robin selection.`);
+        const eligibleZelleAccounts: PaymentAccount[] = await executeQuery(
+            `SELECT * FROM payment_accounts 
+             WHERE type = 'Zelle' AND status = 'Active' AND currentVolume < dailyLimit 
+             ORDER BY last_used_at ASC, id ASC`, // Fallback to id for deterministic order
+            []
+        );
+        if (eligibleZelleAccounts.length > 0) {
+            selectedAccount = eligibleZelleAccounts[0]; // Pick the least recently used one
+             console.log(`[createCheckoutSession] Selected Zelle account via round-robin: ID ${selectedAccount.id}`);
+        } else {
+            console.error(`❌ [createCheckoutSession] Error: No Zelle accounts available that are under their daily processing limit.`);
+        }
+    } else { // Card payments (Stripe/Square)
+        const placeholders = enabledProcessors.map(() => '?').join(',');
+        console.log(`[createCheckoutSession] Card method detected. Querying for eligible accounts with types: ${enabledProcessors.join(', ')}`);
+        const eligiblePaymentAccounts: PaymentAccount[] = await executeQuery(
+            `SELECT * FROM payment_accounts WHERE type IN (${placeholders}) AND status = 'Active' AND currentVolume < dailyLimit`,
+            [...enabledProcessors]
+        );
         
-        if (bestAccounts.length > 0) {
-            const randomIndex = Math.floor(Math.random() * bestAccounts.length);
-            selectedAccount = bestAccounts[randomIndex];
+        if (eligiblePaymentAccounts.length > 0) {
+            console.log(`[createCheckoutSession] Found ${eligiblePaymentAccounts.length} eligible card accounts under their limit.`);
+            const minCurrentVolume = Math.min(...eligiblePaymentAccounts.map(acc => Number(acc.currentVolume)));
+            const bestAccounts = eligiblePaymentAccounts.filter(acc => Number(acc.currentVolume) === minCurrentVolume);
+            
+            if (bestAccounts.length > 0) {
+                const randomIndex = Math.floor(Math.random() * bestAccounts.length);
+                selectedAccount = bestAccounts[randomIndex];
+            }
+        } else {
+             console.error(`❌ [createCheckoutSession] Error: No card payment accounts available that are under their daily processing limit.`);
         }
     }
     
     if (!selectedAccount) {
-        console.error(`❌ [createCheckoutSession] Error: Could not select a payment account after filtering.`);
-        return { error: `Could not select a payment account.` };
+         console.error(`❌ [createCheckoutSession] Error: No payment accounts available for method '${input.paymentMethod}'.`);
+        return { error: `This payment method is temporarily unavailable due to high volume. Please try again later or contact support. (Ref: ALL_ACCOUNTS_AT_CAPACITY)` };
     }
     console.log(`✅ [createCheckoutSession] Final Selected Account result:`, {id: selectedAccount.id, type: selectedAccount.type});
 
@@ -173,7 +182,16 @@ export async function createCheckoutSession(input: CreateCheckoutSessionInput): 
     const orderResult = await runQuery(orderInsertQuery, orderParams);
     const newOrderId = `CP${orderResult.id}`;
     console.log(`📝 [createCheckoutSession] Order created in DB. Result:`, { newComfortPayId: newOrderId, dbInsertId: orderResult.id });
-
+    // If a Zelle account was used, update its last_used_at timestamp.
+    if (selectedAccount.type === 'Zelle') {
+        console.log(`[createCheckoutSession] Updating last_used_at for Zelle account ID: ${selectedAccount.id}`);
+        await runQuery(
+            `UPDATE payment_accounts SET last_used_at = ? WHERE id = ?`,
+            [formatDateForMySQL(now), selectedAccount.id]
+        );
+        console.log(`[createCheckoutSession] Timestamp updated successfully.`);
+    }
+    
     const sessionDataWithDetails = { 
         ...input,
         wooCommerceOrderReceivedUrl: input.wooCommerceOrderReceivedUrl || input.redirectUrl,

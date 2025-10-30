@@ -44,8 +44,12 @@ const parseDbOrder = (dbOrder: any) => {
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   
-    // Force dates to be formatted as ISO 8601 UTC strings directly in the query
-    let query = `
+    // Pagination parameters
+    const page = parseInt(searchParams.get('page') || '1', 10);
+    const pageSize = parseInt(searchParams.get('pageSize') || '75', 10);
+    const offset = (page - 1) * pageSize;
+    console.log(`Fetching orders - Page: ${page}, Page Size: ${pageSize}, Offset: ${offset}`);
+    let selectClause = `
         SELECT 
             o.*, 
             DATE_FORMAT(o.orderDate, '%Y-%m-%dT%H:%i:%s.000Z') as orderDate,
@@ -53,6 +57,10 @@ export async function GET(request: Request) {
             u.name as merchantName, 
             u.websiteUrl as merchantWebsiteUrl,
             pa.accountEmail as paymentAccountEmail
+    `;
+    let countClause = `SELECT COUNT(*) as totalCount`;
+
+    let fromAndWhereClause = `
         FROM orders o
         LEFT JOIN users u ON o.merchantId = u.id AND u.role = 'Merchant'
         LEFT JOIN payment_accounts pa ON o.paymentAccountId = pa.id
@@ -61,68 +69,72 @@ export async function GET(request: Request) {
     const params: (string | number)[] = [];
 
     searchParams.forEach((value, key) => {
-        if (value) {
+        if (value && !['page', 'pageSize'].includes(key)) {
             switch (key) {
                 case 'id':
-                    query += " AND o.id LIKE ?";
+                    fromAndWhereClause += " AND o.id LIKE ?";
                     params.push(`%${value.replace('CP', '')}%`);
                     break;
                 case 'merchantId':
-                    query += " AND o.merchantId = ?";
+                    fromAndWhereClause += " AND o.merchantId = ?";
                     params.push(value.replace('user_', ''));
                     break;
                 case 'merchantName':
-                    query += " AND u.name LIKE ?";
+                    fromAndWhereClause += " AND u.name LIKE ?";
                     params.push(`%${value}%`);
                     break;
                 case 'merchantWebsiteUrl':
-                    query += " AND u.websiteUrl LIKE ?";
+                    fromAndWhereClause += " AND u.websiteUrl LIKE ?";
                     params.push(`%${value}%`);
                     break;
                 case 'merchantOrderId':
-                    query += " AND o.merchantOrderId LIKE ?";
+                    fromAndWhereClause += " AND o.merchantOrderId LIKE ?";
                     params.push(`%${value}%`);
                     break;
                 case 'customerFirstName':
-                    query += " AND JSON_UNQUOTE(JSON_EXTRACT(o.billingDetails, '$.firstName')) LIKE ?";
+                    fromAndWhereClause += " AND JSON_UNQUOTE(JSON_EXTRACT(o.billingDetails, '$.firstName')) LIKE ?";
                     params.push(`%${value}%`);
                     break;
                 case 'customerLastName':
-                    query += " AND JSON_UNQUOTE(JSON_EXTRACT(o.billingDetails, '$.lastName')) LIKE ?";
+                    fromAndWhereClause += " AND JSON_UNQUOTE(JSON_EXTRACT(o.billingDetails, '$.lastName')) LIKE ?";
                     params.push(`%${value}%`);
                     break;
                 case 'customerEmail':
-                    query += " AND (o.customerEmail LIKE ? OR JSON_UNQUOTE(JSON_EXTRACT(o.billingDetails, '$.email')) LIKE ?)";
+                    fromAndWhereClause += " AND (o.customerEmail LIKE ? OR JSON_UNQUOTE(JSON_EXTRACT(o.billingDetails, '$.email')) LIKE ?)";
                     params.push(`%${value}%`, `%${value}%`);
                     break;
                 case 'customerPhone':
-                    query += " AND JSON_UNQUOTE(JSON_EXTRACT(o.billingDetails, '$.phone')) LIKE ?";
+                    fromAndWhereClause += " AND JSON_UNQUOTE(JSON_EXTRACT(o.billingDetails, '$.phone')) LIKE ?";
                     params.push(`%${value}%`);
                     break;
                 case 'status':
                     if (value === 'NOT_PENDING') {
-                        query += " AND o.status != 'Pending'";
+                        fromAndWhereClause += " AND o.status != 'Pending'";
                     } else {
-                        query += " AND o.status LIKE ?";
+                        fromAndWhereClause += " AND o.status LIKE ?";
                         params.push(`%${value}%`);
                     }
                     break;
                 case 'orderAmount':
                 case 'totalAmount':
                 case 'paidAmount':
-                    query += ` AND o.${key} = ?`;
+                    fromAndWhereClause += ` AND o.${key} = ?`;
                     params.push(Number(value));
                     break;
                 case 'currency':
                 case 'paymentMethod':
                 case 'paymentType':
                 case 'paymentGatewayTransactionId':
+                    fromAndWhereClause += ` AND o.${key} LIKE ?`;
+                    params.push(`%${value}%`);
+                    break;
                 case 'wooCommerceSiteUrl':
-                    query += " AND o.wooCommerceSiteUrl LIKE ?";
+                    // Decode the URL before using it in the query
+                    fromAndWhereClause += " AND o.wooCommerceSiteUrl LIKE ?";
                     params.push(`%${decodeURIComponent(value)}%`);
                     break;
                 case 'paymentAccountId':
-                    query += ` AND o.paymentAccountId = ?`;
+                    fromAndWhereClause += ` AND o.paymentAccountId = ?`;
                      params.push(value);
                     break;
                 // case 'orderDate_start':
@@ -146,12 +158,13 @@ export async function GET(request: Request) {
                     try {
                         const dateRange = JSON.parse(value);
                         if (dateRange.from) {
-                            query += ` AND DATE(o.${key}) >= ?`;
-                            params.push(dateRange.from.split('T')[0]);
+                            fromAndWhereClause += ` AND o.${key} >= ?`;
+                            params.push(new Date(dateRange.from).toISOString().slice(0, 19).replace('T', ' '));
                         }
                         if (dateRange.to) {
-                            query += ` AND DATE(o.${key}) <= ?`;
-                            params.push(dateRange.to.split('T')[0]);
+                            fromAndWhereClause += ` AND o.${key} <= ?`;
+                            params.push(new Date(dateRange.to).toISOString().slice(0, 19).replace('T', ' '));
+                        
                         }
                     } catch (e) {
                         console.error(`Invalid date range format for ${key}:`, value);
@@ -160,23 +173,23 @@ export async function GET(request: Request) {
                 case 'orderDate_start':
                 case 'paymentReceivedDate_start': {
                     const dbKey = key.replace('_start', '');
-                    query += ` AND DATE(o.${dbKey}) >= ?`;
-                    params.push(value.split('T')[0]);
+                    fromAndWhereClause += ` AND o.${dbKey} >= ?`;
+                    params.push(new Date(value).toISOString());
                     break;
                 }
                 case 'orderDate_end':
                 case 'paymentReceivedDate_end': {
                     const dbKey = key.replace('_end', '');
-                    query += ` AND DATE(o.${dbKey}) <= ?`;
-                    params.push(value.split('T')[0]);
+                    fromAndWhereClause += ` AND o.${dbKey} <= ?`;
+                   params.push(new Date(value).toISOString());
                     break;
                 }
                 case 'startDate':
-                    query += ` AND DATE(o.orderDate) >= ?`;
+                    fromAndWhereClause += ` AND DATE(o.orderDate) >= ?`;
                     params.push(value.split('T')[0]); // Use just the date part
                     break;
                 case 'endDate':
-                    query += ` AND DATE(o.orderDate) <= ?`;
+                    fromAndWhereClause += ` AND DATE(o.orderDate) <= ?`;
                     params.push(value.split('T')[0]); // Use just the date part
                     break;
 
@@ -184,11 +197,27 @@ export async function GET(request: Request) {
         }
     })
 
-    query += " ORDER BY o.orderDate DESC";
+    const dataQuery = `
+  ${selectClause} 
+  ${fromAndWhereClause} 
+  ORDER BY o.orderDate DESC 
+  LIMIT ${Number(pageSize)} OFFSET ${Number(offset)}
+`;
+    const countQuery = `${countClause} ${fromAndWhereClause}`;
 
     try {
-        const dbOrders = await executeQuery(query, params);
-        return NextResponse.json(dbOrders.map(parseDbOrder));
+        const [dataResult, countResult] = await Promise.all([
+  executeQuery(dataQuery, params),
+  executeQuery(countQuery, params)
+]);
+        
+        const totalCount = countResult[0]?.totalCount || 0;
+
+        return NextResponse.json({
+            data: dataResult.map(parseDbOrder),
+            pageCount: Math.ceil(totalCount / pageSize),
+            totalCount: totalCount
+        });
     } catch (error) {
         console.error("Failed to fetch orders from DB:", error);
         return NextResponse.json({ message: "Failed to fetch orders from DB", error: error instanceof Error ? error.message : "Unknown error"}, { status: 500 });

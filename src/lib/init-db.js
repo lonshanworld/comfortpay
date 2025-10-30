@@ -151,7 +151,8 @@ async function initialize() {
                 prefix_order_name VARCHAR(255),
                 websiteUrl VARCHAR(255),
                 accountEmail VARCHAR(255),
-                qrCodeUrl VARCHAR(255)
+                qrCodeUrl VARCHAR(255),
+                last_used_at DATETIME NULL
             ) ENGINE=InnoDB;
         `);
         await connection.query(`
@@ -167,6 +168,15 @@ async function initialize() {
                 FOREIGN KEY (userId) REFERENCES users(id) ON DELETE CASCADE
             ) ENGINE=InnoDB;
         `);
+
+         const [lastUsedAtColumn] = await connection.query(`SHOW COLUMNS FROM payment_accounts LIKE 'last_used_at'`);
+        if (lastUsedAtColumn.length === 0) {
+            console.log("Adding 'last_used_at' column to 'payment_accounts' table...");
+            await connection.query(`ALTER TABLE payment_accounts ADD COLUMN last_used_at DATETIME NULL DEFAULT NULL;`);
+            console.log("'last_used_at' column added.");
+        }
+
+
         await connection.query(`
             CREATE TABLE IF NOT EXISTS settings (
                 \`key\` VARCHAR(255) PRIMARY KEY,
@@ -193,9 +203,9 @@ async function initialize() {
         console.log('Tables created or verified.');
         
         // Before adding the unique constraint, clean up any existing empty strings
-        console.log("Cleaning up 'accountEmail' column in 'payment_accounts' table...");
-        await connection.query("UPDATE payment_accounts SET accountEmail = NULL WHERE accountEmail = ''");
-        console.log("Cleanup complete. Empty strings converted to NULL.");
+        // console.log("Cleaning up 'accountEmail' column in 'payment_accounts' table...");
+        // await connection.query("UPDATE payment_accounts SET accountEmail = NULL WHERE accountEmail = ''");
+        // console.log("Cleanup complete. Empty strings converted to NULL.");
         
         // Add unique constraint to accountEmail if it doesn't exist
         const [indexes] = await connection.query(`SHOW INDEX FROM payment_accounts WHERE Key_name = 'accountEmail_unique'`);

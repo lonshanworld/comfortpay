@@ -17,7 +17,7 @@ import {
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
-import { SheetDescription, SheetTitle } from '../ui/sheet';
+import { SheetClose, SheetDescription, SheetTitle } from '../ui/sheet';
 
 const navLinks = [
     { href: '/admin/dashboard', label: 'Dashboard', icon: LayoutGrid },
@@ -116,7 +116,8 @@ export function AdminNavMobile() {
                   : pathname.startsWith(link.href));
                  const isLoading = loading === link.href;
                 return (
-                     <Link
+                     <SheetClose asChild key={link.href}>
+                        <Link
                         key={link.href}
                         href={link.href}
                         onClick={() => handleClick(link.href)}
@@ -127,14 +128,10 @@ export function AdminNavMobile() {
                         )}
                     >
                         {isLoading ? <Loader2 className="h-5 w-5 animate-spin" /> : <link.icon className="h-5 w-5" />}
-                        {/* {link.label}
-                        {link.badge && !isLoading && (
-                            <Badge className="ml-auto flex h-6 w-6 shrink-0 items-center justify-center rounded-full">
-                                {link.badge}
-                            </Badge>
-                        )} */}
+                       
                          <span className="flex-1">{link.label}</span>
                     </Link>
+                     </SheetClose>
                 )
             })}
         </nav>

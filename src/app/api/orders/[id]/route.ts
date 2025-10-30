@@ -80,20 +80,37 @@ export async function PUT(
             
             await runQuery('START TRANSACTION');
             try {
-                 // Decrement volume from the old account
-                await runQuery(
-                    'UPDATE payment_accounts SET currentVolume = currentVolume - ? WHERE id = ?',
-                    [currentOrder.totalAmount, oldPaymentAccountId]
-                );
 
                 // Increment volume on the new account
                  await runQuery(
                     'UPDATE payment_accounts SET currentVolume = currentVolume + ? WHERE id = ?',
                     [currentOrder.totalAmount, newPaymentAccountId]
                 );
+
+
+                 // Decrement volume from the old account
+                  const [oldAccountResult]: any[] = await executeQuery('SELECT currentVolume FROM payment_accounts WHERE id = ?', [oldPaymentAccountId]);
+                 const oldAccountVolume = oldAccountResult[0]?.currentVolume || 0;
+
+                console.log(`[API Order PUT] Incremented volume on new account ${newPaymentAccountId}.`);
+
+                // Only decrement from the old account if it has enough volume to cover the transaction
+                if (oldAccountVolume >= currentOrder.totalAmount) {
+                    console.log(`[API Order PUT] Old account has sufficient volume. Decrementing volume from old account ${oldPaymentAccountId}.`);
+                    await runQuery(
+                        'UPDATE payment_accounts SET currentVolume = currentVolume - ? WHERE id = ?',
+                        [currentOrder.totalAmount, oldPaymentAccountId]
+                    );
+                } else {
+                    console.log(`[API Order PUT] Old account volume (${oldAccountVolume}) is less than transaction amount (${currentOrder.totalAmount}). Skipping decrement.`);
+                }
+                
+
+                
                 
                 await runQuery('COMMIT');
-                console.log(`[API Order PUT] Volume transferred successfully.`);
+                console.log(`[API Order PUT] Volume transfer logic completed successfully.`);
+
 
             } catch (error) {
                 await runQuery('ROLLBACK');
