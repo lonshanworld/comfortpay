@@ -151,9 +151,42 @@ async function initialize() {
                 prefix_order_name VARCHAR(255),
                 websiteUrl VARCHAR(255),
                 accountEmail VARCHAR(255),
-                qrCodeUrl VARCHAR(255)
+                qrCodeUrl VARCHAR(255),
+                last_used_at DATETIME NULL
             ) ENGINE=InnoDB;
         `);
+
+         await connection.query(`
+            CREATE TABLE IF NOT EXISTS payout_batches (
+                batchId VARCHAR(255) PRIMARY KEY,
+                payoutStatus VARCHAR(50) NOT NULL,
+                payoutCount INT NOT NULL,
+                totalNetAmount DECIMAL(10, 2) NOT NULL,
+                transferFees DECIMAL(10, 2) DEFAULT 0,
+                totalFinalAmount DECIMAL(10, 2) NOT NULL,
+                settlementId VARCHAR(255),
+                createdAt DATETIME NOT NULL,
+                paidAt DATETIME
+            ) ENGINE=InnoDB;
+        `);
+
+        await connection.query(`
+            CREATE TABLE IF NOT EXISTS payouts (
+                id INT PRIMARY KEY AUTO_INCREMENT,
+                orderId INT NOT NULL,
+                merchantId INT NOT NULL,
+                batchId VARCHAR(255),
+                grossAmount DECIMAL(10, 2) NOT NULL,
+                gatewayFee DECIMAL(10, 2) NOT NULL,
+                netAmount DECIMAL(10, 2) NOT NULL,
+                createdAt DATETIME NOT NULL,
+                FOREIGN KEY (orderId) REFERENCES orders(id) ON DELETE CASCADE,
+                FOREIGN KEY (merchantId) REFERENCES users(id) ON DELETE CASCADE,
+                FOREIGN KEY (batchId) REFERENCES payout_batches(batchId) ON DELETE SET NULL,
+                UNIQUE KEY (orderId)
+            ) ENGINE=InnoDB;
+        `);
+
         await connection.query(`
             CREATE TABLE IF NOT EXISTS notifications (
                 id INT PRIMARY KEY AUTO_INCREMENT,
@@ -167,6 +200,15 @@ async function initialize() {
                 FOREIGN KEY (userId) REFERENCES users(id) ON DELETE CASCADE
             ) ENGINE=InnoDB;
         `);
+
+         const [lastUsedAtColumn] = await connection.query(`SHOW COLUMNS FROM payment_accounts LIKE 'last_used_at'`);
+        if (lastUsedAtColumn.length === 0) {
+            console.log("Adding 'last_used_at' column to 'payment_accounts' table...");
+            await connection.query(`ALTER TABLE payment_accounts ADD COLUMN last_used_at DATETIME NULL DEFAULT NULL;`);
+            console.log("'last_used_at' column added.");
+        }
+
+
         await connection.query(`
             CREATE TABLE IF NOT EXISTS settings (
                 \`key\` VARCHAR(255) PRIMARY KEY,
@@ -193,9 +235,9 @@ async function initialize() {
         console.log('Tables created or verified.');
         
         // Before adding the unique constraint, clean up any existing empty strings
-        console.log("Cleaning up 'accountEmail' column in 'payment_accounts' table...");
-        await connection.query("UPDATE payment_accounts SET accountEmail = NULL WHERE accountEmail = ''");
-        console.log("Cleanup complete. Empty strings converted to NULL.");
+        // console.log("Cleaning up 'accountEmail' column in 'payment_accounts' table...");
+        // await connection.query("UPDATE payment_accounts SET accountEmail = NULL WHERE accountEmail = ''");
+        // console.log("Cleanup complete. Empty strings converted to NULL.");
         
         // Add unique constraint to accountEmail if it doesn't exist
         const [indexes] = await connection.query(`SHOW INDEX FROM payment_accounts WHERE Key_name = 'accountEmail_unique'`);

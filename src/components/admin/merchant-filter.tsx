@@ -35,7 +35,7 @@ export function MerchantFilter({ column }: { column: any }) {
         <SelectItem value="all">All Merchants</SelectItem>
         {merchants.map(merchant => (
           <SelectItem key={merchant.id} value={merchant.id}>
-            {merchant.id}
+            {merchant.name}
           </SelectItem>
         ))}
       </SelectContent>

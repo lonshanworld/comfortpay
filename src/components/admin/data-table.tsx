@@ -14,6 +14,9 @@ import {
   getSortedRowModel,
   useReactTable,
   ColumnSizingState,
+  RowSelectionState,
+   ExpandedState,
+  getExpandedRowModel,
 } from "@tanstack/react-table"
 import { SlidersHorizontal } from "lucide-react"
 
@@ -40,6 +43,12 @@ interface DataTableProps<TData, TValue> {
   data: TData[]
   filterColumnId?: string;
   filterPlaceholder?: string;
+   rowSelection?: RowSelectionState;
+  setRowSelection?: React.Dispatch<React.SetStateAction<RowSelectionState>>;
+    showPagination?: boolean;
+  getRowCanExpand?: (row: any) => boolean;
+  renderSubComponent?: (props: { row: any }) => React.ReactElement;
+
 }
 
 export function DataTable<TData, TValue>({
@@ -47,13 +56,19 @@ export function DataTable<TData, TValue>({
   data,
   filterColumnId,
   filterPlaceholder,
+    rowSelection,
+  setRowSelection,
+  showPagination = true,
+    getRowCanExpand,
+  renderSubComponent,
+
 }: DataTableProps<TData, TValue>) {
   const [sorting, setSorting] = React.useState<SortingState>([])
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([])
   const [columnVisibility, setColumnVisibility] =
     React.useState<VisibilityState>({})
-  const [rowSelection, setRowSelection] = React.useState({})
   const [columnSizing, setColumnSizing] = React.useState<ColumnSizingState>({})
+  const [expanded, setExpanded] = React.useState<ExpandedState>({})
   
   const isMobile = useIsMobile();
 
@@ -69,22 +84,27 @@ export function DataTable<TData, TValue>({
     onColumnVisibilityChange: setColumnVisibility,
     onRowSelectionChange: setRowSelection,
     onColumnSizingChange: setColumnSizing,
+     onExpandedChange: setExpanded,
+    getExpandedRowModel: getExpandedRowModel(),
+    getRowCanExpand: getRowCanExpand,
     columnResizeMode: "onChange",
+    enableRowSelection: !!setRowSelection, 
     state: {
       sorting,
       columnFilters,
       columnVisibility,
       rowSelection,
       columnSizing,
+      expanded,
     },
     defaultColumn: {
-      size: 50, // default column size
-      minSize: 50,
+      size: 100, // default column size
+      minSize: 100,
       maxSize: 500,
     },
     initialState: {
         pagination: {
-            pageSize: 75,
+             pageSize: showPagination ? 200 : data.length,
         },
     }
   })
@@ -181,25 +201,31 @@ export function DataTable<TData, TValue>({
           <TableBody>
             {table.getRowModel().rows?.length ? (
               table.getRowModel().rows.map((row) => (
-                <TableRow
-                  key={row.id}
-                  data-state={row.getIsSelected() && "selected"}
-                >
-                  {row.getVisibleCells().map((cell) => (
-                    <TableCell key={cell.id} style={{ width: cell.column.getSize() }}>
-                      {flexRender(
-                        cell.column.columnDef.cell,
-                        cell.getContext()
-                      )}
-                    </TableCell>
-                  ))}
-                </TableRow>
+                <React.Fragment key={row.id}>
+                  <TableRow data-state={setRowSelection && row.getIsSelected() ? "selected" : undefined}>
+                    {row.getVisibleCells().map((cell) => (
+                      <TableCell key={cell.id} style={{ width: cell.column.getSize() }} className="break-words">
+                        {flexRender(
+                          cell.column.columnDef.cell,
+                          cell.getContext()
+                        )}
+                      </TableCell>
+                    ))}
+                  </TableRow>
+                  {row.getIsExpanded() && renderSubComponent && (
+                    <TableRow>
+                      <TableCell colSpan={row.getVisibleCells().length}>
+                        {renderSubComponent({ row })}
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </React.Fragment>
               ))
             ) : (
               <TableRow>
                 <TableCell
                   colSpan={columns.length}
-                  className="h-24 text-center"
+                  className="h-24 text-center break-words"
                 >
                   No results.
                 </TableCell>
@@ -210,26 +236,37 @@ export function DataTable<TData, TValue>({
       </div>
       <div className="flex items-center justify-end space-x-2 py-4">
         <div className="flex-1 text-sm text-muted-foreground">
-          {table.getFilteredRowModel().rows.length} row(s) found.
+            {setRowSelection ? (
+                <>
+                {table.getFilteredSelectedRowModel().rows.length} of{" "}
+                {table.getFilteredRowModel().rows.length} row(s) selected.
+                </>
+            ) : (
+                <>
+                {table.getFilteredRowModel().rows.length} row(s) found.
+                </>
+            )}
         </div>
-        <div className="space-x-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => table.previousPage()}
-            disabled={!table.getCanPreviousPage()}
-          >
-            Previous
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => table.nextPage()}
-            disabled={!table.getCanNextPage()}
-          >
-            Next
-          </Button>
-        </div>
+        {showPagination && (
+            <div className="space-x-2">
+                <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => table.previousPage()}
+                    disabled={!table.getCanPreviousPage()}
+                >
+                    Previous
+                </Button>
+                <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => table.nextPage()}
+                    disabled={!table.getCanNextPage()}
+                >
+                    Next
+                </Button>
+            </div>
+        )}
       </div>
     </div>
   )

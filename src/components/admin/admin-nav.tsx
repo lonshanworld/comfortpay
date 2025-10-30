@@ -14,10 +14,12 @@ import {
   Settings,
   Users2,
   Mail,
+  DollarSign,
+  Banknote,
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
-import { SheetDescription, SheetTitle } from '../ui/sheet';
+import { SheetClose, SheetDescription, SheetTitle } from '../ui/sheet';
 
 const navLinks = [
     { href: '/admin/dashboard', label: 'Dashboard', icon: LayoutGrid },
@@ -25,6 +27,8 @@ const navLinks = [
     { href: '/admin/dashboard/merchants', label: 'Merchants', icon: Users },
     { href: '/admin/dashboard/users', label: 'Users', icon: Users2 },
     { href: '/admin/dashboard/payments', label: 'Payment Accounts', icon: CreditCard },
+    { href: '/admin/dashboard/settlement', label: 'Settlement', icon: DollarSign },
+    { href: '/admin/dashboard/payouts', label: 'Payouts', icon: Banknote },
     { href: '/admin/dashboard/email', label: 'Email', icon: Mail },
     { href: '/admin/dashboard/settings', label: 'Settings', icon: Settings },
 ];
@@ -116,7 +120,8 @@ export function AdminNavMobile() {
                   : pathname.startsWith(link.href));
                  const isLoading = loading === link.href;
                 return (
-                     <Link
+                     <SheetClose asChild key={link.href}>
+                        <Link
                         key={link.href}
                         href={link.href}
                         onClick={() => handleClick(link.href)}
@@ -127,14 +132,10 @@ export function AdminNavMobile() {
                         )}
                     >
                         {isLoading ? <Loader2 className="h-5 w-5 animate-spin" /> : <link.icon className="h-5 w-5" />}
-                        {/* {link.label}
-                        {link.badge && !isLoading && (
-                            <Badge className="ml-auto flex h-6 w-6 shrink-0 items-center justify-center rounded-full">
-                                {link.badge}
-                            </Badge>
-                        )} */}
+                       
                          <span className="flex-1">{link.label}</span>
                     </Link>
+                     </SheetClose>
                 )
             })}
         </nav>

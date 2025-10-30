@@ -12,7 +12,8 @@ import {
   useReactTable,
   ColumnFiltersState,
   ColumnSizingState,
-  VisibilityState
+  VisibilityState,
+  PaginationState,
 } from "@tanstack/react-table"
 import { SlidersHorizontal } from "lucide-react"
 
@@ -39,9 +40,12 @@ interface DataTableProps<TData, TValue> {
   data: TData[]
   columnFilters: ColumnFiltersState;
   setColumnFilters: React.Dispatch<React.SetStateAction<ColumnFiltersState>>;
-   columnVisibility: VisibilityState;
-  setColumnVisibility: React.Dispatch<React.SetStateAction<VisibilityState>>;
+ 
   customFilterComponents?: Record<string, React.ElementType<{ column: any }>>;
+    pagination: PaginationState;
+  setPagination: React.Dispatch<React.SetStateAction<PaginationState>>;
+  pageCount: number;
+  tableId: string;
 }
 
 
@@ -50,28 +54,63 @@ export function DataTableWithColumnFilters<TData, TValue>({
   data,
   columnFilters,
   setColumnFilters,
-    columnVisibility,
-  setColumnVisibility,
+  
   customFilterComponents = {},
+  pagination,
+  setPagination,
+  pageCount,
+  tableId
 }: DataTableProps<TData, TValue>) {
   
   const [sorting, setSorting] = React.useState<any[]>([])
 
   const [rowSelection, setRowSelection] = React.useState({})
   const [columnSizing, setColumnSizing] = React.useState<ColumnSizingState>({})
+    const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState>({})
+
+
   const isMobile = useIsMobile();
+
+  
+  React.useEffect(() => {
+    const savedSizing = localStorage.getItem(`tableSizing_${tableId}`);
+    const savedVisibility = localStorage.getItem(`tableVisibility_${tableId}`);
+    if (savedSizing) {
+      setColumnSizing(JSON.parse(savedSizing));
+    }
+    if (savedVisibility) {
+      setColumnVisibility(JSON.parse(savedVisibility));
+    }
+  }, [tableId]);
+
+  const handleColumnSizingChange = (updater: any) => {
+    const newSizing = typeof updater === 'function' ? updater(columnSizing) : updater;
+    setColumnSizing(newSizing);
+    localStorage.setItem(`tableSizing_${tableId}`, JSON.stringify(newSizing));
+  };
+  
+  const handleColumnVisibilityChange = (updater: any) => {
+      const newVisibility = typeof updater === 'function' ? updater(columnVisibility) : updater;
+      setColumnVisibility(newVisibility);
+      localStorage.setItem(`tableVisibility_${tableId}`, JSON.stringify(newVisibility));
+  };
+
 
   const table = useReactTable({
     data,
     columns,
+    pageCount,
     onSortingChange: setSorting,
     onColumnFiltersChange: setColumnFilters,
     getCoreRowModel: getCoreRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
     getSortedRowModel: getSortedRowModel(),
-    onColumnVisibilityChange: setColumnVisibility,
+    onColumnVisibilityChange: handleColumnVisibilityChange,
     onRowSelectionChange: setRowSelection,
-    onColumnSizingChange: setColumnSizing,
+    onColumnSizingChange: handleColumnSizingChange,
+    onPaginationChange: setPagination,
+    manualPagination: true,
+    manualFiltering: true,
     columnResizeMode: "onChange",
     state: {
       sorting,
@@ -81,9 +120,7 @@ export function DataTableWithColumnFilters<TData, TValue>({
       columnSizing,
     },
     initialState: {
-        pagination: {
-            pageSize: 75,
-        },
+       
         columnVisibility : {
           id : false,
           paymentMethod : false,
@@ -103,9 +140,6 @@ export function DataTableWithColumnFilters<TData, TValue>({
         newColumnSizing[column.id] = 100;
       });
       setColumnSizing(newColumnSizing);
-    } else {
-        // On desktop, reset to default behavior
-        setColumnSizing({});
     }
   }, [isMobile, table.getAllLeafColumns]);
 
@@ -192,7 +226,7 @@ export function DataTableWithColumnFilters<TData, TValue>({
                   data-state={row.getIsSelected() && "selected"}
                 >
                   {row.getVisibleCells().map((cell) => (
-                    <TableCell key={cell.id} style={{ width: cell.column.getSize() }} className="text-xs">
+                    <TableCell key={cell.id} style={{ width: cell.column.getSize() }} className="text-xs break-words">
                       {flexRender(
                         cell.column.columnDef.cell,
                         cell.getContext()
@@ -216,7 +250,8 @@ export function DataTableWithColumnFilters<TData, TValue>({
       </div>
       <div className="flex items-center justify-end space-x-2 py-4">
         <div className="flex-1 text-sm text-muted-foreground">
-          {table.getFilteredRowModel().rows.length} row(s) found.
+          {table.getFilteredSelectedRowModel().rows.length} of{" "}
+          {table.getFilteredRowModel().rows.length} row(s) selected.
         </div>
         <div className="space-x-2">
           <Button
