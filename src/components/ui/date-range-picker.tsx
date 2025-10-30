@@ -91,6 +91,7 @@ export function DateRangePicker({
                 showTimeSelect
                 dateFormat="MMM dd, yyyy h:mm aa"
                 locale={""}
+                timeIntervals={1}
                 inline
                 />
             </PopoverContent>
@@ -119,6 +120,7 @@ export function DateRangePicker({
                 minDate={localDate?.from}
                 showTimeSelect
                 dateFormat="MMM dd, yyyy h:mm aa"
+                timeIntervals={1}
                 inline
                 />
             </PopoverContent>

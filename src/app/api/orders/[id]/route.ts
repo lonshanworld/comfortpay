@@ -70,6 +70,10 @@ export async function PUT(
 
         const fieldsToUpdate: string[] = [];
         const queryParams: any[] = [];
+           // If the status is being changed to 'Over-paid Refunded', adjust the paidAmount
+        if (body.status === 'Over-paid Refunded' && currentOrder.status !== 'Over-paid Refunded') {
+            body.paidAmount = currentOrder.totalAmount;
+        }
 
         const newPaymentAccountId = body.paymentAccountId ? String(body.paymentAccountId).replace('pa_', '') : null;
         const oldPaymentAccountId = currentOrder.paymentAccountId;

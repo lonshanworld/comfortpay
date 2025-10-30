@@ -155,6 +155,38 @@ async function initialize() {
                 last_used_at DATETIME NULL
             ) ENGINE=InnoDB;
         `);
+
+         await connection.query(`
+            CREATE TABLE IF NOT EXISTS payout_batches (
+                batchId VARCHAR(255) PRIMARY KEY,
+                payoutStatus VARCHAR(50) NOT NULL,
+                payoutCount INT NOT NULL,
+                totalNetAmount DECIMAL(10, 2) NOT NULL,
+                transferFees DECIMAL(10, 2) DEFAULT 0,
+                totalFinalAmount DECIMAL(10, 2) NOT NULL,
+                settlementId VARCHAR(255),
+                createdAt DATETIME NOT NULL,
+                paidAt DATETIME
+            ) ENGINE=InnoDB;
+        `);
+
+        await connection.query(`
+            CREATE TABLE IF NOT EXISTS payouts (
+                id INT PRIMARY KEY AUTO_INCREMENT,
+                orderId INT NOT NULL,
+                merchantId INT NOT NULL,
+                batchId VARCHAR(255),
+                grossAmount DECIMAL(10, 2) NOT NULL,
+                gatewayFee DECIMAL(10, 2) NOT NULL,
+                netAmount DECIMAL(10, 2) NOT NULL,
+                createdAt DATETIME NOT NULL,
+                FOREIGN KEY (orderId) REFERENCES orders(id) ON DELETE CASCADE,
+                FOREIGN KEY (merchantId) REFERENCES users(id) ON DELETE CASCADE,
+                FOREIGN KEY (batchId) REFERENCES payout_batches(batchId) ON DELETE SET NULL,
+                UNIQUE KEY (orderId)
+            ) ENGINE=InnoDB;
+        `);
+
         await connection.query(`
             CREATE TABLE IF NOT EXISTS notifications (
                 id INT PRIMARY KEY AUTO_INCREMENT,

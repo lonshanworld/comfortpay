@@ -40,12 +40,12 @@ interface DataTableProps<TData, TValue> {
   data: TData[]
   columnFilters: ColumnFiltersState;
   setColumnFilters: React.Dispatch<React.SetStateAction<ColumnFiltersState>>;
-   columnVisibility: VisibilityState;
-  setColumnVisibility: React.Dispatch<React.SetStateAction<VisibilityState>>;
+ 
   customFilterComponents?: Record<string, React.ElementType<{ column: any }>>;
     pagination: PaginationState;
   setPagination: React.Dispatch<React.SetStateAction<PaginationState>>;
   pageCount: number;
+  tableId: string;
 }
 
 
@@ -54,19 +54,47 @@ export function DataTableWithColumnFilters<TData, TValue>({
   data,
   columnFilters,
   setColumnFilters,
-    columnVisibility,
-  setColumnVisibility,
+  
   customFilterComponents = {},
   pagination,
   setPagination,
   pageCount,
+  tableId
 }: DataTableProps<TData, TValue>) {
   
   const [sorting, setSorting] = React.useState<any[]>([])
 
   const [rowSelection, setRowSelection] = React.useState({})
   const [columnSizing, setColumnSizing] = React.useState<ColumnSizingState>({})
+    const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState>({})
+
+
   const isMobile = useIsMobile();
+
+  
+  React.useEffect(() => {
+    const savedSizing = localStorage.getItem(`tableSizing_${tableId}`);
+    const savedVisibility = localStorage.getItem(`tableVisibility_${tableId}`);
+    if (savedSizing) {
+      setColumnSizing(JSON.parse(savedSizing));
+    }
+    if (savedVisibility) {
+      setColumnVisibility(JSON.parse(savedVisibility));
+    }
+  }, [tableId]);
+
+  const handleColumnSizingChange = (updater: any) => {
+    const newSizing = typeof updater === 'function' ? updater(columnSizing) : updater;
+    setColumnSizing(newSizing);
+    localStorage.setItem(`tableSizing_${tableId}`, JSON.stringify(newSizing));
+  };
+  
+  const handleColumnVisibilityChange = (updater: any) => {
+      const newVisibility = typeof updater === 'function' ? updater(columnVisibility) : updater;
+      setColumnVisibility(newVisibility);
+      localStorage.setItem(`tableVisibility_${tableId}`, JSON.stringify(newVisibility));
+  };
+
 
   const table = useReactTable({
     data,
@@ -77,9 +105,9 @@ export function DataTableWithColumnFilters<TData, TValue>({
     getCoreRowModel: getCoreRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
     getSortedRowModel: getSortedRowModel(),
-    onColumnVisibilityChange: setColumnVisibility,
+    onColumnVisibilityChange: handleColumnVisibilityChange,
     onRowSelectionChange: setRowSelection,
-    onColumnSizingChange: setColumnSizing,
+    onColumnSizingChange: handleColumnSizingChange,
     onPaginationChange: setPagination,
     manualPagination: true,
     manualFiltering: true,
@@ -112,9 +140,6 @@ export function DataTableWithColumnFilters<TData, TValue>({
         newColumnSizing[column.id] = 100;
       });
       setColumnSizing(newColumnSizing);
-    } else {
-        // On desktop, reset to default behavior
-        setColumnSizing({});
     }
   }, [isMobile, table.getAllLeafColumns]);
 

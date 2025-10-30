@@ -21,7 +21,7 @@ import {
 } from "@/components/ui/form";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Loader2 } from "lucide-react";
+import { Loader2, Eye, EyeOff } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -214,6 +214,8 @@ export function EditMerchantDialog({ open, onOpenChange, onMerchantUpdated, merc
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
   const [salesAgents, setSalesAgents] = useState<User[]>([]);
+    const [showPassword, setShowPassword] = useState(false);
+
   
   const form = useForm<MerchantFormValues>({
     resolver: zodResolver(merchantFormSchema),
@@ -368,9 +370,20 @@ export function EditMerchantDialog({ open, onOpenChange, onMerchantUpdated, merc
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>New Password (Optional)</FormLabel>
-                    <FormControl>
-                      <Input type="password" placeholder="Leave blank to keep current password" {...field} disabled={isLoading} />
-                    </FormControl>
+                    <div className="relative">
+                      <FormControl>
+                        <Input type={showPassword ? "text" : "password"} placeholder="Leave blank to keep current password" {...field} disabled={isLoading} />
+                      </FormControl>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7 text-muted-foreground"
+                        onClick={() => setShowPassword(!showPassword)}
+                      >
+                        {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      </Button>
+                    </div>
                     <FormMessage />
                   </FormItem>
                 )}

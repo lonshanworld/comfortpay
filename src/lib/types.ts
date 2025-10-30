@@ -195,3 +195,22 @@ export type SendOrderNotificationOutput = {
     success: boolean;
     message: string;
 };
+
+export type PayoutData = {
+    payoutId: number | null;
+    orderId: string;
+    merchantId: string;
+    merchantOrderId: string;
+    merchantName: string;
+    paymentReceivedDate: string;
+    grossAmount: number;
+    gatewayFee: number;
+    netAmount: number;
+    currency: string;
+    transferFees: number;
+        // Added for export functionality
+    bankName?: string;
+    bankAccountNumber?: string;
+    walletAddress?: string;
+    network?: string;
+}

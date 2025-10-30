@@ -153,7 +153,6 @@ export default function TransactionsPage() {
   // State for temporary filters in inputs
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([])
     const [stagedFilters, setStagedFilters] = React.useState<ColumnFiltersState>([])
-    const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState>({ id: false });
      const [pagination, setPagination] = useState<PaginationState>({
     pageIndex: 0,
     pageSize: 200,
@@ -473,7 +472,7 @@ isUpdatingStatusId: isUpdatingStatus,
               <div
               className="bg-green-800 rounded-sm px-3 py-1 flex flex-col items-center text-white">
                 <p className="text-xs">Completed Amount</p>
-                <p className="text-sm font-bold">${summaryStats.completedAmount}</p>
+                <p className="text-sm font-bold">${parseFloat(summaryStats.completedAmount.toString()).toFixed(2)}</p>
               </div>
               <div
               className="bg-green-300 rounded-sm px-3 py-1 flex flex-col items-center text-white">
@@ -571,12 +570,12 @@ isUpdatingStatusId: isUpdatingStatus,
                 </div>
               ) : (
                 <DataTableWithColumnFilters 
+                tableId="transactions"
                   columns={transactionColumns} 
                   data={transactions} 
                   columnFilters={columnFilters}
                   setColumnFilters={setColumnFilters}
-                    columnVisibility={columnVisibility}
-                  setColumnVisibility={setColumnVisibility}
+                   
                   pagination={pagination}
                   setPagination={setPagination}
                   pageCount={pageCount}
