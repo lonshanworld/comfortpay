@@ -52,7 +52,8 @@ export async function GET(request: Request) {
             DATE_FORMAT(o.paymentReceivedDate, '%Y-%m-%dT%H:%i:%s.000Z') as paymentReceivedDate,
             u.name as merchantName, 
             u.websiteUrl as merchantWebsiteUrl,
-            pa.accountEmail as paymentAccountEmail
+            pa.accountEmail as paymentAccountEmail,
+            pa.name as paymentAccountName
         FROM orders o
         LEFT JOIN users u ON o.merchantId = u.id AND u.role = 'Merchant'
         LEFT JOIN payment_accounts pa ON o.paymentAccountId = pa.id
@@ -179,6 +180,8 @@ export async function GET(request: Request) {
                     query += ` AND DATE(o.orderDate) <= ?`;
                     params.push(value.split('T')[0]); // Use just the date part
                     break;
+                
+                
 
             }
         }
