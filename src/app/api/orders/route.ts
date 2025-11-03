@@ -1,7 +1,7 @@
 
 import { NextResponse } from 'next/server';
 import { executeQuery } from '@/lib/db';
-import type { Order } from '@/lib/types';
+
 
 
 const parseDbOrder = (dbOrder: any) => {
@@ -48,6 +48,11 @@ export async function GET(request: Request) {
     const page = parseInt(searchParams.get('page') || '1', 10);
     const pageSize = parseInt(searchParams.get('pageSize') || '75', 10);
     const offset = (page - 1) * pageSize;
+
+    const isFromDashboard = searchParams.has('page') || searchParams.has('pageSize');
+    const isFromPlugin = !isFromDashboard;
+    console.log('isFromPlugin:', isFromPlugin);
+
     console.log(`Fetching orders - Page: ${page}, Page Size: ${pageSize}, Offset: ${offset}`);
     let selectClause = `
         SELECT 
@@ -56,9 +61,10 @@ export async function GET(request: Request) {
             DATE_FORMAT(o.paymentReceivedDate, '%Y-%m-%dT%H:%i:%s.000Z') as paymentReceivedDate,
             u.name as merchantName, 
             u.websiteUrl as merchantWebsiteUrl,
-            pa.accountEmail as paymentAccountEmail
+            pa.accountEmail as paymentAccountEmail,
+            pa.name as paymentAccountName
     `;
-    let countClause = `SELECT COUNT(*) as totalCount`;
+    let countClause = isFromPlugin ? '' : `SELECT COUNT(*) as totalCount`;
 
     let fromAndWhereClause = `
         FROM orders o
@@ -192,7 +198,8 @@ export async function GET(request: Request) {
                     fromAndWhereClause += ` AND DATE(o.orderDate) <= ?`;
                     params.push(value.split('T')[0]); // Use just the date part
                     break;
-
+                
+                
             }
         }
     })
@@ -203,21 +210,38 @@ export async function GET(request: Request) {
   ORDER BY o.orderDate DESC 
   LIMIT ${Number(pageSize)} OFFSET ${Number(offset)}
 `;
+
+    const pluginQuery = `
+  ${selectClause} 
+  ${fromAndWhereClause} 
+  ORDER BY o.orderDate DESC LIMIT 100
+`;
     const countQuery = `${countClause} ${fromAndWhereClause}`;
 
     try {
-        const [dataResult, countResult] = await Promise.all([
-  executeQuery(dataQuery, params),
-  executeQuery(countQuery, params)
-]);
-        
-        const totalCount = countResult[0]?.totalCount || 0;
+        if(isFromPlugin) {
+            console.log('it is from plugin');
+          const dbOrders = await executeQuery(pluginQuery, params);  
+          console.log(`Fetched ${dbOrders.length} orders for plugin`);
+            return NextResponse.json(dbOrders.map(parseDbOrder));
+        } else{
+            console.log('normal request');
+             const [dataResult, countResult] = await Promise.all([
+                executeQuery(dataQuery, params),
+                executeQuery(countQuery, params)
+            ]);
+            
+            
+            const totalCount = countResult[0]?.totalCount || 0;
 
-        return NextResponse.json({
-            data: dataResult.map(parseDbOrder),
-            pageCount: Math.ceil(totalCount / pageSize),
-            totalCount: totalCount
-        });
+            return NextResponse.json({
+                data: dataResult.map(parseDbOrder),
+                pageCount: Math.ceil(totalCount / pageSize),
+                totalCount: totalCount
+            });
+        }
+
+       
     } catch (error) {
         console.error("Failed to fetch orders from DB:", error);
         return NextResponse.json({ message: "Failed to fetch orders from DB", error: error instanceof Error ? error.message : "Unknown error"}, { status: 500 });

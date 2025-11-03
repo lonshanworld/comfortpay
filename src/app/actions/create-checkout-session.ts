@@ -203,7 +203,8 @@ export async function createCheckoutSession(input: CreateCheckoutSessionInput): 
             ...input.paymentDetails, // Spread incoming details first
             paymentAccountId: `pa_${paymentAccountId}`, // Then overwrite/add our secure details
             qrCodeUrl: selectedAccount.qrCodeUrl,
-            accountEmail: selectedAccount.accountEmail
+            accountEmail: selectedAccount.accountEmail,
+            zelleName: selectedAccount.name ?? ''
         }
     };
     const sessionData = JSON.stringify(sessionDataWithDetails);
