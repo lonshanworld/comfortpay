@@ -162,8 +162,10 @@ export default function TransactionsPage() {
 
 
 
-const fetchTransactions = useCallback(async (filters: ColumnFiltersState, pageState: PaginationState) => {
-    setIsLoading(true);
+ const fetchTransactions = useCallback(async (filters: ColumnFiltersState, pageState: PaginationState, isBackgroundFetch = false) => {
+    if (!isBackgroundFetch) {
+      setIsLoading(true);
+    }
     try {
       const params = new URLSearchParams();
        params.append('page', String(pageState.pageIndex + 1));
@@ -190,11 +192,17 @@ const fetchTransactions = useCallback(async (filters: ColumnFiltersState, pageSt
       setTransactions(data);
       setPageCount(pageCount);
       setTotalCount(totalCount);
-    } catch (error) {
-      console.error("Failed to fetch data", error);
-      toast({ variant: "destructive", title: "Fetch Error", description: "Could not fetch transactions."})
+    } catch (error : any) {
+      if (!isBackgroundFetch) {
+        console.error("Failed to fetch data", error);
+        toast({ variant: "destructive", title: "Fetch Error", description: error.message || "Could not fetch transactions."})
+      } else {
+        console.warn("Background transaction fetch failed:", error.message);
+      }
     } finally {
-      setIsLoading(false);
+       if (!isBackgroundFetch) {
+        setIsLoading(false);
+      }
     }
   }, [toast]);
 
@@ -217,8 +225,9 @@ const fetchTransactions = useCallback(async (filters: ColumnFiltersState, pageSt
   
   useEffect(() => {
     const intervalId = setInterval(() => {
-        fetchTransactions(columnFilters, pagination);
-    }, 3 * 60 * 1000); // 3 minutes
+        fetchTransactions(columnFilters, pagination, true);
+        console.log("Background fetch of transactions executed.");
+    }, 0.5 * 60 * 1000); // 3 minutes
 
     return () => clearInterval(intervalId); // Cleanup on unmount
   }, [columnFilters, fetchTransactions]);

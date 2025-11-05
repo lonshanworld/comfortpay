@@ -21,6 +21,7 @@ import type { Order, OrderStatus } from "@/lib/types"
 import Link from "next/link"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { cn } from "@/lib/utils"
+import { tr } from "date-fns/locale"
 
 
 const getStatusVariant = (status: OrderStatus) => {
@@ -82,7 +83,8 @@ const formatDate = (dateString: string | undefined | null) => {
 }
 
 const ConfirmationPopover = ({ transaction, onConfirmPayment, isConfirming }: { transaction: Order, onConfirmPayment: (transaction: Order, paidAmount: number) => void, isConfirming: boolean}) => {
-    const [amount, setAmount] = React.useState<string>('');
+
+  const [amount, setAmount] = React.useState<string>('');
 
     // const getTitle = () => {
     //     if (transaction.status === 'Partially Paid') return "Confirm Additional Payment";
@@ -146,6 +148,7 @@ const ConfirmationPopover = ({ transaction, onConfirmPayment, isConfirming }: { 
 }
 
 const OverpaymentPopover = ({ transaction, onStatusChange }: { transaction: Order, onStatusChange: (transaction: Order, newStatus: OrderStatus) => void }) => {
+    
     const overpaidAmount = transaction.paidAmount - transaction.totalAmount;
     return (
         <Popover>
@@ -176,8 +179,8 @@ const OverpaymentPopover = ({ transaction, onStatusChange }: { transaction: Orde
 const StatusDropdown = ({ transaction, onStatusChange, isUpdating }: { transaction: Order, onStatusChange: (transaction: Order, newStatus: OrderStatus) => void, isUpdating: boolean}) => {
     const statuses: OrderStatus[] = ["Pending","On-Hold", "Completed", "Failed", "Requires Confirmation", "Partially Paid", "Refunded",  "Over-paid Refunded"];
 
-   const isOverpaid = transaction.status === 'Completed' && transaction.paidAmount > transaction.totalAmount;
-
+   const isOverpaid = transaction.status === 'Completed' && Number(transaction.paidAmount) > Number(transaction.totalAmount);
+    console.log('Rendering StatusDropdown for transaction', transaction.merchantOrderId, 'isOverpaid:', isOverpaid, 'paidAmount:', transaction.paidAmount, 'totalAmount:', transaction.totalAmount, 'status:', transaction.status);
     return (
         <div className="flex flex-row items-start gap-1">
             {isUpdating && <Loader2 className="h-4 w-4 animate-spin" />}
@@ -303,7 +306,7 @@ export const columns = ({ onView, onEdit, onConfirmPayment, onStatusChange, isCo
       const status = transaction.status;
       const isConfirming = isConfirmingId === transaction.id;
       const isUpdating = isUpdatingStatusId === transaction.id;
-
+      console.log('checking transaction', transaction.totalAmount, transaction.paidAmount, transaction.status,transaction.merchantOrderId);
       if (status === 'Requires Confirmation' || status === 'Partially Paid' || status === 'On-Hold') {
         return (
           <ConfirmationPopover transaction={transaction} onConfirmPayment={onConfirmPayment} isConfirming={isConfirming} />
