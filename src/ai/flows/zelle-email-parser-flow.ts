@@ -19,7 +19,7 @@ const prompt = ai.definePrompt({
   name: 'zelleEmailParserPrompt',
   input: { schema: ZelleEmailParseInputSchema },
   output: { schema: ZelleEmailParseOutputSchema },
-  model: googleAI.model('gemini-2.0-flash-lite'),
+  model: googleAI.model('gemini-2.5-flash-lite'),
   prompt: `You are an expert financial transaction parser. Your task is to analyze the raw content of a Zelle payment notification email and extract key information into a structured JSON format.
 
   **Critical Instructions (in order of priority):**

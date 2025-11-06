@@ -150,6 +150,17 @@ export interface PaymentAccount {
   qrCodeUrl?: string | null; // For Zelle QR code image
 }
 
+export interface DailyVolumeHistory {
+  id: number;
+  date: string; // YYYY-MM-DD
+  totalVolume: number;
+  paymentAccountId: string;
+  accountName: string;
+  accountType: PaymentAccountType;
+  dailyLimit: number;
+}
+
+
 export interface DashboardStats {
   totalRevenue: {
     value: number;

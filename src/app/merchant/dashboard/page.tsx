@@ -19,21 +19,42 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import type { Order } from "@/lib/types"
+import type { Order, OrderStatus } from "@/lib/types"
 import { ViewTransactionDialog } from "@/components/admin/view-transaction-dialog";
-import { DollarSign, CreditCard, Users, Activity } from "lucide-react";
+import { DollarSign, CreditCard, Activity } from "lucide-react";
 import Link from "next/link";
 import { ArrowUpRight } from "lucide-react";
 
-interface MerchantStats {
+interface MerchantDashboardData {
   todaysRevenue: number;
   todaysSales: number;
   pendingConfirmation: number;
+  recentTransactions: Order[];
 }
 
+const getStatusVariant = (status: OrderStatus) => {
+  switch (status) {
+    case 'Completed':
+    case 'Over-paid Refunded':
+    case 'Reconciled':
+      return 'success';
+    case 'Pending':
+      return 'outline';
+    case 'Partially Paid':
+      return 'warning';
+    case 'Requires Confirmation':
+      return 'info';
+    case 'Failed':
+    case 'Refunded':
+      return 'destructive';
+    default:
+      return 'outline';
+  }
+};
+
+
 export default function MerchantDashboard() {
-  const [transactions, setTransactions] = useState<Order[]>([]);
-  const [stats, setStats] = useState<MerchantStats | null>(null);
+  const [dashboardData, setDashboardData] = useState<MerchantDashboardData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [merchantId, setMerchantId] = useState<string | null>(null);
   const [selectedTransaction, setSelectedTransaction] = useState<Order | null>(null);
@@ -57,25 +78,11 @@ export default function MerchantDashboard() {
     }
     
     try {
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      
-      const transactionsParams = new URLSearchParams({ 
-        merchantId,
-        startDate: today.toISOString(),
-        status: 'NOT_PENDING',
-      });
-      
-      const [statsRes, transactionsRes] = await Promise.all([
-         fetch(`/api/dashboard/merchant-stats/${merchantId}`),
-         fetch(`/api/orders?${transactionsParams.toString()}`)
-      ]);
+      const response = await fetch(`/api/merchant/dashboard/stats?merchantId=${merchantId}`);
+      if (!response.ok) throw new Error("Failed to fetch dashboard data");
 
-      const statsData = await statsRes.json();
-      const transactionsData = await transactionsRes.json();
-      
-      setStats(statsData);
-      setTransactions(transactionsData);
+      const data = await response.json();
+      setDashboardData(data);
 
     } catch (error) {
       console.error("Failed to fetch merchant data", error);
@@ -129,12 +136,12 @@ export default function MerchantDashboard() {
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">
-                Today&apos;s Revenue
+                Today's Revenue
               </CardTitle>
               <DollarSign className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{formatCurrency(stats?.todaysRevenue || 0)}</div>
+              <div className="text-2xl font-bold">{formatCurrency(dashboardData?.todaysRevenue || 0)}</div>
               <p className="text-xs text-muted-foreground">
                 Total revenue from completed sales today.
               </p>
@@ -143,12 +150,12 @@ export default function MerchantDashboard() {
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">
-                Today&apos;s Sales
+                Today's Sales
               </CardTitle>
               <CreditCard className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">+{stats?.todaysSales || 0}</div>
+              <div className="text-2xl font-bold">+{dashboardData?.todaysSales || 0}</div>
               <p className="text-xs text-muted-foreground">
                 Total number of transactions created today.
               </p>
@@ -160,7 +167,7 @@ export default function MerchantDashboard() {
               <Activity className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{stats?.pendingConfirmation || 0}</div>
+              <div className="text-2xl font-bold">{dashboardData?.pendingConfirmation || 0}</div>
               <p className="text-xs text-muted-foreground">
                 Transactions awaiting manual payment verification.
               </p>
@@ -171,7 +178,7 @@ export default function MerchantDashboard() {
           <Card>
             <CardHeader className="flex flex-row items-center">
               <div className="grid gap-2">
-                <CardTitle>Today&apos;s Transactions</CardTitle>
+                <CardTitle>Today's Transactions</CardTitle>
                 <CardDescription>
                   A list of transactions received today.
                 </CardDescription>
@@ -183,8 +190,8 @@ export default function MerchantDashboard() {
                 </Link>
               </Button>
             </CardHeader>
-            <div className="overflow-x-auto">
-              <CardContent>
+            <CardContent>
+              <div className="overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -195,17 +202,20 @@ export default function MerchantDashboard() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {transactions.length > 0 ? transactions.map(tx => (
-                        <TableRow key={tx.id} onClick={() => handleViewClick(tx)} className="cursor-pointer">
-                          <TableCell>
-                            <div className="font-medium">{tx.customerName}</div>
-                            <div className="text-sm text-muted-foreground">{tx.customerEmail}</div>
-                          </TableCell>
-                        <TableCell className="hidden sm:table-cell"><Badge>{tx.status}</Badge></TableCell>
-                          <TableCell className="hidden sm:table-cell">{tx.paymentMethod}</TableCell>
-                          <TableCell className="text-right">{formatCurrency(tx.totalAmount, tx.currency)}</TableCell>
-                        </TableRow>
-                    )) : (
+                    {dashboardData?.recentTransactions && dashboardData.recentTransactions.length > 0 ? dashboardData.recentTransactions.map(tx => {
+                        const displayStatus = tx.status === 'Over-paid Refunded' ? 'Completed' : tx.status;
+                        return (
+                            <TableRow key={tx.id} onClick={() => handleViewClick(tx)} className="cursor-pointer">
+                              <TableCell>
+                                <div className="font-medium">{tx.customerName}</div>
+                                <div className="text-sm text-muted-foreground">{tx.customerEmail}</div>
+                              </TableCell>
+                              <TableCell className="hidden sm:table-cell"><Badge variant={getStatusVariant(tx.status)}>{displayStatus}</Badge></TableCell>
+                              <TableCell className="hidden sm:table-cell">{tx.paymentMethod}</TableCell>
+                              <TableCell className="text-right">{formatCurrency(tx.totalAmount, tx.currency)}</TableCell>
+                            </TableRow>
+                        )
+                    }) : (
                         <TableRow>
                             <TableCell colSpan={4} className="h-24 text-center">
                                 No transactions today.
@@ -214,9 +224,8 @@ export default function MerchantDashboard() {
                     )}
                   </TableBody>
                 </Table>
-              </CardContent>
-            </div>
-            
+              </div>
+            </CardContent>
           </Card>
     </div>
   )
