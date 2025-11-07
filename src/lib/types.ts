@@ -153,6 +153,7 @@ export interface PaymentAccount {
 export interface DailyVolumeHistory {
   id: number;
   date: string; // YYYY-MM-DD
+  createdAt: string; 
   totalVolume: number;
   paymentAccountId: string;
   accountName: string;

@@ -17,9 +17,9 @@ import { cn } from '@/lib/utils';
 import { SheetDescription, SheetTitle } from '../ui/sheet';
 
 const navLinks = [
-    { href: '/merchant/dashboard', label: 'Dashboard', icon: LayoutGrid },
+    // { href: '/merchant/dashboard', label: 'Dashboard', icon: LayoutGrid },
     { href: '/merchant/dashboard/transactions', label: 'Transactions', icon: ShoppingCart },
-    { href: '/merchant/dashboard/reports', label: 'Reports', icon: BarChart },
+    // { href: '/merchant/dashboard/reports', label: 'Reports', icon: BarChart },
     { href: '/merchant/dashboard/settings', label: 'Settings', icon: Settings },
 ];
 

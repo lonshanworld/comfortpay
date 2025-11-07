@@ -216,7 +216,12 @@ const StatusDropdown = ({ transaction, onStatusChange, isUpdating }: { transacti
 
 
 export const columns = ({ onView, onEdit, onConfirmPayment, onStatusChange, isConfirmingId, isUpdatingStatusId }: TransactionColumnsProps): ColumnDef<Order>[] => [
-
+  
+  {
+    accessorKey: "merchantOrderId",
+    header: "Order No:",
+    size: 80,
+  },
   {
     accessorKey: "orderDate",
     header: "Order Date",
@@ -226,11 +231,6 @@ export const columns = ({ onView, onEdit, onConfirmPayment, onStatusChange, isCo
     size : 90
   },
 
-  {
-    accessorKey: "merchantOrderId",
-    header: "Order No:",
-    size: 75,
-  },
 
   {
     accessorKey: "paymentReceivedDate",
@@ -263,14 +263,16 @@ export const columns = ({ onView, onEdit, onConfirmPayment, onStatusChange, isCo
     header: "Status",
     cell: ({ row }) => {
 
-      return <Badge variant={getStatusVariant('Completed')}>Completed</Badge>
+       const status = row.original.status;
+      const displayStatus = status === 'Over-paid Refunded' ? 'Completed' : status;
+      return <Badge variant={getStatusVariant(displayStatus)}>{displayStatus}</Badge>
     },
     size : 160
   },
 
   {
     accessorKey: "totalAmount",
-    header: "Order Amount",
+    header: "Total Amount",
     cell: ({ row }) => formatCurrency(row.original.totalAmount, row.original.currency),
     size : 80
   },

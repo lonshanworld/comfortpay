@@ -35,9 +35,10 @@ export async function GET(request: Request) {
 
   const page = parseInt(searchParams.get('page') || '1', 10);
   const pageSize = parseInt(searchParams.get('pageSize') || '75', 10);
+// const pageSize = 5;
   const offset = (page - 1) * pageSize;
 
-  let whereClauses = "o.merchantId = ? AND o.status IN ('Completed', 'Over-paid Refunded')";
+  let whereClauses = "o.merchantId = ?";
   const params: (string | number)[] = [merchantId];
 
   searchParams.forEach((value, key) => {
@@ -46,6 +47,14 @@ export async function GET(request: Request) {
             case 'merchantOrderId':
                 whereClauses += ` AND o.merchantOrderId LIKE ?`;
                 params.push(`%${value}%`);
+                break;
+            case 'status':
+                if (value === 'Completed') {
+                    whereClauses += " AND o.status IN ('Completed', 'Over-paid Refunded')";
+                } else {
+                    whereClauses += ` AND o.status = ?`;
+                    params.push(value);
+                }
                 break;
             case 'customerEmail':
                  whereClauses += " AND (o.customerEmail LIKE ? OR JSON_UNQUOTE(JSON_EXTRACT(o.billingDetails, '$.email')) LIKE ?)";
@@ -67,14 +76,14 @@ export async function GET(request: Request) {
             case 'paymentReceivedDate_start': {
                 const dbKey = key.replace('_start', '');
                 whereClauses += ` AND o.${dbKey} >= ?`;
-                params.push(value);
+                params.push(new Date(value).toISOString());
                 break;
             }
             case 'orderDate_end':
             case 'paymentReceivedDate_end': {
                 const dbKey = key.replace('_end', '');
                 whereClauses += ` AND o.${dbKey} <= ?`;
-                params.push(value);
+               params.push(new Date(value).toISOString());
                 break;
             }
         }
@@ -82,7 +91,10 @@ export async function GET(request: Request) {
   });
 
   const dataQuery = `
-      SELECT o.* FROM orders o
+      SELECT o.*,
+       DATE_FORMAT(o.orderDate, '%Y-%m-%dT%H:%i:%s.000Z') as orderDate,
+        DATE_FORMAT(o.paymentReceivedDate, '%Y-%m-%dT%H:%i:%s.000Z') as paymentReceivedDate
+        FROM orders o
       WHERE ${whereClauses}
       ORDER BY o.orderDate DESC 
       LIMIT ${pageSize} OFFSET ${offset}
@@ -96,7 +108,7 @@ export async function GET(request: Request) {
     ]);
     
     const totalCount = countResult[0]?.totalCount || 0;
-
+    console.log("Merchant Transactions fetched:", dataResult.map(parseDbOrder));
     return NextResponse.json({
         data: dataResult.map(parseDbOrder),
         pageCount: Math.ceil(totalCount / pageSize),

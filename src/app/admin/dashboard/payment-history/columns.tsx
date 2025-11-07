@@ -19,13 +19,25 @@ const formatCurrency = (amount: number, currency: string = "USD") => {
 
 const formatDate = (dateString: string | undefined | null) => {
     if (!dateString) return "N/A";
+    
+    // The date string from the API is now a reliable ISO 8601 UTC string.
+    // We can safely parse it and format it for display.
     const date = new Date(dateString);
-    // Adjust for timezone offset to display the correct date
-    const userTimezoneOffset = date.getTimezoneOffset() * 60000;
-    return new Date(date.getTime() + userTimezoneOffset).toLocaleDateString('en-US', {
-        year: 'numeric', month: 'short', day: 'numeric', timeZone: 'UTC'
-    });
+
+    if (isNaN(date.getTime())) {
+        return "Invalid Date";
+    }
+
+    const options: Intl.DateTimeFormatOptions = {
+        year: 'numeric', month: 'short', day: 'numeric',
+        hour: '2-digit', minute: '2-digit',
+        timeZone: 'GMT', // Explicitly display in GMT
+        hour12: true,
+    };
+    return date.toLocaleString('en-US', options);
 }
+
+
 
 const ExpandedComponent = ({ row }: { row: any }) => {
     const historyItem = row.original as DailyVolumeHistory;
@@ -64,7 +76,7 @@ const ExpandedComponent = ({ row }: { row: any }) => {
 
     return (
         <div className="p-4 bg-muted/50">
-            <h5 className="font-semibold text-sm mb-2">Transactions for {historyItem.accountName} on {formatDate(historyItem.date)}:</h5>
+            <h5 className="font-semibold text-sm mb-2">Transactions for {historyItem.accountName} on {new Date(historyItem.date + 'T00:00:00Z').toLocaleDateString('en-US', { timeZone: 'GMT', year: 'numeric', month: 'short', day: 'numeric' })}:</h5>
             <div className="rounded-md border bg-background">
                 <Table>
                     <TableHeader>
@@ -91,8 +103,8 @@ const ExpandedComponent = ({ row }: { row: any }) => {
 
 export const columns = (): ColumnDef<DailyVolumeHistory>[] => [
   {
-    accessorKey: "date",
-    id: "date",
+     accessorKey: "createdAt",
+    id: "createdAt",
     header: ({ column }) => (
       <Button
         variant="ghost"
@@ -104,6 +116,7 @@ export const columns = (): ColumnDef<DailyVolumeHistory>[] => [
     ),
     cell: ({ row }) => {
         const isExpanded = row.getIsExpanded();
+        console.log("createat date", row.original.createdAt);
         return (
             <div className="flex items-center gap-2">
                  <Button
@@ -114,7 +127,7 @@ export const columns = (): ColumnDef<DailyVolumeHistory>[] => [
                 >
                     {/* <ChevronsUpDown className="h-4 w-4 text-muted-foreground transition-transform" style={{ transform: isExpanded ? 'rotate(180deg)' : 'none' }} /> */}
                 </Button>
-                <span>{formatDate(row.original.date)}</span>
+                <span>{formatDate(row.original.createdAt)}</span>
             </div>
         )
     },
@@ -127,8 +140,8 @@ export const columns = (): ColumnDef<DailyVolumeHistory>[] => [
         const item = row.original;
         return (
             <div>
-                <div className="font-medium">{item.accountName}</div>
-                 <div className="text-xs text-muted-foreground">{item.accountType} - {item.accountEmail || 'N/A'}</div>
+                <div className="font-medium">{item.accountEmail || ''}</div>
+                 <div className="text-xs text-muted-foreground">{item.accountType} - {item.name || 'N/A'}</div>
             </div>
         )
     },

@@ -214,7 +214,7 @@ export async function GET(request: Request) {
     const pluginQuery = `
   ${selectClause} 
   ${fromAndWhereClause} 
-  ORDER BY o.orderDate DESC LIMIT 100
+  ORDER BY o.orderDate DESC LIMIT 200
 `;
     const countQuery = `${countClause} ${fromAndWhereClause}`;
 
@@ -233,7 +233,7 @@ export async function GET(request: Request) {
             
             
             const totalCount = countResult[0]?.totalCount || 0;
-
+            console.log("Orders fetched:",dataResult.map(parseDbOrder));
             return NextResponse.json({
                 data: dataResult.map(parseDbOrder),
                 pageCount: Math.ceil(totalCount / pageSize),

@@ -20,7 +20,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
-import type { Order } from "@/lib/types"
+import type { Order, OrderStatus } from "@/lib/types"
 import { DataTableWithColumnFilters } from "@/components/admin/data-table-with-column-filters"
 import { columns as merchantTransactionColumns } from "./columns"
 import { ViewTransactionDialog } from "@/components/admin/view-transaction-dialog"
@@ -34,6 +34,8 @@ import { useToast } from "@/hooks/use-toast"
 import { DateRangePicker } from "@/components/ui/date-range-picker"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select"
+
 
 
 // Helper to download files on the client side
@@ -70,9 +72,16 @@ const convertArrayOfObjectsToCSV = (data: any[], columnOrder: (keyof Order)[], h
   return csvRows.join('\n');
 };
 
-const toLocalISOString = (date: Date) => {
-    const pad = (n: number) => String(n).padStart(2, '0');
-    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}.000Z`;
+ function toLocalISOString(date : any) {
+  const pad = n => String(n).padStart(2, '0');
+  return (
+    date.getFullYear() + '-' +
+    pad(date.getMonth() + 1) + '-' +
+    pad(date.getDate()) + 'T' +
+    pad(date.getHours()) + ':' +
+    pad(date.getMinutes()) + ':' +
+    pad(date.getSeconds()) + '.000Z'
+  );
 }
 
 const DateRangeColumnFilter = ({ column }: { column: { id: string; setFilterValue: (value: any) => void; getFilterValue: () => any } }) => {
@@ -89,6 +98,26 @@ const DateRangeColumnFilter = ({ column }: { column: { id: string; setFilterValu
     )
 }
 
+const StatusFilter = ({ column }: { column: any }) => {
+  const statuses: OrderStatus[] = ["Pending", "Completed", "Failed", "Requires Confirmation", "Refunded", "Partially Paid", "On-Hold"];
+  return (
+    <Select
+      value={(column.getFilterValue() ?? '') as string}
+      onValueChange={value => column.setFilterValue(value === 'all' ? '' : value)}
+    >
+      <SelectTrigger className="h-8 text-xs max-w-sm">
+        <SelectValue placeholder="Filter..." />
+      </SelectTrigger>
+      <SelectContent>
+        <SelectItem value="all">All Statuses</SelectItem>
+        {statuses.map(status => (
+          <SelectItem key={status} value={status}>{status}</SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
+};
+
 export default function MerchantTransactionsPage() {
   const [transactions, setTransactions] = useState<Order[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -104,7 +133,7 @@ export default function MerchantTransactionsPage() {
   const [stagedFilters, setStagedFilters] = React.useState<ColumnFiltersState>([])
   const [pagination, setPagination] = useState<PaginationState>({
     pageIndex: 0,
-    pageSize: 75,
+    pageSize: 200,
   })
 
   useEffect(() => {
@@ -118,9 +147,11 @@ export default function MerchantTransactionsPage() {
     setMerchantId(id);
   }, []);
 
-  const fetchTransactions = useCallback(async (filters: ColumnFiltersState, pageState: PaginationState) => {
+  const fetchTransactions = useCallback(async (filters: ColumnFiltersState, pageState: PaginationState, isBackgroundFetch = false) => {
     if (!merchantId) return;
-    setIsLoading(true);
+    if (!isBackgroundFetch) {
+      setIsLoading(true);
+    }
     
     try {
       const params = new URLSearchParams({ merchantId });
@@ -147,10 +178,16 @@ export default function MerchantTransactionsPage() {
       setPageCount(pageCount);
       setTotalCount(totalCount);
     } catch (error) {
-      console.error("Failed to fetch transactions", error);
-      toast({ variant: "destructive", title: "Error", description: "Could not fetch transactions." });
+        if (!isBackgroundFetch) {
+        console.error("Failed to fetch transactions", error);
+        toast({ variant: "destructive", title: "Error", description: "Could not fetch transactions." });
+      } else {
+        console.warn("Background transaction fetch failed:", error);
+      }
     } finally {
-      setIsLoading(false);
+       if (!isBackgroundFetch) {
+        setIsLoading(false);
+      }
     }
   }, [merchantId, toast]);
   
@@ -159,6 +196,15 @@ export default function MerchantTransactionsPage() {
       fetchTransactions(columnFilters, pagination);
     }
   }, [merchantId, columnFilters, pagination, fetchTransactions]);
+
+  useEffect(() => {
+    const intervalId = setInterval(() => {
+        fetchTransactions(columnFilters, pagination, true);
+        console.log("Background fetch of merchant transactions executed.");
+    }, 3 * 60 * 1000); // 3 minutes
+
+    return () => clearInterval(intervalId); // Cleanup on unmount
+  }, [columnFilters, pagination, fetchTransactions]);
   
   const handleViewClick = (transaction: Order) => {
     setSelectedTransaction(transaction);
@@ -242,9 +288,9 @@ export default function MerchantTransactionsPage() {
       <Card>
         <CardHeader className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
           <div className="flex-1">
-            <CardTitle>Completed Transactions</CardTitle>
+            <CardTitle>Transactions</CardTitle>
             <CardDescription>
-              Search and filter through all of your completed transactions.
+              Search and filter through all of your transactions.
             </CardDescription>
           </div>
             <div className="flex flex-wrap items-center gap-2">
@@ -296,6 +342,24 @@ export default function MerchantTransactionsPage() {
                         <Input placeholder="Order ID" id="merchantOrderId" className="h-8 text-xs" value={stagedFilters.find(f => f.id === 'merchantOrderId')?.value as string ?? ''} onChange={e => setStagedFilterValue('merchantOrderId', e.target.value)} />
                     </div>
                     <div className="grid gap-2">
+                        <Label htmlFor="status" className="text-xs">Status</Label>
+                        <Select value={stagedFilters.find(f => f.id === 'status')?.value as string ?? ''} onValueChange={(value) => setStagedFilterValue('status', value === 'all' ? null : value)}>
+                            <SelectTrigger className="h-8 text-xs">
+                                <SelectValue placeholder="All Statuses" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="all">All Statuses</SelectItem>
+                                <SelectItem value="Pending">Pending</SelectItem>
+                                <SelectItem value="On-Hold">On-Hold</SelectItem>
+                                <SelectItem value="Completed">Completed</SelectItem>
+                                <SelectItem value="Requires Confirmation">Requires Confirmation</SelectItem>
+                                <SelectItem value="Partially Paid">Partially Paid</SelectItem>
+                                <SelectItem value="Failed">Failed</SelectItem>
+                                <SelectItem value="Refunded">Refunded</SelectItem>
+                            </SelectContent>
+                        </Select>
+                    </div>
+                    <div className="grid gap-2">
                         <Label htmlFor="customerEmail" className="text-xs">Customer Email</Label>
                         <Input placeholder="Email" id="customerEmail" className="h-8 text-xs" value={stagedFilters.find(f => f.id === 'customerEmail')?.value as string ?? ''} onChange={e => setStagedFilterValue('customerEmail', e.target.value)} />
                     </div>
@@ -331,6 +395,7 @@ export default function MerchantTransactionsPage() {
                     customFilterComponents={{ 
                         orderDate: DateRangeColumnFilter,
                         paymentReceivedDate: DateRangeColumnFilter,
+                        status: StatusFilter,
                     }}
                 />
             )}

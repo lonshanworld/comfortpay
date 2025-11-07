@@ -227,7 +227,7 @@ export default function TransactionsPage() {
     const intervalId = setInterval(() => {
         fetchTransactions(columnFilters, pagination, true);
         console.log("Background fetch of transactions executed.");
-    }, 0.5 * 60 * 1000); // 3 minutes
+    }, 3 * 60 * 1000); // 3 minutes
 
     return () => clearInterval(intervalId); // Cleanup on unmount
   }, [columnFilters, fetchTransactions]);
