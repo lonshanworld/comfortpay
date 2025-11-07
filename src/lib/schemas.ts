@@ -17,18 +17,17 @@ const OrderItemSchema = z.object({
 
 // Schema for billing details
 const BillingDetailsSchema = z.object({
-  firstName: z.string().describe("The customer's first name."),
-  lastName: z.string().describe("The customer's last name."),
-  address1: z.string().describe("The primary line of the customer's billing address."),
-  address2: z.string().optional().describe("The optional secondary line of the customer's billing address."),
-  city: z.string().describe("The city of the customer's billing address."),
-  state: z.string().describe("The state or province of the customer's billing address."),
-  postcode: z.string().describe("The postal code of the customer's billing address."),
-  country: z.string().describe("The country of the customer's billing address."),
-  email: z.string().email().describe("The customer's email address."),
-  phone: z.string().optional().describe("The customer's phone number."),
+  firstName: z.string().optional().nullable().or(z.literal('')).describe("The customer's first name."),
+  lastName: z.string().optional().nullable().or(z.literal('')).describe("The customer's last name."),
+  address1: z.string().optional().nullable().or(z.literal('')).describe("The primary line of the customer's billing address."),
+  address2: z.string().optional().nullable().or(z.literal('')).describe("The optional secondary line of the customer's billing address."),
+  city: z.string().optional().nullable().or(z.literal('')).describe("The city of the customer's billing address."),
+  state: z.string().optional().nullable().or(z.literal('')).describe("The state or province of the customer's billing address."),
+  postcode: z.string().optional().nullable().or(z.literal('')).describe("The postal code of the customer's billing address."),
+  country: z.string().optional().nullable().or(z.literal('')).describe("The country of the customer's billing address."),
+  email: z.string().email().optional().nullable().or(z.literal('')).describe("The customer's email address."),
+  phone: z.string().optional().nullable().or(z.literal('')).describe("The customer's phone number."),
 });
-
 // Schema for payment details, which can include the prefix
 const PaymentDetailsSchema = z.object({
   prefix_order_name: z.string().optional().describe('The prefix for the transaction name sent to the payment processor.'),
@@ -39,23 +38,23 @@ const PaymentDetailsSchema = z.object({
 // Schema for creating a checkout session
 export const CreateCheckoutSessionInputSchema = z.object({
   totalAmount: z.number().positive().describe('The total transaction amount.'),
-   subtotal: z.number().min(0).optional().describe('The subtotal before taxes and shipping.'),
+  subtotal: z.number().min(0).optional().describe('The subtotal before taxes and shipping.'),
   taxAmount: z.number().min(0).optional().describe('The total tax amount.'),
   shippingAmount: z.number().min(0).optional().describe('The total shipping amount.'),
   discountAmount: z.number().min(0).optional().describe('The total discount amount.'),
   merchantId: z.string().optional().describe("The ID of the merchant for this transaction."),
   merchantOrderId: z.string().describe("The merchant's unique transaction identifier."),
-  visualOrderId: z.string().optional().describe('The transaction ID that is shown to the customer and sent to the payment processor.'),
-  redirectUrl: z.string().url().optional().describe('The URL to redirect the user to after payment completion.'),
-  wooCommerceOrderReceivedUrl: z.string().url().optional().describe('The standard WooCommerce thank you page URL.'),
+  visualOrderId: z.string().optional().nullable().or(z.literal('')).describe('The transaction ID that is shown to the customer and sent to the payment processor.'),
+  redirectUrl: z.string().url().optional().or(z.literal('')).describe('The URL to redirect the user to after payment completion.'),
+  wooCommerceOrderReceivedUrl: z.string().url().optional().nullable().or(z.literal('')).describe('The standard WooCommerce thank you page URL.'),
   paymentMethod: z.enum(['card', 'zelle']).describe('The selected payment method.'),
-  processor: z.enum(['Stripe', 'Square', 'Zelle']).optional().describe('The specific payment processor to use.'),
-  billingDetails: BillingDetailsSchema.describe('The customer\'s billing information.'),
+  processor: z.enum(['Stripe', 'Square', 'Zelle']).optional(),
+  billingDetails: BillingDetailsSchema.describe("The customer's billing information."),
   items: z.array(OrderItemSchema).describe('The list of items in the transaction.'),
   paymentDetails: PaymentDetailsSchema.optional().describe('Details specific to the payment processor account.'),
-  currency: z.string().optional().describe('The currency of the transaction.'),
-  merchantLogoUrl: z.string().url().optional().nullable().describe("The URL of the merchant's logo to display on checkout."),
-  shopName: z.string().optional().describe("The name of the merchant's shop."),
+  currency: z.string().optional().nullable().or(z.literal('')).describe('The currency of the transaction.'),
+  shopName: z.string().optional().nullable().or(z.literal('')).describe("The name of the merchant's shop."),
+  merchantLogoUrl: z.string().url().optional().nullable().or(z.literal('')),
 });
 
 // Schema for the transaction notification action

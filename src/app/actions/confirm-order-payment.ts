@@ -4,7 +4,7 @@
  * @fileOverview A centralized server action for confirming payments and finalizing orders.
  *
  * This action is the single source of truth for updating an order's payment status.
- * It handles updating the status, paid amount, payment account volume, and notifying WooCommerce.
+ * It handles updating the status, paid amount, and payment account volume.
  */
 
 import { runQuery, executeQuery } from '@/lib/db';
@@ -16,9 +16,13 @@ interface ConfirmPaymentInput {
     amountReceived: number;
 }
 
+
 export async function confirmOrderPayment({ order, amountReceived }: ConfirmPaymentInput): Promise<{ success: boolean; message: string; newStatus?: OrderStatus }> {
     console.log(`--- [Action confirmOrderPayment] Confirming payment for Order ID: ${order.id} ---`);
     console.log(`   - Amount Received: ${amountReceived}`);
+    console.log(`   - Current Order Status: ${order.status}`);
+    console.log(`   - Current Paid Amount: ${order.paidAmount}`);
+    console.log(`   - Current Total Amount: ${order.totalAmount}`);
 
     try {
         const numericId = String(order.id).replace('CP', '');
@@ -29,7 +33,7 @@ export async function confirmOrderPayment({ order, amountReceived }: ConfirmPaym
         }
         const currentOrder: Order = freshOrderResult[0];
         
-        // Prevent re-processing if already completed
+        // Prevent re-processing if already completed and no new amount is added
         if (currentOrder.status === 'Completed' && amountReceived <= 0) {
             console.log(`   - Skipping: Order ${order.id} is already completed.`);
             return { success: true, message: `Order ${order.id} is already completed.`, newStatus: 'Completed' };
@@ -37,11 +41,13 @@ export async function confirmOrderPayment({ order, amountReceived }: ConfirmPaym
 
         const newPaidAmount = (Number(currentOrder.paidAmount) || 0) + amountReceived;
         
-        // Use a small tolerance for floating point comparisons
-        const isFullyPaid = Math.abs(newPaidAmount - currentOrder.totalAmount) < 3.00;
+        // Check if the new paid amount is sufficient to consider the order fully paid.
+        // This allows for a small underpayment tolerance of $3.00.
+        // It also correctly handles overpayments (newPaidAmount > totalAmount).
+        const isFullyPaid = newPaidAmount >= (currentOrder.totalAmount - 3.00);
         const newStatus: OrderStatus = isFullyPaid ? 'Completed' : 'Partially Paid';
         
-        console.log(`   - Step 1: Updating order. New Status: ${newStatus}, New Paid Amount: ${newPaidAmount}`);
+        console.log(`   - Step 1: Updating order. New Paid Amount: ${newPaidAmount}. Calculated New Status: ${newStatus}`);
         
         await runQuery(
             `UPDATE orders SET status = ?, paidAmount = ?, paymentReceivedDate = ? WHERE id = ?`,
@@ -49,38 +55,34 @@ export async function confirmOrderPayment({ order, amountReceived }: ConfirmPaym
         );
         console.log(`   - Step 1 Succeeded.`);
 
+        // --- Volume & Notification Logic ---
         // Only update volume and notify WooCommerce if the order is newly marked as fully paid.
-        // This prevents double-counting if the action is run again on an already completed order.
         if (isFullyPaid && currentOrder.status !== 'Completed') {
-            if (currentOrder.paymentAccountId && typeof currentOrder.totalAmount !== 'undefined') {
-                console.log(`   - Step 2: Order is fully paid. Updating volume for Payment Account ID: ${currentOrder.paymentAccountId}.`);
+            if (currentOrder.paymentAccountId && newPaidAmount > 0) {
+                console.log(`   - Step 2: Order is now fully paid. Updating volume for Payment Account ID: ${currentOrder.paymentAccountId} by ${newPaidAmount}.`);
                 const numericAccountId = String(currentOrder.paymentAccountId).replace('pa_', '');
                 
+                // Increase volume by the *total paid amount* now that it's complete.
                 await runQuery(
                     `UPDATE payment_accounts SET currentVolume = currentVolume + ? WHERE id = ?`,
-                    [Number(currentOrder.totalAmount), numericAccountId]
+                    [newPaidAmount, numericAccountId]
                 );
                 console.log(`   - Step 2 Succeeded.`);
             } else {
-                 console.warn(`   - Step 2 Skipped: Missing paymentAccountId or totalAmount for volume update.`);
+                 console.warn(`   - Step 2 Skipped: Missing paymentAccountId or paid amount is zero.`);
             }
 
             if (currentOrder.wooCommerceSiteUrl) {
                 console.log(`   - Step 3: Triggering WooCommerce notification.`);
-                // We need to pass the *full* order object to the notification function, including the new status
                 const completeOrderForNotification = { ...currentOrder, id: order.id, status: newStatus };
                 await notifyWooCommerce(completeOrderForNotification, 'Completed');
                 console.log(`   - Step 3 Succeeded.`);
             }
-        }
-        //  else if (newStatus === 'Partially Paid' && currentOrder.wooCommerceSiteUrl) {
-        //     console.log(`   - Step 3: Triggering WooCommerce 'Partially Paid' notification.`);
-        //     const partialOrderForNotification = { ...currentOrder, id: order.id, status: newStatus };
-        //     await notifyWooCommerce(partialOrderForNotification, 'Partially Paid');
-        //     console.log(`   - Step 3 Succeeded.`);
-        // }
-         else {
-             console.log(`   - Steps 2 & 3 Skipped or not applicable.`);
+        } else if (newStatus === 'Partially Paid') {
+            console.log(`   - Step 2 & 3 Skipped: Order is partially paid. Volume will be updated upon completion.`);
+            // Optionally, notify WooCommerce about partial payment if needed in the future.
+        } else {
+             console.log(`   - Steps 2 & 3 Skipped: Order was already complete or status unchanged.`);
         }
         
         const successMessage = `Order ${order.id} updated to '${newStatus}'.`;

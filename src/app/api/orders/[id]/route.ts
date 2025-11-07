@@ -41,6 +41,7 @@ export async function PUT(
 
     const wasCompleted = currentOrder.status === 'Completed';
     const isNowBeingCompleted = body.status === 'Completed';
+    const isNowOverpaidRefunded = body.status === 'Over-paid Refunded';
 
     // If the order is being manually marked as 'Completed' for the first time
     if (isNowBeingCompleted && !wasCompleted) {
@@ -59,7 +60,27 @@ export async function PUT(
             throw new Error(`Failed to confirm payment via action: ${result.message}`);
         }
         
-    } else {
+    } else if (isNowOverpaidRefunded && wasCompleted) {
+      const overpaidAmount = currentOrder.paidAmount - currentOrder.totalAmount;
+        if (overpaidAmount > 0 && currentOrder.paymentAccountId) {
+            await runQuery('START TRANSACTION');
+            try {
+                // Correct the volume on the payment account
+                await runQuery('UPDATE payment_accounts SET currentVolume = currentVolume - ? WHERE id = ?', [overpaidAmount, currentOrder.paymentAccountId]);
+                // Update the order status and paid amount
+                await runQuery("UPDATE orders SET status = ?, paidAmount = ? WHERE id = ?", [body.status, currentOrder.totalAmount, numericId]);
+                await runQuery('COMMIT');
+                console.log(`[API Order PUT] Corrected volume for account ${currentOrder.paymentAccountId} by ${overpaidAmount} due to overpayment refund.`);
+            } catch (e) {
+                await runQuery('ROLLBACK');
+                console.error("Error during overpayment refund transaction:", e);
+                throw new Error("Database error while processing overpayment refund.");
+            }
+        } else {
+            // If no overpayment or no account, just update the status
+            await runQuery("UPDATE orders SET status = ? WHERE id = ?", [body.status, numericId]);
+        }
+    }else {
         // For all other status updates, or if it was already complete, just update the fields.
         const validColumns = [
           'merchantId', 'merchantOrderId', 'visualOrderId', 'orderDate', 'paymentReceivedDate',
@@ -71,40 +92,43 @@ export async function PUT(
         const fieldsToUpdate: string[] = [];
         const queryParams: any[] = [];
            // If the status is being changed to 'Over-paid Refunded', adjust the paidAmount
-        if (body.status === 'Over-paid Refunded' && currentOrder.status !== 'Over-paid Refunded') {
-            body.paidAmount = currentOrder.totalAmount;
-        }
+        // if (body.status === 'Over-paid Refunded' && currentOrder.status !== 'Over-paid Refunded') {
+        //     body.paidAmount = currentOrder.totalAmount;
+        // }
 
         const newPaymentAccountId = body.paymentAccountId ? String(body.paymentAccountId).replace('pa_', '') : null;
         const oldPaymentAccountId = currentOrder.paymentAccountId;
 
         // Check if the payment account has been changed
-        if ('paymentAccountId' in body && newPaymentAccountId != oldPaymentAccountId && oldPaymentAccountId && currentOrder.status === 'Completed') {
+        if ('paymentAccountId' in body && newPaymentAccountId != oldPaymentAccountId && oldPaymentAccountId && wasCompleted) {
             console.log(`[API Order PUT] Reassigning completed order ${id} from account ${oldPaymentAccountId} to ${newPaymentAccountId}.`);
             
             await runQuery('START TRANSACTION');
             try {
 
                 // Increment volume on the new account
-                 await runQuery(
-                    'UPDATE payment_accounts SET currentVolume = currentVolume + ? WHERE id = ?',
-                    [currentOrder.totalAmount, newPaymentAccountId]
-                );
+                //  await runQuery(
+                //     'UPDATE payment_accounts SET currentVolume = currentVolume + ? WHERE id = ?',
+                //     [currentOrder.totalAmount, newPaymentAccountId]
+                // );
 
 
                  // Decrement volume from the old account
                   const [oldAccountResult]: any[] = await executeQuery('SELECT currentVolume FROM payment_accounts WHERE id = ?', [oldPaymentAccountId]);
                  const oldAccountVolume = oldAccountResult[0]?.currentVolume || 0;
 
+                 await runQuery('UPDATE payment_accounts SET currentVolume = currentVolume + ? WHERE id = ?', [currentOrder.totalAmount, newPaymentAccountId]);
+
                 console.log(`[API Order PUT] Incremented volume on new account ${newPaymentAccountId}.`);
 
                 // Only decrement from the old account if it has enough volume to cover the transaction
                 if (oldAccountVolume >= currentOrder.totalAmount) {
                     console.log(`[API Order PUT] Old account has sufficient volume. Decrementing volume from old account ${oldPaymentAccountId}.`);
-                    await runQuery(
-                        'UPDATE payment_accounts SET currentVolume = currentVolume - ? WHERE id = ?',
-                        [currentOrder.totalAmount, oldPaymentAccountId]
-                    );
+                    // await runQuery(
+                    //     'UPDATE payment_accounts SET currentVolume = currentVolume - ? WHERE id = ?',
+                    //     [currentOrder.totalAmount, oldPaymentAccountId]
+                    // );
+                     await runQuery('UPDATE payment_accounts SET currentVolume = currentVolume - ? WHERE id = ?', [currentOrder.totalAmount, oldPaymentAccountId]);
                 } else {
                     console.log(`[API Order PUT] Old account volume (${oldAccountVolume}) is less than transaction amount (${currentOrder.totalAmount}). Skipping decrement.`);
                 }
@@ -149,11 +173,7 @@ export async function PUT(
         }
 
         if (fieldsToUpdate.length > 0) {
-            const query = `
-              UPDATE orders SET
-              ${fieldsToUpdate.join(', ')}
-              WHERE id = ?
-            `;
+            const query = `UPDATE orders SET ${fieldsToUpdate.join(', ')} WHERE id = ?`;
             queryParams.push(numericId);
             await runQuery(query, queryParams);
         }

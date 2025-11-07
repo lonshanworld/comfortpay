@@ -94,6 +94,7 @@ export default function PayoutsPage() {
   const [batches, setBatches] = useState<PayoutBatch[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
+  const [isExporting, setIsExporting] = React.useState(false);
   
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([])
   const [stagedFilters, setStagedFilters] = React.useState<ColumnFiltersState>([])
@@ -156,6 +157,60 @@ export default function PayoutsPage() {
     setColumnFilters([]);
   };
 
+   const handleExport = () => {
+    setIsExporting(true);
+    toast({
+        title: "Exporting Payouts",
+        description: "Your data is being prepared and will be downloaded shortly.",
+    });
+
+    try {
+        const headers = [
+            "Batch ID", "Payout Status", "Settlement ID", "Batch Creation Date (GMT)", "Batch Paid Date (GMT)",
+            "Merchant Order ID", "ComfortPay Order ID", "Merchant Name", "Gross Amount", "Gateway Fee", "Net Amount", "Currency"
+        ];
+        
+        const csvRows = [headers.join(',')];
+
+        batches.forEach(batch => {
+            batch.payouts.forEach(payout => {
+                const row = [
+                    `"${batch.batchId}"`,
+                    `"${batch.payoutStatus}"`,
+                    `"${batch.settlementId || 'N/A'}"`,
+                    `"${batch.createdAt ? new Date(batch.createdAt).toUTCString() : 'N/A'}"`,
+                    `"${batch.paidAt ? new Date(batch.paidAt).toUTCString() : 'N/A'}"`,
+                    `"${payout.merchantOrderId}"`,
+                    `"${payout.orderId}"`,
+                    `"${payout.merchantName.replace(/"/g, '""')}"`, // Escape double quotes
+                    payout.grossAmount,
+                    payout.gatewayFee,
+                    payout.netAmount,
+                    `"${payout.currency}"`
+                ];
+                csvRows.push(row.join(','));
+            });
+        });
+
+        const csvContent = csvRows.join('\n');
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement("a");
+        const url = URL.createObjectURL(blob);
+        link.setAttribute("href", url);
+        link.setAttribute("download", `payout-batches-${new Date().toISOString().split('T')[0]}.csv`);
+        link.style.visibility = 'hidden';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+
+    } catch (error) {
+        console.error("Export failed:", error);
+        toast({ variant: "destructive", title: "Export Failed", description: "An unexpected error occurred during export." });
+    } finally {
+        setIsExporting(false);
+    }
+};
+
   const columns = useMemo(() => payoutColumnsDefinition({
     onUpdateSuccess: () => fetchPayouts(columnFilters),
   }), [fetchPayouts, columnFilters]);
@@ -169,6 +224,14 @@ export default function PayoutsPage() {
                 <CardDescription>
                   Review and finalize payout batches. Batches marked "In-Settlement" require a final reference ID.
                 </CardDescription>
+                 <div className="ml-auto flex items-center gap-2">
+                 <Button size="sm" variant="outline" className="h-8 gap-1" onClick={handleExport} disabled={isExporting || isLoading}>
+                    {isExporting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <File className="h-3.5 w-3.5" />}
+                    <span className="sr-only sm:not-sr-only sm:whitespace-nowrap">
+                        Export
+                    </span>
+                    </Button>
+               </div>
               </div>
             </CardHeader>
             <CardContent>

@@ -15,6 +15,7 @@ import {
   Users2,
   Mail,
   DollarSign,
+  History,
   Banknote,
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
@@ -26,10 +27,12 @@ const navLinks = [
     { href: '/admin/dashboard/transactions', label: 'Transactions', icon: ShoppingCart, badge: 6 },
     { href: '/admin/dashboard/merchants', label: 'Merchants', icon: Users },
     { href: '/admin/dashboard/users', label: 'Users', icon: Users2 },
-    { href: '/admin/dashboard/payments', label: 'Payment Accounts', icon: CreditCard },
+    
     { href: '/admin/dashboard/settlement', label: 'Settlement', icon: DollarSign },
     { href: '/admin/dashboard/payouts', label: 'Payouts', icon: Banknote },
-    { href: '/admin/dashboard/email', label: 'Email', icon: Mail },
+    { href: '/admin/dashboard/payments', label: 'Payment Accounts', icon: CreditCard },
+    { href: '/admin/dashboard/payment-history', label: 'Payment History', icon: History },
+    // { href: '/admin/dashboard/email', label: 'Email', icon: Mail },
     { href: '/admin/dashboard/settings', label: 'Settings', icon: Settings },
 ];
 
