@@ -28,33 +28,35 @@ export function MerchantFilter({ column, salesAgentId }: MerchantFilterProps) {
 
   React.useEffect(() => {
     const fetchMerchants = async () => {
-      console.log("Fetching merchants for salesAgentId:", salesAgentId);
       try {
         let apiUrl = '/api/merchants?status=all';
-        // Only add the salesAgentId to the query if it's actually set.
-        // This ensures the admin dashboard view continues to show all merchants.
         if (salesAgentId) {
             apiUrl += `&salesAgentId=${salesAgentId}`;
         }
-        console.log("Merchant filter - Fetching from URL:", apiUrl);
         const response = await fetch(apiUrl);
         if (response.ok) {
-          console.log("Merchant filter - Response OK");
           const data = await response.json()
-          console.log("Merchant filter - Fetched merchants:", data);
           setMerchants(data)
         }
       } catch (error) {
         console.error("Failed to fetch merchants for filter", error)
       }
     }
-    // Re-fetch merchants whenever the determined salesAgentId changes.
-    fetchMerchants()
+    
+    // Check if the salesAgentId prop is present. If it is, we are in the sales agent context.
+    const isSalesAgentContext = salesAgentId !== undefined;
+
+    if (isSalesAgentContext) {
+      // In sales agent context, only fetch if the ID is available.
+      if (salesAgentId) {
+        fetchMerchants();
+      }
+    } else {
+      // In admin context (salesAgentId prop is not passed), fetch immediately.
+      fetchMerchants();
+    }
   }, [salesAgentId])
 
-  React.useEffect(() => {
-    console.log("Merchant filter - salesAgentId:", salesAgentId);
-  }, []);
 
   return (
     <Select
