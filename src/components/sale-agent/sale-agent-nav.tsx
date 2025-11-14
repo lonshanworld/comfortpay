@@ -10,15 +10,18 @@ import {
   BarChart,
   Loader2,
   Package2,
+  ShoppingCart,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Badge } from '../ui/badge';
 import { SheetDescription, SheetTitle } from '../ui/sheet';
 
 const navLinks = [
-    { href: '/sale-agent/dashboard', label: 'Dashboard', icon: LayoutGrid },
+    // { href: '/sale-agent/dashboard', label: 'Dashboard', icon: LayoutGrid },
+    { href: '/sale-agent/dashboard/transactions', label: 'Transactions', icon: ShoppingCart },
     { href: '/sale-agent/dashboard/merchants', label: 'My Merchants', icon: Users },
-    { href: '/sale-agent/dashboard/performance', label: 'Performance', icon: BarChart },
+
+    // { href: '/sale-agent/dashboard/performance', label: 'Performance', icon: BarChart },
 ];
 
 export function SaleAgentNav() {

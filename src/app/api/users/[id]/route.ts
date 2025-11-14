@@ -4,6 +4,7 @@ import { executeQuery, runQuery } from '@/lib/db';
 import { promises as fs } from 'fs';
 import path from 'path';
 import crypto from 'crypto';
+import { hashPassword } from '@/lib/password-service';
 
 
 // Helper to save a base64 encoded file and return its public URL
@@ -36,92 +37,120 @@ const saveQrCodeFromBase64 = async (base64String: string): Promise<string | null
     }
 };
 
+const parseDbUser = (dbUser: any) => {
+    if (!dbUser) return null;
+    const user = { ...dbUser };
+    user.id = `user_${user.id}`;
+    
+    // Safely handle JSON fields that might already be objects
+    const safeParseJson = (field: any) => {
+        if (typeof field === 'string') {
+            try {
+                return JSON.parse(field || '{}');
+            } catch {
+                return {};
+            }
+        }
+        return field || {};
+    };
+
+    user.permissions = safeParseJson(user.permissions);
+    
+    return user;
+}
+
+
+
+export async function GET(
+  request: Request,
+   context: { params: { id: string } }
+) {
+    const { id } = await context.params;
+    const numericId = id.split('_')[1];
+    try {
+        const results: any[] = await executeQuery("SELECT * FROM users WHERE id = ?", [numericId]);
+        if (results.length === 0) {
+            return NextResponse.json({ message: 'User not found' }, { status: 404 });
+        }
+        // Omit password before sending
+        const { password, ...userWithoutPassword } = results[0];
+        return NextResponse.json(parseDbUser(userWithoutPassword));
+    } catch (error) {
+        return NextResponse.json({ message: 'User not found' }, { status: 404 });
+    }
+}
+
 
 export async function PUT(
   request: Request,
-  context: { params: { id: string } }
+  { params }: { params: { id: string } }
 ) {
-  const { id } = await context.params;
-  const numericId = id.split('_')[1];
-  const body = await request.json();
-
-  try {
-    const { name, status, dailyLimit, prefix_order_name, websiteUrl, accountEmail, qrCode, type } = body;
-
-    let qrCodeUrl = undefined;
-    if (qrCode) {
-        qrCodeUrl = await saveQrCodeFromBase64(qrCode);
-    }
+    const { id } = params;
+    const numericId = id.split('_')[1];
+    const body = await request.json();
     
-    // Build query dynamically
-    let query = "UPDATE payment_accounts SET ";
-    const params: any[] = [];
-    const fieldsToUpdate: string[] = [];
-
-    const updateField = (fieldName: string, value: any, isSet: boolean) => {
-        if (isSet) {
-            let finalValue = value;
-            // Specifically handle accountEmail to convert empty string to NULL
-            if (fieldName === 'accountEmail' && value === '') {
-                finalValue = null;
-            }
-            fieldsToUpdate.push(`${fieldName} = ?`);
-            params.push(finalValue);
+    try {
+        const fieldsToUpdate: string[] = [];
+        const queryParams: any[] = [];
+        
+        // Handle password separately
+        if (body.password) {
+            const hashedPassword = await hashPassword(body.password);
+            fieldsToUpdate.push('password = ?');
+            queryParams.push(hashedPassword);
+            delete body.password; // remove from body to not process it again
         }
-    };
 
-    updateField('name', name, 'name' in body);
-    updateField('status', status, 'status' in body);
-    updateField('dailyLimit', Number(dailyLimit), 'dailyLimit' in body);
-    updateField('prefix_order_name', prefix_order_name, 'prefix_order_name' in body);
-    updateField('websiteUrl', websiteUrl, 'websiteUrl' in body);
-    
-    // Only update accountEmail if it's a Zelle account. Otherwise, ensure it's null.
-    if (type === 'Zelle') {
-        updateField('accountEmail', accountEmail, 'accountEmail' in body);
-    } else {
-        updateField('accountEmail', null, true); // Force to null if not Zelle
+        for (const key in body) {
+            if (Object.prototype.hasOwnProperty.call(body, key) && body[key] !== undefined) {
+                if (key === 'id') continue; // Do not update the ID
+
+                // For object fields, stringify them
+                if (typeof body[key] === 'object' && body[key] !== null) {
+                    fieldsToUpdate.push(`${key} = ?`);
+                    queryParams.push(JSON.stringify(body[key]));
+                } else {
+                    fieldsToUpdate.push(`${key} = ?`);
+                    queryParams.push(body[key]);
+                }
+            }
+        }
+        
+        if (fieldsToUpdate.length === 0) {
+            return NextResponse.json({ message: "No fields to update" }, { status: 400 });
+        }
+
+        let query = `UPDATE users SET ${fieldsToUpdate.join(', ')} WHERE id = ?`;
+        queryParams.push(numericId);
+        
+        const result: any = await runQuery(query, queryParams);
+
+        if (result.changes === 0) {
+            return NextResponse.json({ message: 'User not found or no changes made' }, { status: 404 });
+        }
+        
+        return NextResponse.json({ id, ...body });
+
+    } catch (error) {
+        console.error(`Failed to update user ${id}:`, error);
+        return NextResponse.json({ message: 'Failed to update user' }, { status: 500 });
     }
-
-    updateField('qrCodeUrl', qrCodeUrl, 'qrCode' in body);
-    
-    if (fieldsToUpdate.length === 0) {
-        return NextResponse.json({ message: "No fields to update." }, { status: 400 });
-    }
-
-    query += fieldsToUpdate.join(', ') + " WHERE id = ?";
-    params.push(numericId);
-
-    const result = await runQuery(query, params);
-
-    if (result.changes === 0) {
-      return NextResponse.json({ message: 'Payment account not found' }, { status: 404 });
-    }
-
-    return NextResponse.json({ id: id, ...body });
-  } catch (error) {
-    console.error(`Failed to update payment account ${id}:`, error);
-    return NextResponse.json({ message: 'Error updating payment account' }, { status: 500 });
-  }
 }
 
 export async function DELETE(
   request: Request,
-  context: { params: Promise<{ id: string }> }
+  { params }: { params: { id: string } }
 ) {
-  const { id } = await context.params;
-  const numericId = id.split('_')[1];
-
-  try {
-    const result = await runQuery("DELETE FROM payment_accounts WHERE id = ?", [numericId]);
-
-    if (result.changes === 0) {
-      return NextResponse.json({ message: 'Payment account not found' }, { status: 404 });
+    const { id } = params;
+    const numericId = id.split('_')[1];
+    try {
+        const result: any = await runQuery("DELETE FROM users WHERE id = ?", [numericId]);
+        if (result.changes === 0) {
+            return NextResponse.json({ message: 'User not found' }, { status: 404 });
+        }
+        return new Response(null, { status: 204 });
+    } catch (error) {
+        console.error(`Failed to delete user ${id}:`, error);
+        return NextResponse.json({ message: 'Failed to delete user' }, { status: 500 });
     }
-
-    return new Response(null, { status: 204 }); // Success, no content
-  } catch (error) {
-    console.error(`Failed to delete payment account ${id}:`, error);
-    return NextResponse.json({ message: 'Error deleting payment account' }, { status: 500 });
-  }
 }

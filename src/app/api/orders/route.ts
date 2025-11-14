@@ -98,12 +98,12 @@ export async function GET(request: Request) {
                     params.push(`%${value}%`);
                     break;
                 case 'customerFirstName':
-                    fromAndWhereClause += " AND JSON_UNQUOTE(JSON_EXTRACT(o.billingDetails, '$.firstName')) LIKE ?";
-                    params.push(`%${value}%`);
+                     fromAndWhereClause += " AND LOWER(JSON_UNQUOTE(JSON_EXTRACT(o.billingDetails, '$.firstName'))) LIKE ?";
+                    params.push(`%${value.toLowerCase()}%`);
                     break;
                 case 'customerLastName':
-                    fromAndWhereClause += " AND JSON_UNQUOTE(JSON_EXTRACT(o.billingDetails, '$.lastName')) LIKE ?";
-                    params.push(`%${value}%`);
+                    fromAndWhereClause += " AND LOWER(JSON_UNQUOTE(JSON_EXTRACT(o.billingDetails, '$.lastName'))) LIKE ?";
+                    params.push(`%${value.toLowerCase()}%`);
                     break;
                 case 'customerEmail':
                     fromAndWhereClause += " AND (o.customerEmail LIKE ? OR JSON_UNQUOTE(JSON_EXTRACT(o.billingDetails, '$.email')) LIKE ?)";
@@ -124,8 +124,8 @@ export async function GET(request: Request) {
                 case 'orderAmount':
                 case 'totalAmount':
                 case 'paidAmount':
-                    fromAndWhereClause += ` AND o.${key} = ?`;
-                    params.push(Number(value));
+                    fromAndWhereClause += ` AND CAST(o.${key} AS CHAR) LIKE ?`;
+                    params.push(`%${value}%`);
                     break;
                 case 'currency':
                 case 'paymentMethod':
@@ -197,8 +197,7 @@ export async function GET(request: Request) {
                 case 'endDate':
                     fromAndWhereClause += ` AND DATE(o.orderDate) <= ?`;
                     params.push(value.split('T')[0]); // Use just the date part
-                    break;
-                
+                    break;    
                 
             }
         }
