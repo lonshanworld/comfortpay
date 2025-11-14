@@ -190,11 +190,11 @@ export default function HomePage() {
                            <UserCheck className="mr-2 h-4 w-4"/> Staff Login
                         </Button>
                     </Link> */}
-                    {/* <Link href="/login/sale-agent" passHref>
+                    <Link href="/login/sale-agent" passHref>
                         <Button className="w-full" variant="outline">
-                            <Briefcase className="mr-2 h-4 w-4"/> Sales Login
+                            <Briefcase className="mr-2 h-4 w-4"/> Sales Agent Login
                         </Button>
-                    </Link> */}
+                    </Link>
                 </CardContent>
             </Card>
              {/* <Card className="w-full">

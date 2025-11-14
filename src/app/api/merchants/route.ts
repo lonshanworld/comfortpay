@@ -87,7 +87,7 @@ export async function GET(request: Request) {
     }
     if (numericSalesAgentId) {
         query += " AND salesAgentId = ?";
-        params.push(numericSalesAgentId);
+        params.push(Number(numericSalesAgentId));
     }
     if (name) {
         query += " AND name LIKE ?";

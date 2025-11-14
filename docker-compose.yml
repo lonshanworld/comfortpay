@@ -1,0 +1,35 @@
+version: '3.8'
+
+services:
+  db:
+    image: mysql:8.0
+    command: --default-authentication-plugin=mysql_native_password
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: 'rootpassword'
+      MYSQL_DATABASE: 'comfortpay'
+    ports:
+      - '3306:3306'
+    volumes:
+      - mysql_data:/var/lib/mysql
+
+  app:
+    build: .
+    restart: always
+    command: npm run start:prod
+    ports:
+      - '9002:9002'
+    environment:
+      DATABASE_URL: 'mysql://root:rootpassword@db:3306/comfortpay'
+      # Add other necessary environment variables here
+      # For example:
+      # SUPER_ADMIN_EMAIL: 'admin@comfortpay.com'
+      # SUPER_ADMIN_PASSWORD: 'your_super_secret_password'
+      # ZELLE_WEBHOOK_SECRET: 'your_zelle_secret'
+      # CRON_SECRET: 'your_cron_secret'
+      # STRIPE_SECRET_KEY_... and so on
+    depends_on:
+      - db
+
+volumes:
+  mysql_data:

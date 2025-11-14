@@ -10,6 +10,25 @@ import type { Merchant } from "@/lib/types"
 import Link from "next/link"
 
 export const columns: ColumnDef<Merchant>[] = [
+   {
+    accessorKey: "merchantId",
+    header: "Merchant ID",
+    cell: ({ row }) => {
+        const merchant = row.original;
+        const numericId = merchant.id.split('_')[1];
+        if (merchant.websiteUrl) {
+            try {
+                const hostname = new URL(merchant.websiteUrl).hostname;
+                const prefix = hostname.replace('www.', '').substring(0, 3).toUpperCase();
+                return `${prefix}_${numericId}`;
+            } catch (e) {
+                return `user_${numericId}`;
+            }
+        }
+        return `user_${numericId}`;
+    },
+    size : 70
+  },
   {
     accessorKey: "email",
     header: ({ column }) => {
@@ -42,20 +61,20 @@ export const columns: ColumnDef<Merchant>[] = [
        return <Badge variant={status === 'Active' ? "secondary" : "destructive"}>{status}</Badge>
     },
   },
-  {
-    accessorKey: "commissionRates",
-    header: "Commission Rates",
-    cell: ({ row }) => {
-        const rates = row.original.commissionRates;
-        return (
-            <div className="text-sm">
-                <div>Stripe: <span className="font-semibold">{rates?.stripe?.value ?? 'N/A'}%</span></div>
-                <div>Square: <span className="font-semibold">{rates?.square?.value ?? 'N/A'}%</span></div>
-                <div>Zelle: <span className="font-semibold">{rates?.zelle?.value ?? 'N/A'}%</span></div>
-            </div>
-        )
-    }
-  },
+  // {
+  //   accessorKey: "commissionRates",
+  //   header: "Commission Rates",
+  //   cell: ({ row }) => {
+  //       const rates = row.original.commissionRates;
+  //       return (
+  //           <div className="text-sm">
+  //               <div>Stripe: <span className="font-semibold">{rates?.stripe?.value ?? 'N/A'}%</span></div>
+  //               <div>Square: <span className="font-semibold">{rates?.square?.value ?? 'N/A'}%</span></div>
+  //               <div>Zelle: <span className="font-semibold">{rates?.zelle?.value ?? 'N/A'}%</span></div>
+  //           </div>
+  //       )
+  //   }
+  // },
   {
     accessorKey: "websiteUrl",
     header: "Website",

@@ -135,6 +135,7 @@ export function ViewMerchantDialog({ open, onOpenChange, merchant }: ViewMerchan
                     const res = await fetch(`/api/users/${merchant.salesAgentId}`);
                     if(res.ok) {
                         const data = await res.json();
+                        console.log("Fetched sales agent data:", data);
                         setSalesAgent(data);
                     } else {
                         setSalesAgent(null);

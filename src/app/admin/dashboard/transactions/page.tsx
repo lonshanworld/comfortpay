@@ -40,7 +40,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { DateRangePicker } from "@/components/ui/date-range-picker"
 import { notifyWooCommerce } from "@/app/actions/notify-woocommerce"
 import { confirmOrderPayment } from "@/app/actions/confirm-order-payment"
-import { useDebounce } from "use-debounce"
+import { useDebounce, useDebouncedCallback } from "use-debounce"
 import { DateRange } from "react-day-picker"
 import { MerchantFilter } from "@/components/admin/merchant-filter"
 import { AccountInfoFilter } from "@/components/admin/account-info-filter"
@@ -158,11 +158,10 @@ export default function TransactionsPage() {
     pageSize: 200,
   })
 
-   const [debouncedFilters] = useDebounce(columnFilters, 1000);
 
 
 
- const fetchTransactions = useCallback(async (filters: ColumnFiltersState, pageState: PaginationState, isBackgroundFetch = false) => {
+const debouncedFetchTransactions = useDebouncedCallback(async (filters: ColumnFiltersState, pageState: PaginationState, isBackgroundFetch = false) => {
     if (!isBackgroundFetch) {
       setIsLoading(true);
     }
@@ -204,7 +203,7 @@ export default function TransactionsPage() {
         setIsLoading(false);
       }
     }
-  }, [toast]);
+  }, 5000);
 
     
   // const getActiveFilters = useCallback(() => {
@@ -219,18 +218,18 @@ export default function TransactionsPage() {
   // }, [debouncedFilters, stagedFilters]);
 
   useEffect(() => {
-    fetchTransactions(debouncedFilters, pagination);
-  }, [debouncedFilters, fetchTransactions]);
+  debouncedFetchTransactions(columnFilters, pagination);
+  }, [columnFilters, pagination, debouncedFetchTransactions]);
 
   
   useEffect(() => {
     const intervalId = setInterval(() => {
-        fetchTransactions(columnFilters, pagination, true);
+        debouncedFetchTransactions(columnFilters, pagination, true);
         console.log("Background fetch of transactions executed.");
     }, 3 * 60 * 1000); // 3 minutes
 
     return () => clearInterval(intervalId); // Cleanup on unmount
-  }, [columnFilters, fetchTransactions]);
+  }, [columnFilters, debouncedFetchTransactions,pagination]);
 
   const handleViewClick = (transaction: Order) => {
     setSelectedTransaction(transaction);
@@ -243,7 +242,7 @@ export default function TransactionsPage() {
   };
 
   const handleTransactionUpdated = () => {
-    fetchTransactions(columnFilters, pagination);
+    debouncedFetchTransactions(columnFilters, pagination);
   }
 
   const handleConfirmPayment = async (transaction: Order, amount: number) => {
@@ -253,7 +252,7 @@ export default function TransactionsPage() {
      const result = await confirmOrderPayment({ order: transaction, amountReceived: amount });
 
     if (result.success) {
-      fetchTransactions(columnFilters, pagination);
+      debouncedFetchTransactions(columnFilters, pagination);
       toast({
         title: "Payment Confirmed",
         description: result.message
@@ -290,7 +289,7 @@ export default function TransactionsPage() {
       });
 
       // Refresh the data in the background to show the update
-      fetchTransactions(columnFilters, pagination);
+      debouncedFetchTransactions(columnFilters, pagination);
 
     } catch (error: any) {
       toast({
@@ -304,17 +303,20 @@ export default function TransactionsPage() {
   };
 
 
- const handleSearch = () => {
-    // Combine staged filters with existing column filters, giving staged precedence
-    const activeColumnFilters = columnFilters.filter(f => !stagedFilters.some(sf => sf.id === f.id));
-    const newFilters = [...activeColumnFilters, ...stagedFilters];
-    setColumnFilters(newFilters);
+   const handleSearch = () => {
+    setColumnFilters(stagedFilters);
+    debouncedFetchTransactions.flush(); // Call the debounced function immediately
   }
 
   const handleClearFilters = () => {
-    setStagedFilters([]);
+    setStagedFilters(prev => prev.map(f => 
+        (f.id === 'orderDate' || f.id === 'paymentReceivedDate') 
+            ? { id: f.id, value: undefined } 
+            : { id: f.id, value: '' }
+    ));
     setColumnFilters([]);
-  }
+    debouncedFetchTransactions.flush(); // Call the debounced function immediately
+  };
 const handleExport = (format: 'csv' | 'docs' | 'excel') => {
       setIsExporting(true);
       toast({
@@ -396,6 +398,7 @@ isUpdatingStatusId: isUpdatingStatus,
         return newFilters;
     });
   };
+
 
   
   const summaryStats = React.useMemo(() => {

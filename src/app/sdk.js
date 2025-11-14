@@ -6,8 +6,8 @@
 
     let iframe = null;
     let overlay = null;
-    // const COMFORTPAY_HUB_URL = 'https://portal.comfortpay.me';
-    const COMFORTPAY_HUB_URL = 'http://localhost:3000'; // For local testing, replace with actual URL in production
+    const COMFORTPAY_HUB_URL = 'https://portal.comfortpay.me';
+    // const COMFORTPAY_HUB_URL = 'http://localhost:3000'; // For local testing, replace with actual URL in production
 
     function close() {
         if (iframe && document.body.contains(iframe)) {

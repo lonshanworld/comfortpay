@@ -28,7 +28,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { Loader2 } from "lucide-react";
+import { Loader2, Eye, EyeOff } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -53,6 +53,8 @@ interface AddUserDialogProps {
 export function AddUserDialog({ open, onOpenChange, onUserAdded }: AddUserDialogProps) {
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
+    const [showPassword, setShowPassword] = useState(false);
+
 
   const form = useForm<UserFormValues>({
     resolver: zodResolver(userFormSchema),
@@ -151,9 +153,20 @@ export function AddUserDialog({ open, onOpenChange, onUserAdded }: AddUserDialog
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Password</FormLabel>
-                      <FormControl>
-                        <Input type="password" {...field} disabled={isLoading} />
-                      </FormControl>
+                       <div className="relative">
+                            <FormControl>
+                            <Input type={showPassword ? "text" : "password"} {...field} disabled={isLoading} />
+                            </FormControl>
+                             <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7 text-muted-foreground"
+                                onClick={() => setShowPassword(!showPassword)}
+                                >
+                                {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                            </Button>
+                        </div>
                       <FormMessage />
                     </FormItem>
                   )}
