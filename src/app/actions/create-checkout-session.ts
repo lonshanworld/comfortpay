@@ -164,7 +164,7 @@ export async function createCheckoutSession(input: CreateCheckoutSessionInput): 
     console.log(`[createCheckoutSession] Generated Visual ID: ${visualId}`);
     await appLog({ ...logContext, description: `Step 6: Generated visual order ID: ${visualId}`, plugin_status: 'info' });
     
-    const orderAmount = (input.items || []).reduce((acc, item) => acc + (item.price * item.quantity), 0);
+    const orderAmount = (input.items || []).reduce((acc, item) => acc + ((item.price ?? 0) * (item.quantity ?? 0)), 0);
     const now = new Date();
     
      const wooSiteUrl = input.wooCommerceOrderReceivedUrl 
