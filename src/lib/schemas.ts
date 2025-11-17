@@ -10,9 +10,9 @@ export const SendSupportEmailInputSchema = z.object({
 
 // Schema for a single transaction item
 const OrderItemSchema = z.object({
-  name: z.string().describe('The name of the product.'),
-  quantity: z.number().int().positive().describe('The quantity of the product.'),
-  price: z.number().positive().describe('The price of a single unit of the product.'),
+  name: z.string().optional().describe('The name of the product.'),
+  quantity: z.number().optional().describe('The quantity of the product.'),
+  price: z.number().optional().describe('The price of a single unit of the product. Can be zero or negative.'),
 });
 
 // Schema for billing details
