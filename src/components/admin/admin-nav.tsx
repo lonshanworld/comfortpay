@@ -17,6 +17,7 @@ import {
   DollarSign,
   History,
   Banknote,
+  Bug,
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
@@ -34,6 +35,8 @@ const navLinks = [
     { href: '/admin/dashboard/payment-history', label: 'Payment History', icon: History },
     // { href: '/admin/dashboard/email', label: 'Email', icon: Mail },
     { href: '/admin/dashboard/settings', label: 'Settings', icon: Settings },
+    { href: '/admin/dashboard/plugin-logs', label: 'Plugin Logs', icon: Bug },
+
 ];
 
 export function AdminNav() {

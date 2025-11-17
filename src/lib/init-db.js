@@ -232,6 +232,23 @@ async function initialize() {
                 created_at DATETIME NOT NULL
             ) ENGINE=InnoDB;
         `);
+
+         await connection.query(`
+            CREATE TABLE IF NOT EXISTS plugin_log (
+                id INT PRIMARY KEY AUTO_INCREMENT,
+                hostname VARCHAR(255),
+                plugin_status VARCHAR(50),
+                version VARCHAR(50),
+                title VARCHAR(255),
+                description TEXT,
+                value TEXT,
+                raw_request TEXT,
+                is_solved BOOLEAN DEFAULT FALSE,
+                createdAt DATETIME NOT NULL
+            ) ENGINE=InnoDB;
+        `);
+
+        
         console.log('Tables created or verified.');
         
         // Before adding the unique constraint, clean up any existing empty strings
