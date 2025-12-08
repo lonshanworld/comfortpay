@@ -8,13 +8,15 @@ services:
       - .env
     extra_hosts:
       - "host.docker.internal:host-gateway"
+    network_mode: "host"
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:3000/ || exit 1"]
       interval: 30s
       timeout: 5s
       retries: 3
-    networks:
-      - webnet
+    # running in host network mode (network_mode: "host")
+    # Note: service-level Docker DNS and service names are not available in host mode.
+    # The nginx proxy should be configured to reach the app on the host (127.0.0.1:3000).
 
   nginx:
     image: nginx:stable-alpine
