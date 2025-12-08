@@ -22,13 +22,22 @@ async function sendStatusUpdate(siteUrl: string, apiToken: string, payload: obje
   console.log(`   - Payload:`, payload);
 
   try {
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      // Use the specific merchant's API token for authentication
+      'Authorization': `Bearer ${apiToken}`,
+      // Friendly UA to reduce bot classification by proxies
+      'User-Agent': 'ComfortPay/1.0 (+https://zentrypay.com)',
+    };
+
+    // Optionally include an internal secret header for server-to-server bypass
+    if (process.env.WC_INTERNAL_SECRET) {
+      headers['X-Internal-Secret'] = process.env.WC_INTERNAL_SECRET;
+    }
+
     const wooResponse = await fetch(wooCommerceApiUrl, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        // Use the specific merchant's API token for authentication
-        'Authorization': `Bearer ${apiToken}`
-      },
+      headers,
       body: JSON.stringify(payload)
     });
 

@@ -28,6 +28,8 @@ services:
       # ZELLE_WEBHOOK_SECRET: 'your_zelle_secret'
       # CRON_SECRET: 'your_cron_secret'
       # STRIPE_SECRET_KEY_... and so on
+    env_file:
+      - .env
     depends_on:
       - db
 
