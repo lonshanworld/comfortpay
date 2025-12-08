@@ -28,8 +28,8 @@ COPY --from=builder /app/package.json /app/package-lock.json ./
 COPY --from=builder /app/.next ./.next
 COPY --from=builder /app/public ./public
 COPY --from=builder /app/node_modules ./node_modules
-# Copy source files (needed by runtime code that reads files from disk)
-# COPY --from=builder /app/src ./src
+# Copy specific source files needed at runtime
+# COPY --from=builder /app/src/app/sdk.js ./src/app/sdk.js
 
 # Create a non-root user for running the app
 RUN addgroup --system app && adduser --system --ingroup app app || true
