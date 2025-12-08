@@ -33,14 +33,40 @@ async function sendStatusUpdate(siteUrl: string, apiToken: string, payload: obje
     });
 
     const responseBodyText = await wooResponse.text();
+    const contentType = wooResponse.headers.get('content-type') || '';
 
+    // If response is not OK, try to extract a useful error message safely
     if (!wooResponse.ok) {
-      console.error(`❌ [Action sendStatusUpdate] WooCommerce API responded with status ${wooResponse.status}. Body:`, responseBodyText);
-      const errorMessage = JSON.parse(responseBodyText).message || `WooCommerce API call failed.`;
+      console.error(`❌ [Action sendStatusUpdate] WooCommerce API responded with status ${wooResponse.status}. Content-Type: ${contentType}. Body (truncated):`, responseBodyText.slice(0, 2000));
+      let errorMessage = `WooCommerce API call failed with status ${wooResponse.status}`;
+      if (contentType.includes('application/json')) {
+        try {
+          const parsed = JSON.parse(responseBodyText);
+          if (parsed && parsed.message) errorMessage = parsed.message;
+        } catch (parseErr) {
+          console.warn('[Action sendStatusUpdate] Failed to parse error JSON from WooCommerce response.', parseErr);
+        }
+      } else {
+        // Non-JSON response (likely HTML/challenge) — include a short snippet for debugging
+        errorMessage += `; non-JSON response received. Snippet: ${responseBodyText.slice(0, 200)}`;
+      }
       throw new Error(errorMessage);
     }
-    
-    const responseData = JSON.parse(responseBodyText);
+
+    // Success path: expect JSON. If not JSON, treat it as an unexpected response.
+    if (!contentType.includes('application/json')) {
+      console.error(`❌ [Action sendStatusUpdate] Expected JSON response but got Content-Type: ${contentType}. Body (truncated):`, responseBodyText.slice(0, 2000));
+      return { success: false, message: `Unexpected non-JSON response from WooCommerce (Content-Type: ${contentType})` };
+    }
+
+    let responseData: any;
+    try {
+      responseData = JSON.parse(responseBodyText);
+    } catch (parseErr) {
+      console.error(`❌ [Action sendStatusUpdate] Failed to parse JSON response from WooCommerce. Body (truncated):`, responseBodyText.slice(0, 2000));
+      return { success: false, message: 'Failed to parse JSON response from WooCommerce' };
+    }
+
     console.log(`✅ [Action sendStatusUpdate] Successfully updated status on WooCommerce. Response:`, responseData);
     return { success: true, message: 'WooCommerce order status updated.' };
 

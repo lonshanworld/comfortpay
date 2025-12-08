@@ -28,9 +28,13 @@ COPY --from=builder /app/package.json /app/package-lock.json ./
 COPY --from=builder /app/.next ./.next
 COPY --from=builder /app/public ./public
 COPY --from=builder /app/node_modules ./node_modules
+# Copy source files (needed by runtime code that reads files from disk)
+# COPY --from=builder /app/src ./src
 
 # Create a non-root user for running the app
 RUN addgroup --system app && adduser --system --ingroup app app || true
+# Ensure the runtime user owns the application files and cache directories
+# RUN chown -R app:app /app
 USER app
 
 EXPOSE 3000
