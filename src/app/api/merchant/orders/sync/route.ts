@@ -9,32 +9,42 @@ const SyncRequestSchema = z.object({
 });
 
 export async function POST(request: Request) {
+  const timestamp = new Date().toISOString();
+  console.log(`📞 [${timestamp}] [API /merchant/orders/sync] Received sync request.`);
   try {
     const body = await request.json();
+    console.log(`📥 [${timestamp}] [API /merchant/orders/sync] Request body:`, JSON.stringify(body));
+    
     const validation = SyncRequestSchema.safeParse(body);
 
     if (!validation.success) {
+      console.error(`❌ [${timestamp}] [API /merchant/orders/sync] Validation failed:`, validation.error.flatten());
       return NextResponse.json({ error: 'Invalid request', details: validation.error.flatten() }, { status: 400 });
     }
 
     const { apiToken, merchantOrderIds } = validation.data;
+    console.log(`🔍 [${timestamp}] [API /merchant/orders/sync] Auth token (first 10 chars): ${apiToken.substring(0, 10)}...`);
+    console.log(`🔍 [${timestamp}] [API /merchant/orders/sync] Order IDs to check: ${merchantOrderIds.join(', ')}`);
 
-    // 1. Authenticate
-    const merchantResult: any[] = await executeQuery(
-        "SELECT id FROM users WHERE token = ? AND role = 'Merchant'",
+    // 1. Validate token exists
+    const tokenResult: any[] = await executeQuery(
+        "SELECT id FROM users WHERE token = ?",
         [apiToken]
     );
 
-    if (merchantResult.length === 0) {
+    if (tokenResult.length === 0) {
+      console.error(`❌ [${timestamp}] [API /merchant/orders/sync] Invalid token: ${apiToken.substring(0, 10)}...`);
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-    const merchantId = `user_${merchantResult[0].id}`;
+    
+    console.log(`✅ [${timestamp}] [API /merchant/orders/sync] Token authenticated`);
 
     if (merchantOrderIds.length === 0) {
+        console.log(`⚠️ [${timestamp}] [API /merchant/orders/sync] No order IDs provided, returning empty list.`);
         return NextResponse.json({ orders: [] });
     }
 
-    // 2. Query Orders
+    // 2. Query Orders by order ID only
     // Convert all IDs to string to match DB schema
     const idsToCheck = merchantOrderIds.map(id => String(id));
     
@@ -42,17 +52,22 @@ export async function POST(request: Request) {
     const query = `
         SELECT merchantOrderId as merchant_order_id, status, id as transaction_id, paymentMethod as payment_method
         FROM orders
-        WHERE merchantId = ? AND merchantOrderId IN (${placeholders})
+        WHERE merchantOrderId IN (${placeholders})
     `;
 
-    const params = [merchantId, ...idsToCheck];
+    const params = idsToCheck;
+    console.log(`📋 [${timestamp}] [API /merchant/orders/sync] Querying orders with IDs: ${idsToCheck.join(', ')}`);
+    
     const orders = await executeQuery(query, params);
+    console.log(`📊 [${timestamp}] [API /merchant/orders/sync] Query returned ${orders.length} order(s):`, JSON.stringify(orders));
 
     // 3. Return
-    return NextResponse.json({ orders });
+    const response = { orders };
+    console.log(`📤 [${timestamp}] [API /merchant/orders/sync] Sending response:`, JSON.stringify(response));
+    return NextResponse.json(response);
 
   } catch (error) {
-    console.error('Sync error:', error);
-    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+    console.error(`❌ [${timestamp}] [API /merchant/orders/sync] Error:`, error);
+    return NextResponse.json({ error: 'Internal Server Error', details: String(error) }, { status: 500 });
   }
 }
