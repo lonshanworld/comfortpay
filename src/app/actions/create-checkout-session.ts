@@ -236,7 +236,28 @@ export async function createCheckoutSession(input: CreateCheckoutSessionInput): 
         console.log(`[createCheckoutSession] Timestamp updated successfully.`);
     }
     
-    const sessionDataWithDetails = { 
+        const appUrlForQr = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+
+        // Normalize QR code URL so it always points to the system/app origin
+        const appOrigin = (() => {
+            try { return new URL(appUrlForQr).origin; } catch (e) { return appUrlForQr.replace(/\/$/, ''); }
+        })();
+
+        let normalizedQrCodeUrl: string | undefined = undefined;
+        const rawQr = selectedAccount.qrCodeUrl;
+        if (rawQr) {
+            try {
+                // If rawQr is absolute, extract its path+query and rehost at appOrigin
+                const parsed = new URL(rawQr);
+                    const pathAndQuery = (parsed.pathname || '') + (parsed.search || '');
+                    normalizedQrCodeUrl = appOrigin + pathAndQuery;
+            } catch (e) {
+                // Not an absolute URL — treat as relative/path and prefix with appOrigin
+                normalizedQrCodeUrl = appOrigin + '/' + String(rawQr).replace(/^\/+/, '');
+            }
+        }
+
+        const sessionDataWithDetails = { 
         ...input,
         wooCommerceOrderReceivedUrl: input.wooCommerceOrderReceivedUrl || input.redirectUrl,
         visualOrderId: visualId,
@@ -246,9 +267,9 @@ export async function createCheckoutSession(input: CreateCheckoutSessionInput): 
         paymentDetails: {
             ...input.paymentDetails, // Spread incoming details first
             paymentAccountId: `pa_${paymentAccountId}`, // Then overwrite/add our secure details
-            qrCodeUrl: selectedAccount.qrCodeUrl,
+                        qrCodeUrl: normalizedQrCodeUrl ?? selectedAccount.qrCodeUrl,
             accountEmail: selectedAccount.accountEmail,
-            zelleName: selectedAccount.name ?? ''
+            accountName: selectedAccount.name ?? ''
         }
     };
     await appLog({ ...logContext, description: `Step 10: Created session data with all details for order ID ${newOrderId}.`, raw_request: sessionDataWithDetails, plugin_status: 'info' });
