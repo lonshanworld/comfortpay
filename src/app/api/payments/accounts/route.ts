@@ -6,6 +6,7 @@ import { executeQuery, runQuery } from '@/lib/db';
 import { promises as fs } from 'fs';
 import path from 'path';
 import crypto from 'crypto';
+import { getBaseUploadDir } from '@/lib/upload-utils';
 
 const parseDbAccount = (dbAccount: any) => {
     if (!dbAccount) return null;
@@ -52,8 +53,8 @@ export async function POST(request: Request) {
         const fileExtension = qrCode.substring(qrCode.indexOf('/') + 1, qrCode.indexOf(';'));
         const fileName = `${crypto.randomBytes(16).toString('hex')}.${fileExtension}`;
         
-        // Use environment variable for base path, fallback to public/uploads for development
-        const baseUploadDir = process.env.UPLOADS_DIR || path.join(process.cwd(), 'public', 'uploads');
+        // Resolve environment-aware upload directory
+        const baseUploadDir = getBaseUploadDir();
         const uploadDir = path.join(baseUploadDir, 'qrcodes');
 
         await fs.mkdir(uploadDir, { recursive: true });
@@ -63,10 +64,10 @@ export async function POST(request: Request) {
         qrCodeUrl = `/uploads/qrcodes/${fileName}`;
     }
 
-    // Ensure that only Zelle accounts have an email.
-    if (type !== 'Zelle') {
-        accountEmail = null;
-    }
+    // // Ensure that only Zelle accounts have an email.
+    // if (type !== 'Zelle' && type !== 'Interac' && type !== 'Wise') {
+    //     accountEmail = null;
+    // }
 
     try {
         const query = `

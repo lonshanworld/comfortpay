@@ -39,22 +39,24 @@ import { ScrollArea } from "../ui/scroll-area";
 
 const accountFormSchema = z.object({
   name: z.string().min(3, "Account name must be at least 3 characters."),
-  type: z.enum(["Stripe", "Square", "Zelle"]),
+  type: z.enum(["Stripe", "Square", "Zelle", "Interac", "Wise"]),
   dailyLimit: z.coerce.number().positive("Daily limit must be a positive number."),
   prefix_order_name: z.string().optional(),
   websiteUrl: z.string().optional().or(z.literal('')),
-  accountEmail: z.string().email("Please enter a valid email for Zelle.").optional().or(z.literal('')),
+  accountEmail: z.string().email("Please enter a valid email.").optional().or(z.literal('')),
   qrCode: z.any().optional(),
 }).superRefine((data, ctx) => {
-    if (data.type === "Zelle") {
+    if (data.type === "Zelle" || data.type === "Interac") {
         if (!data.accountEmail) {
              ctx.addIssue({
                 code: z.ZodIssueCode.custom,
-                message: "Zelle account email is required.",
+                message: "Account email is required.",
                 path: ["accountEmail"],
             });
         }
-        if (data.qrCode && data.qrCode instanceof File) {
+        
+    }else if(data.type === "Wise"){
+      if (data.qrCode && data.qrCode instanceof File) {
             if (!data.qrCode.type.startsWith("image/")) {
                 ctx.addIssue({
                     code: z.ZodIssueCode.custom,
@@ -116,10 +118,10 @@ export function AddAccountDialog({ open, onOpenChange, onAccountAdded }: AddAcco
         const newType = value.type as PaymentAccountType;
         setSelectedType(newType);
         // Clear conditional errors when type changes
-        if (newType !== 'Zelle') {
+        // Clear conditional errors when type changes
+        if (newType === 'Stripe' || newType === 'Square') {
             form.clearErrors('accountEmail');
-        }
-        if (newType === 'Zelle') {
+        } else {
             form.clearErrors('websiteUrl');
         }
       }
@@ -153,7 +155,7 @@ export function AddAccountDialog({ open, onOpenChange, onAccountAdded }: AddAcco
 
       toast({
         title: "Account Created",
-        description: `The new ${values.type} account has been added successfully. Please add its API keys to your environment variables.`,
+        description: `The new ${values.type} account has been added successfully. Please add its API keys to your environment variables if required.`,
         duration: 9000,
       });
 
@@ -222,20 +224,22 @@ export function AddAccountDialog({ open, onOpenChange, onAccountAdded }: AddAcco
                         <SelectItem value="Stripe">Stripe</SelectItem>
                         <SelectItem value="Square">Square</SelectItem>
                         <SelectItem value="Zelle">Zelle</SelectItem>
+                        <SelectItem value="Interac">Interac</SelectItem>
+                        <SelectItem value="Wise">Wise</SelectItem>
                       </SelectContent>
                     </Select>
                     <FormMessage />
                   </FormItem>
                 )}
               />
-              {selectedType === 'Zelle' && (
+              {(selectedType === 'Zelle' || selectedType === 'Interac' || selectedType === 'Wise') && (
                   <>
                   <FormField
                       control={form.control}
                       name="accountEmail"
                       render={({ field }) => (
                           <FormItem>
-                          <FormLabel>Zelle Account / Email</FormLabel>
+                          <FormLabel>Account / Email</FormLabel>
                           <FormControl>
                               <Input placeholder="e.g., billing@company.com" {...field} disabled={isLoading} />
                           </FormControl>
@@ -248,7 +252,7 @@ export function AddAccountDialog({ open, onOpenChange, onAccountAdded }: AddAcco
                       name="qrCode"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Zelle QR Code (Optional)</FormLabel>
+                          <FormLabel>QR Code (Optional)</FormLabel>
                           <FormControl>
                             <Input type="file" accept="image/*" onChange={(e) => field.onChange(e.target.files?.[0])} disabled={isLoading} />
                           </FormControl>
@@ -289,7 +293,7 @@ export function AddAccountDialog({ open, onOpenChange, onAccountAdded }: AddAcco
                 name="websiteUrl"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Source Website URL {selectedType !== 'Zelle' && <span className="text-destructive">*</span>}</FormLabel>
+                    <FormLabel>Source Website URL </FormLabel>
                     <FormControl>
                       <Input placeholder="https://your-source-website.com" {...field} disabled={isLoading} />
                     </FormControl>
@@ -323,8 +327,8 @@ export function AddAccountDialog({ open, onOpenChange, onAccountAdded }: AddAcco
                           </ul>
                           </div>
                       )}
-                      {selectedType === 'Zelle' && (
-                        <p>Zelle accounts do not require API keys.</p>
+                      {(selectedType === 'Zelle' || selectedType === 'Interac' || selectedType === 'Wise') && (
+                        <p>These account types do not require API keys.</p>
                       )}
                   </AlertDescription>
               </Alert>

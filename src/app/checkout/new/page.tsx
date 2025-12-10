@@ -350,7 +350,7 @@ function CheckoutForm({ sessionData }: { sessionData: CreateCheckoutSessionInput
   }
   
   
-  const handleZelleConfirmation = async () => {
+  const handleConfirmation = async () => {
     setIsProcessing(true);
     // if (!sessionData.comfortPayOrderId) {
     //     toast({ variant: "destructive", title: "Error", description: "Order ID is missing." });
@@ -412,7 +412,7 @@ function CheckoutForm({ sessionData }: { sessionData: CreateCheckoutSessionInput
           {sessionData.processor === 'Square' && (
             <SquarePaymentForm sessionData={sessionData} onPaymentSuccess={handlePaymentSuccess} setParentProcessing={setIsProcessing} />
           )}
-          {sessionData.processor === 'Zelle' && (
+           {(sessionData.processor === 'Zelle' || sessionData.processor === 'Interac' || sessionData.processor === 'Wise') && (
              <div className="space-y-4">
               <div className="space-y-1">
                 <p className="text-sm text-muted-foreground">Send payment to:</p>
@@ -425,13 +425,9 @@ function CheckoutForm({ sessionData }: { sessionData: CreateCheckoutSessionInput
                     </Button>
                 </div>
               </div>
-              {/* {qrCodeUrl && (
-                <div className="flex justify-center">
-                  <Image src={qrCodeUrl} alt="Zelle QR Code" width={200} height={200} className="rounded-lg border shadow-sm" />
-                </div>
-              )} */}
+               {(sessionData.processor === 'Wise') && (
                <div className="space-y-1">
-                <p className="text-sm text-muted-foreground">Memo for zelle - write order number only</p>
+                {/* <p className="text-sm text-muted-foreground">Memo for zelle - write order number only</p> */}
                 <div className="relative flex items-center">
                     <div className="flex-1 text-lg font-bold text-primary break-all border border-input rounded-md px-3 py-2 pr-10">
                         {visualOrderId}
@@ -446,7 +442,7 @@ function CheckoutForm({ sessionData }: { sessionData: CreateCheckoutSessionInput
                   Memo for zelle- Memo write order number only.                
                 </AlertDescription>
               </Alert> */}
-              <Button onClick={handleZelleConfirmation} className="w-full" disabled={isProcessing}>
+              <Button onClick={handleConfirmation} className="w-full" disabled={isProcessing}>
                 {isProcessing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                 I Have Sent The Zelle Payment
               </Button>
@@ -464,7 +460,7 @@ function CheckoutForm({ sessionData }: { sessionData: CreateCheckoutSessionInput
             {(items || []).map((item, index) => (
               <div key={index} className="flex justify-between text-sm">
                 <p>{item.name} x {item.quantity}</p>
-                <p>${(item.price * item.quantity).toFixed(2)}</p>
+                <p>${((item.price || 0) * (item.quantity || 0)).toFixed(2)}</p>
               </div>
             ))}
           </div>
@@ -503,12 +499,14 @@ function CheckoutForm({ sessionData }: { sessionData: CreateCheckoutSessionInput
           <Separator />
           <div>
             <h3 className="font-semibold mb-2">Billing Details</h3>
-            <div className="space-y-3">
-              <BillingDetail icon={User} label="Name" value={`${billingDetails.firstName} ${billingDetails.lastName}`} />
+            {
+              billingDetails ? <div className="space-y-3">
+              <BillingDetail icon={User} label="Name" value={`${billingDetails.firstName || ''} ${billingDetails.lastName || ''}`} />
               <BillingDetail icon={Mail} label="Email" value={billingDetails.email} />
               <BillingDetail icon={Phone} label="Phone" value={billingDetails.phone} />
-              <BillingDetail icon={Home} label="Address" value={`${billingDetails.address1}, ${billingDetails.city}, ${billingDetails.state} ${billingDetails.postcode}`} />
-            </div>
+              <BillingDetail icon={Home} label="Address" value={`${billingDetails.address1 || ''}, ${billingDetails.city || ''}, ${billingDetails.state || ''} ${billingDetails.postcode || ''}`} />
+            </div> : null
+            }
           </div>
         </CardContent>
       </Card>

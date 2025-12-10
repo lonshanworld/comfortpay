@@ -6,6 +6,7 @@ import { hashPassword } from '@/lib/password-service';
 import crypto from 'crypto';
 import { promises as fs } from 'fs';
 import path from 'path';
+import { getBaseUploadDir } from '@/lib/upload-utils';
 
 // Helper to save a base64 encoded file and return its public URL
 const saveFileFromBase64 = async (base64String: string, subfolder: 'avatars' | 'documents'): Promise<string | null> => {
@@ -23,8 +24,8 @@ const saveFileFromBase64 = async (base64String: string, subfolder: 'avatars' | '
         const fileExtension = mimeType.split('/')[1];
         const fileName = `${crypto.randomBytes(16).toString('hex')}.${fileExtension}`;
         
-        // Use environment variable for base path, fallback to public/uploads for development
-        const baseUploadDir = process.env.UPLOADS_DIR || path.join(process.cwd(), 'public', 'uploads');
+        // Resolve environment-aware upload directory
+        const baseUploadDir = getBaseUploadDir();
         const uploadDir = path.join(baseUploadDir, subfolder);
 
         await fs.mkdir(uploadDir, { recursive: true });

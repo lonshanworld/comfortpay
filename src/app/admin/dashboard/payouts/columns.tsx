@@ -73,17 +73,26 @@ export const columns = ({ onUpdateSuccess }: PayoutColumnsProps): ColumnDef<Payo
    {
     accessorKey: "totalNetAmount",
     header: "Net Amount",
-    cell: ({ row }) => formatCurrency(row.original.totalNetAmount),
+     cell: ({ row }) => {
+        const firstPayoutCurrency = row.original.payouts[0]?.currency || 'USD';
+        return formatCurrency(row.original.totalNetAmount, firstPayoutCurrency);
+    },
   },
    {
     accessorKey: "transferFees",
     header: "Transfer Fees",
-    cell: ({ row }) => formatCurrency(row.original.totalTransferFees),
+    cell: ({ row }) => {
+        const firstPayoutCurrency = row.original.payouts[0]?.currency || 'USD';
+        return formatCurrency(row.original.totalTransferFees, firstPayoutCurrency);
+    },
   },
    {
     accessorKey: "totalFinalAmount",
     header: "Final Amount",
-    cell: ({ row }) => formatCurrency(row.original.totalFinalAmount),
+    cell: ({ row }) => {
+        const firstPayoutCurrency = row.original.payouts[0]?.currency || 'USD';
+        return formatCurrency(row.original.totalFinalAmount, firstPayoutCurrency);
+    },
   },
   {
     accessorKey: "createdAt",

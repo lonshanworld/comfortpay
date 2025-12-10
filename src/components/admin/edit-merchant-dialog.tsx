@@ -86,12 +86,16 @@ const merchantFormSchema = z.object({
     stripe: gatewayFeeSchema.optional(),
     square: gatewayFeeSchema.optional(),
     zelle: gatewayFeeSchema.optional(),
+    interac: gatewayFeeSchema.optional(),
+    wise: gatewayFeeSchema.optional(),
   }).optional(),
   salesAgentId: z.string().optional(),
   commissionRates: z.object({
       stripe: feeSchema.optional(),
       square: feeSchema.optional(),
       zelle: feeSchema.optional(),
+      interac: feeSchema.optional(),
+      wise: feeSchema.optional(),
   }).optional(),
 });
 
@@ -152,7 +156,7 @@ const FeeInput = ({ name, control, label }: { name: string, control: any, label:
 );
 
 
-const GatewayFeeSection = ({ gatewayName, control }: { gatewayName: 'stripe' | 'square' | 'zelle', control: any }) => {
+const GatewayFeeSection = ({ gatewayName, control }: { gatewayName: 'stripe' | 'square' | 'zelle' | 'interac' | 'wise', control: any }) => {
     const isEnabled = useWatch({
       control,
       name: `paymentGatewayFees.${gatewayName}.enabled`,
@@ -242,12 +246,16 @@ export function EditMerchantDialog({ open, onOpenChange, onMerchantUpdated, merc
             stripe: { enabled: false, transactionFee: {}, transactionFeeFixed: {}, refundFee: {}, chargebackFee: {} },
             square: { enabled: false, transactionFee: {}, transactionFeeFixed: {}, refundFee: {}, chargebackFee: {} },
             zelle: { enabled: false, transactionFee: {}, transactionFeeFixed: {}, refundFee: {}, chargebackFee: {} },
+            interac: { enabled: false, transactionFee: {}, transactionFeeFixed: {}, refundFee: {}, chargebackFee: {} },
+            wise: { enabled: false, transactionFee: {}, transactionFeeFixed: {}, refundFee: {}, chargebackFee: {} },
         };
 
         const paymentGatewayFees = {
           stripe: { ...defaultGatewayFees.stripe, ...(merchant.paymentGatewayFees?.stripe || {}) },
           square: { ...defaultGatewayFees.square, ...(merchant.paymentGatewayFees?.square || {}) },
           zelle: { ...defaultGatewayFees.zelle, ...(merchant.paymentGatewayFees?.zelle || {}) },
+          interac: { ...defaultGatewayFees.interac, ...(merchant.paymentGatewayFees?.interac || {}) },
+          wise: { ...defaultGatewayFees.wise, ...(merchant.paymentGatewayFees?.wise || {}) },
         };
 
         const formValues = {
@@ -613,6 +621,8 @@ export function EditMerchantDialog({ open, onOpenChange, onMerchantUpdated, merc
                     <GatewayFeeSection gatewayName="stripe" control={form.control} />
                     <GatewayFeeSection gatewayName="square" control={form.control} />
                     <GatewayFeeSection gatewayName="zelle" control={form.control} />
+                    <GatewayFeeSection gatewayName="interac" control={form.control} />
+                    <GatewayFeeSection gatewayName="wise" control={form.control} />
                 </div>
                 <Separator className="my-4" />
                 <h4 className="text-sm font-semibold text-primary">Sales & Commission</h4>
@@ -644,6 +654,8 @@ export function EditMerchantDialog({ open, onOpenChange, onMerchantUpdated, merc
                         <FeeInput name="commissionRates.stripe" control={form.control} label="Stripe Commission" />
                         <FeeInput name="commissionRates.square" control={form.control} label="Square Commission" />
                         <FeeInput name="commissionRates.zelle" control={form.control} label="Zelle Commission" />
+                        <FeeInput name="commissionRates.interac" control={form.control} label="Interac Commission" />
+                        <FeeInput name="commissionRates.wise" control={form.control} label="Wise Commission" />
                     </div>
                 </div>
 

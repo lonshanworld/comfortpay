@@ -95,7 +95,7 @@ export const columns = ({ onManage }: PaymentAccountColumnsProps): ColumnDef<Pay
     header: "Details",
     cell: ({ row }) => {
         const account = row.original;
-        if (account.type === "Zelle") {
+        if (account.type === "Zelle" || account.type === "Interac" || account.type === "Wise") {
             return <div className="text-sm">{account.accountEmail}</div>
         }
         if (account.websiteUrl) {

@@ -3,8 +3,8 @@ import type { CreateCheckoutSessionInputSchema, SendOrderNotificationInputSchema
 import type { z } from "zod";
 
 export type OrderStatus = "Pending" | "Completed" | "Failed" | "Requires Confirmation" | "Refunded"  | "Partially Paid" | "On-Hold" | "Over-paid Refunded";
-export type PaymentMethod = "Credit Card" | "Zelle";
-export type PaymentType = "Stripe" | "Square" | "Zelle";
+export type PaymentMethod = "Credit Card" | "Zelle" | "Interac" | "Wise";
+export type PaymentType = "Stripe" | "Square" | "Zelle" | "Interac" | "Wise";
 
 export interface BillingDetails {
   firstName: string;
@@ -20,9 +20,9 @@ export interface BillingDetails {
 }
 
 export interface OrderItem {
-    name: string;
-    quantity: number;
-    price: number;
+    name?: string;
+    quantity?: number;
+    price?: number;
 }
 
 export interface Order {
@@ -123,11 +123,15 @@ export interface User {
     stripe?: GatewayFee;
     square?: GatewayFee;
     zelle?: GatewayFee;
+    interac?: GatewayFee;
+    wise?: GatewayFee;
   };
   commissionRates?: {
     stripe?: { value: number, type: 'percentage' | 'flat' };
     square?: { value: number, type: 'percentage' | 'flat' };
     zelle?: { value: number, type: 'percentage' | 'flat' };
+    interac?: { value: number, type: 'percentage' | 'flat' };
+    wise?: { value: number, type: 'percentage' | 'flat' };
   };
 }
 
@@ -135,7 +139,7 @@ export interface User {
 export type Merchant = User;
 
 
-export type PaymentAccountType = "Stripe" | "Square" | "Zelle";
+export type PaymentAccountType = "Stripe" | "Square" | "Zelle" | "Interac" | "Wise";
 
 export interface PaymentAccount {
   id: number;

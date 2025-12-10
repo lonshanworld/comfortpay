@@ -23,17 +23,22 @@ export async function GET(request: Request) {
 
     const merchant: User = merchantResult[0];
     const gatewayFees = typeof merchant.paymentGatewayFees === 'string' 
-      ? JSON.parse(merchant.paymentGatewayFees) 
-      : merchant.paymentGatewayFees;
+      ? JSON.parse(merchant.paymentGatewayFees || '{}') 
+      : (merchant.paymentGatewayFees || {});
       
     // Determine if card payments are enabled by checking if Stripe or Square are enabled.
     const cardEnabled = !!(gatewayFees?.stripe?.enabled || gatewayFees?.square?.enabled);
     const zelleEnabled = !!gatewayFees?.zelle?.enabled;
+    const interacEnabled = !!gatewayFees?.interac?.enabled;
+    const wiseEnabled = !!gatewayFees?.wise?.enabled;
 
     const enabledGateways = {
         card: cardEnabled,
         zelle: zelleEnabled,
+        interac: interacEnabled,
+        wise: wiseEnabled,
     };
+
     console.log(enabledGateways);
     return NextResponse.json(enabledGateways);
 

@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 import { executeQuery, runQuery } from '@/lib/db';
 import { promises as fs } from 'fs';
 import path from 'path';
+import { getBaseUploadDir } from '@/lib/upload-utils';
 import crypto from 'crypto';
 import { hashPassword } from '@/lib/password-service';
 
@@ -17,13 +18,8 @@ const saveQrCodeFromBase64 = async (base64String: string): Promise<string | null
         const fileExtension = base64String.substring(base64String.indexOf('/') + 1, base64String.indexOf(';'));
         const fileName = `${crypto.randomBytes(16).toString('hex')}.${fileExtension}`;
         
-        // Use environment variable for base path. It MUST be set in production.
-        const baseUploadDir = process.env.UPLOADS_DIR;
-        if (!baseUploadDir) {
-            console.error("UPLOADS_DIR environment variable is not set. Cannot save file.");
-            throw new Error("File upload directory is not configured on the server.");
-        }
-        
+        // Resolve environment-aware upload directory
+        const baseUploadDir = getBaseUploadDir();
         const uploadDir = path.join(baseUploadDir, 'qrcodes');
         
         await fs.mkdir(uploadDir, { recursive: true });

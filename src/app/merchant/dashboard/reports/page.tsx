@@ -55,7 +55,7 @@ export default function MerchantReportsPage() {
         fetchPerformanceData();
     }, []);
 
-    const formatCurrency = (amount: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount);
+    const formatCurrency = (amount: number, currency: string = "USD") => new Intl.NumberFormat('en-US', { style: 'currency', currency }).format(amount);
     
      if (isLoading) {
         return (
@@ -81,11 +81,11 @@ export default function MerchantReportsPage() {
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                  <Card>
                     <CardHeader className="pb-2">
-                        <CardDescription>This Month's Revenue</CardDescription>
-                        <CardTitle className="text-4xl">{formatCurrency(performanceData.monthlyRevenue)}</CardTitle>
+                         <CardDescription>This Month's Revenue (USD)</CardDescription>
+                        <CardTitle className="text-4xl">{formatCurrency(performanceData.monthlyRevenue, "USD")}</CardTitle>
                     </CardHeader>
                     <CardContent>
-                        <div className="text-xs text-muted-foreground">+25% from last month</div>
+                        <div className="text-xs text-muted-foreground">This is an aggregated total and may include multiple currencies.</div>
                     </CardContent>
                 </Card>
                  <Card>
@@ -101,9 +101,10 @@ export default function MerchantReportsPage() {
             <div className="grid gap-4 md:grid-cols-1 lg:grid-cols-2">
                  <Card>
                     <CardHeader>
-                    <CardTitle className="flex items-center gap-2"><BarChart className="h-5 w-5"/> Sales Over Time</CardTitle>
+                    <CardTitle className="flex items-center gap-2"><BarChart className="h-5 w-5"/> Sales Over Time (USD)</CardTitle>
                     <CardDescription>
-                        Your total sales volume over the last 6 months.
+                        Your total sales volume over the last 6 months. Values are aggregated.
+
                     </CardDescription>
                     </CardHeader>
                     <CardContent className="pl-2">

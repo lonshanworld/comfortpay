@@ -4,6 +4,7 @@ import { executeQuery, runQuery } from '@/lib/db';
 import { promises as fs } from 'fs';
 import path from 'path';
 import crypto from 'crypto';
+import { getBaseUploadDir } from '@/lib/upload-utils';
 
 
 // Helper to save a base64 encoded file and return its public URL
@@ -17,12 +18,7 @@ const saveQrCodeFromBase64 = async (base64String: string): Promise<string | null
         const fileName = `${crypto.randomBytes(16).toString('hex')}.${fileExtension}`;
         
         // Use environment variable for base path. It MUST be set in production.
-        const baseUploadDir = process.env.UPLOADS_DIR;
-        if (!baseUploadDir) {
-            console.error("UPLOADS_DIR environment variable is not set. Cannot save file.");
-            throw new Error("File upload directory is not configured on the server.");
-        }
-        
+        const baseUploadDir = getBaseUploadDir();
         const uploadDir = path.join(baseUploadDir, 'qrcodes');
         
         await fs.mkdir(uploadDir, { recursive: true });
@@ -71,15 +67,19 @@ export async function PUT(
     updateField('prefix_order_name', prefix_order_name, 'prefix_order_name' in body);
     updateField('websiteUrl', websiteUrl, 'websiteUrl' in body);
     
-    if (type === 'Zelle') {
-        // For Zelle accounts, if accountEmail is provided, convert empty string to NULL.
-        if ('accountEmail' in body) {
+    // if (type === 'Zelle') {
+    //     // For Zelle accounts, if accountEmail is provided, convert empty string to NULL.
+    //     if ('accountEmail' in body) {
+    //         updateField('accountEmail', accountEmail === '' ? null : accountEmail, true);
+    //     }
+    // } else {
+    //     // For non-Zelle accounts, always set accountEmail to NULL.
+    //     updateField('accountEmail', null, true);
+    // }
+
+    if ('accountEmail' in body) {
             updateField('accountEmail', accountEmail === '' ? null : accountEmail, true);
         }
-    } else {
-        // For non-Zelle accounts, always set accountEmail to NULL.
-        updateField('accountEmail', null, true);
-    }
     
     updateField('qrCodeUrl', qrCodeUrl, 'qrCode' in body);
     

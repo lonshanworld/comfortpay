@@ -70,10 +70,17 @@ export async function createCheckoutSession(input: CreateCheckoutSessionInput): 
         : merchant.paymentGatewayFees;
         
     let availableProcessorsForMethod: string[] = [];
+
+
+
     if (input.paymentMethod === 'card') {
         availableProcessorsForMethod = ['Stripe', 'Square'];
     } else if (input.paymentMethod === 'zelle') {
         availableProcessorsForMethod = ['Zelle'];
+    }else if (input.paymentMethod === 'interac') {
+        availableProcessorsForMethod = ['Interac'];
+    } else if (input.paymentMethod === 'wise') {
+        availableProcessorsForMethod = ['Wise'];
     } else {
         console.error(`❌ [createCheckoutSession] Error: Unsupported payment method: ${input.paymentMethod}`);
        await appLog({ ...logContext, description: `Error at Step 3: Unsupported payment method: ${input.paymentMethod}`, plugin_status: 'error' });
@@ -82,7 +89,8 @@ export async function createCheckoutSession(input: CreateCheckoutSessionInput): 
     
     // Filter down to only the processors the merchant has explicitly enabled
     const enabledProcessors = availableProcessorsForMethod.filter(proc => {
-        const gatewayConfig = merchantGatewayFees?.[proc.toLowerCase() as 'stripe' | 'square' | 'zelle'];
+        const gatewayConfig = merchantGatewayFees?.[proc.toLowerCase() as 'stripe' | 'square' | 'zelle' | 'interac' | 'wise'];
+
         return gatewayConfig?.enabled;
     });
 
@@ -98,22 +106,20 @@ export async function createCheckoutSession(input: CreateCheckoutSessionInput): 
     // 2. Query for all active payment accounts of the enabled types that are NOT already over their limit.
     let selectedAccount: PaymentAccount | null = null;
     
-    if (input.paymentMethod === 'zelle') {
-        console.log(`[createCheckoutSession] Zelle method detected. Using round-robin selection.`);
-        await appLog({ ...logContext, description: `Step 4: Selecting Zelle account via round-robin.`, plugin_status: 'info' });
-        const eligibleZelleAccounts: PaymentAccount[] = await executeQuery(
+    if (input.paymentMethod === 'zelle' || input.paymentMethod === 'interac' || input.paymentMethod === 'wise') {
+        const methodForQuery = input.paymentMethod.charAt(0).toUpperCase() + input.paymentMethod.slice(1);
+        await appLog({ ...logContext, description: `Step 6a (${methodForQuery}): Using round-robin selection for accounts.`, plugin_status: 'info' });
+        const eligibleAccounts: PaymentAccount[] = await executeQuery(
             `SELECT * FROM payment_accounts 
-             WHERE type = 'Zelle' AND status = 'Active' AND currentVolume < dailyLimit 
-             ORDER BY last_used_at ASC, id ASC`, // Fallback to id for deterministic order
-            []
+             WHERE type = ? AND status = 'Active' AND currentVolume < dailyLimit 
+             ORDER BY last_used_at ASC, id ASC`,
+            [methodForQuery]
         );
-        if (eligibleZelleAccounts.length > 0) {
-            selectedAccount = eligibleZelleAccounts[0]; // Pick the least recently used one
-             console.log(`[createCheckoutSession] Selected Zelle account via round-robin: ID ${selectedAccount.id}`);
-             await appLog({ ...logContext, description: `Step 4: Selected Zelle account ID ${selectedAccount.id} via round-robin.`, plugin_status: 'info' });
+        if (eligibleAccounts.length > 0) {
+            selectedAccount = eligibleAccounts[0];
+             await appLog({ ...logContext, description: `Step 6b (${methodForQuery}): Selected account via round-robin: ID ${selectedAccount.id}, Name: ${selectedAccount.name}`, plugin_status: 'info' });
         } else {
-            console.error(`❌ [createCheckoutSession] Error: No Zelle accounts available that are under their daily processing limit.`);
-            await appLog({ ...logContext, description: `Error at Step 5: No Zelle accounts available under daily limit.`, plugin_status: 'error' });
+            await appLog({ ...logContext, description: `Error at Step 6b (${methodForQuery}): No accounts available that are under their daily processing limit.`, plugin_status: 'error' });
         }
     } else { // Card payments (Stripe/Square)
         const placeholders = enabledProcessors.map(() => '?').join(',');
@@ -171,7 +177,16 @@ export async function createCheckoutSession(input: CreateCheckoutSessionInput): 
         ? new URL(input.wooCommerceOrderReceivedUrl).origin
         : null;
     
-    const initialStatus = input.paymentMethod === 'zelle' ? 'On-Hold' : 'Pending';
+     const initialStatus = input.paymentMethod === 'card' ? 'Pending' : 'On-Hold';
+
+     let paymentMethodLabel: string;
+    switch(input.paymentMethod) {
+        case 'card': paymentMethodLabel = 'Credit Card'; break;
+        case 'zelle': paymentMethodLabel = 'Zelle'; break;
+        case 'interac': paymentMethodLabel = 'Interac'; break;
+        case 'wise': paymentMethodLabel = 'Wise'; break;
+        default: paymentMethodLabel = 'Unknown';
+    }
     
     const orderInsertQuery = `
       INSERT INTO orders 
@@ -191,7 +206,7 @@ export async function createCheckoutSession(input: CreateCheckoutSessionInput): 
         // Safely use email if available
         input.billingDetails?.email ?? null,
         initialStatus,
-        input.paymentMethod === 'card' ? 'Credit Card' : 'Zelle',
+        paymentMethodLabel,
         input.subtotal ?? 0,
         input.taxAmount ?? 0,
         input.shippingAmount ?? 0,
@@ -211,13 +226,13 @@ export async function createCheckoutSession(input: CreateCheckoutSessionInput): 
     const newOrderId = `CP${orderResult.id}`;
     console.log(`📝 [createCheckoutSession] Order created in DB. Result:`, { newComfortPayId: newOrderId, dbInsertId: orderResult.id });
     // If a Zelle account was used, update its last_used_at timestamp.
-    if (selectedAccount.type === 'Zelle') {
-        console.log(`[createCheckoutSession] Updating last_used_at for Zelle account ID: ${selectedAccount.id}`);
+    if (selectedAccount.type === 'Zelle' || selectedAccount.type === 'Interac' || selectedAccount.type === 'Wise') {
+        console.log(`[createCheckoutSession] Updating last_used_at for ${selectedAccount.type} account ID: ${selectedAccount.id}`);
         await runQuery(
             `UPDATE payment_accounts SET last_used_at = ? WHERE id = ?`,
             [formatDateForMySQL(now), selectedAccount.id]
         );
-        await appLog({ ...logContext, description: `Step 9: Updated last_used_at for Zelle account ID ${selectedAccount.id}.`, plugin_status: 'info' });
+        await appLog({ ...logContext, description: `Step 9: Updated last_used_at for ${selectedAccount.type} account ID ${selectedAccount.id}.`, plugin_status: 'info' });
         console.log(`[createCheckoutSession] Timestamp updated successfully.`);
     }
     

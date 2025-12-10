@@ -7,6 +7,7 @@ import { hashPassword } from '@/lib/password-service';
 import { formatDateForMySQL } from '@/lib/utils';
 import { promises as fs } from 'fs';
 import path from 'path';
+import { getBaseUploadDir } from '@/lib/upload-utils';
 
 // Helper to generate a unique token
 const generateToken = () => `cp_tok_${crypto.randomBytes(16).toString('hex')}`;
@@ -22,12 +23,7 @@ const saveFileFromBase64 = async (base64String: string, subfolder: 'avatars' | '
         const fileName = `${crypto.randomBytes(16).toString('hex')}.${fileExtension}`;
         
         // Use environment variable for base path. It MUST be set in production.
-        const baseUploadDir = process.env.UPLOADS_DIR;
-        if (!baseUploadDir) {
-            console.error("UPLOADS_DIR environment variable is not set. Cannot save file.");
-            throw new Error("File upload directory is not configured on the server.");
-        }
-
+        const baseUploadDir = getBaseUploadDir();
         const uploadDir = path.join(baseUploadDir, subfolder);
 
         await fs.mkdir(uploadDir, { recursive: true });

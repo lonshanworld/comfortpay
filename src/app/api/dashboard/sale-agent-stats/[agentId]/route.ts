@@ -10,7 +10,10 @@ const calculateCommission = (transaction: Order, merchant: User) => {
         ? JSON.parse(merchant.commissionRates) 
         : merchant.commissionRates;
         
-    const processor = transaction.paymentType.toLowerCase() as keyof typeof commissionRates;
+     const processorKey = transaction.paymentType?.toLowerCase();
+    if (!processorKey) return 0;
+    
+    const processor = processorKey as keyof typeof commissionRates;
     
     // The commission object for the specific processor (e.g., commissionRates.stripe)
     const commissionConfig: { value: number; type: 'percentage' | 'flat' } | undefined = commissionRates?.[processor];

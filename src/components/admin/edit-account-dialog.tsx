@@ -1,7 +1,7 @@
 
 "use client"
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useForm } from "react-hook-form";
 import {
   Dialog,
@@ -39,19 +39,19 @@ import { ScrollArea } from "../ui/scroll-area";
 
 const accountFormSchema = z.object({
   name: z.string().min(3, "Account name must be at least 3 characters."),
-  type: z.enum(["Stripe", "Square", "Zelle"]),
+  type: z.enum(["Stripe", "Square", "Zelle", "Interac", "Wise"]),
   status: z.enum(["Active", "Inactive"]),
   dailyLimit: z.coerce.number().positive("Daily limit must be a positive number."),
   prefix_order_name: z.string().optional(),
   websiteUrl: z.string().optional().or(z.literal('')),
-  accountEmail: z.string().email("Please enter a valid email for Zelle.").optional().or(z.literal('')),
+  accountEmail: z.string().email("Please enter a valid email.").optional().or(z.literal('')),
   qrCode: z.any().optional(),
 }).superRefine((data, ctx) => {
-    if (data.type === "Zelle") {
+    if (data.type === "Zelle" || data.type === "Interac" || data.type === "wise") {
         if (!data.accountEmail) {
              ctx.addIssue({
                 code: z.ZodIssueCode.custom,
-                message: "Zelle account email is required.",
+                message: "account email is required.",
                 path: ["accountEmail"],
             });
         }
@@ -167,6 +167,22 @@ export function EditAccountDialog({ open, onOpenChange, onAccountUpdated, onAcco
     }
   };
 
+  const qrCodeUrlFromAccount = account?.qrCodeUrl || null;
+  const qrPreviewUrl = useMemo(() => {
+    if (!qrCodeUrlFromAccount) return null;
+    // If already an absolute URL, use it as-is
+    if (qrCodeUrlFromAccount.startsWith('http') || qrCodeUrlFromAccount.startsWith('//')) return qrCodeUrlFromAccount;
+
+    // Prefer explicit uploads host if provided (for prod setups)
+    const uploadsHost = process.env.NEXT_PUBLIC_UPLOADS_HOST;
+
+    // Fallback to current origin (works in dev and when nginx maps /uploads/)
+    const origin = typeof window !== 'undefined' ? window.location.origin : (process.env.NEXT_PUBLIC_APP_URL || '');
+
+    const host = uploadsHost || origin;
+    return `${host}${qrCodeUrlFromAccount}`;
+  }, [qrCodeUrlFromAccount]);
+
   if (!account) return null;
   const selectedType = form.watch('type');
   const accountId = String(account.id).replace('pa_', '');
@@ -212,20 +228,22 @@ export function EditAccountDialog({ open, onOpenChange, onAccountUpdated, onAcco
                         <SelectItem value="Stripe">Stripe</SelectItem>
                         <SelectItem value="Square">Square</SelectItem>
                         <SelectItem value="Zelle">Zelle</SelectItem>
+                        <SelectItem value="Interac">Interac</SelectItem>
+                        <SelectItem value="Wise">Wise</SelectItem>
                       </SelectContent>
                     </Select>
                     <FormMessage />
                   </FormItem>
                 )}
               />
-              {selectedType === 'Zelle' && (
+              {(selectedType === 'Zelle' || selectedType === 'Interac' || selectedType === 'Wise') && (
                   <>
                   <FormField
                       control={form.control}
                       name="accountEmail"
                       render={({ field }) => (
                           <FormItem>
-                          <FormLabel>Zelle Account / Email</FormLabel>
+                          <FormLabel>Account / Email</FormLabel>
                           <FormControl>
                               <Input placeholder="e.g., billing@company.com" {...field} disabled={isLoading} />
                           </FormControl>
@@ -233,7 +251,9 @@ export function EditAccountDialog({ open, onOpenChange, onAccountUpdated, onAcco
                           </FormItem>
                       )}
                   />
-                  <FormField
+                  {
+                    (selectedType === 'Zelle' || selectedType === "Wise") && (
+                      <FormField
                       control={form.control}
                       name="qrCode"
                       render={({ field }) => (
@@ -249,6 +269,20 @@ export function EditAccountDialog({ open, onOpenChange, onAccountUpdated, onAcco
                         </FormItem>
                       )}
                     />
+                    )
+                  }
+                  {/* Show existing QR code preview if available */}
+                  {qrCodeUrlFromAccount && (
+                    <div className="space-y-2">
+                      <p className="text-sm font-medium">Current QR Code</p>
+                      {qrPreviewUrl ? (
+                        <img src={qrPreviewUrl} alt="QR Code" className="h-40 w-40 object-contain border" />
+                      ) : (
+                        <p className="text-sm text-muted-foreground">{qrCodeUrlFromAccount}</p>
+                      )}
+                      <a href={qrPreviewUrl || qrCodeUrlFromAccount} target="_blank" rel="noreferrer" className="text-xs text-primary underline">Open image</a>
+                    </div>
+                  )}
                   </>
               )}
               <FormField
@@ -298,21 +332,19 @@ export function EditAccountDialog({ open, onOpenChange, onAccountUpdated, onAcco
                   </FormItem>
                 )}
               />
-              {selectedType !== 'Zelle' && (
-                  <FormField
-                  control={form.control}
-                  name="websiteUrl"
-                  render={({ field }) => (
-                      <FormItem>
-                      <FormLabel>Source Website URL {selectedType !== 'Zelle' && <span className="text-destructive">*</span>}</FormLabel>
-                      <FormControl>
-                          <Input placeholder="https://your-source-website.com" {...field} disabled={isLoading} />
-                      </FormControl>
-                      <FormMessage />
-                      </FormItem>
-                  )}
-                  />
-              )}
+              <FormField
+                    control={form.control}
+                    name="websiteUrl"
+                    render={({ field }) => (
+                        <FormItem>
+                        <FormLabel>Source Website URL </FormLabel>
+                        <FormControl>
+                            <Input placeholder="https://your-source-website.com" {...field} disabled={isLoading} />
+                        </FormControl>
+                        <FormMessage />
+                        </FormItem>
+                    )}
+                    />
               <Alert>
                   <Terminal className="h-4 w-4" />
                   <AlertTitle>Environment Variable Configuration</AlertTitle>
@@ -338,8 +370,8 @@ export function EditAccountDialog({ open, onOpenChange, onAccountUpdated, onAcco
                           </ul>
                           </div>
                       )}
-                      {selectedType === 'Zelle' && (
-                        <p>Zelle accounts do not require API keys.</p>
+                      {(selectedType === 'Zelle' || selectedType === 'Wise' || selectedType === 'Interac')  && (
+                        <p>{selectedType} accounts do not require API keys.</p>
                       )}
                   </AlertDescription>
               </Alert>

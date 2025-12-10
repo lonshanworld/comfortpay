@@ -56,7 +56,7 @@ const ExpandedComponent = ({ data }: { data: PayoutBatch }) => {
                     <TableHead>Gross</TableHead>
                     <TableHead>Fee</TableHead>
                     <TableHead>Net</TableHead>
-                 
+                    <TableHead>Currency</TableHead>
                 </TableRow>
             </TableHeader>
             <TableBody>
@@ -67,7 +67,7 @@ const ExpandedComponent = ({ data }: { data: PayoutBatch }) => {
                   <TableCell>{formatCurrency(p.grossAmount, p.currency)}</TableCell>
                   <TableCell>{formatCurrency(p.gatewayFee, p.currency)}</TableCell>
                   <TableCell>{formatCurrency(p.netAmount, p.currency)}</TableCell>
-            
+                  <TableCell>{p.currency}</TableCell>
                 </TableRow>
               ))}
             </TableBody>
