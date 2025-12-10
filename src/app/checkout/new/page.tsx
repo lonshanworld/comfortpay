@@ -427,7 +427,6 @@ function CheckoutForm({ sessionData }: { sessionData: CreateCheckoutSessionInput
               </div>
                {(sessionData.processor === 'Wise') && (
                <div className="space-y-1">
-                {/* <p className="text-sm text-muted-foreground">Memo for zelle - write order number only</p> */}
                 <div className="relative flex items-center">
                     <div className="flex-1 text-lg font-bold text-primary break-all border border-input rounded-md px-3 py-2 pr-10">
                         {visualOrderId}
@@ -437,11 +436,7 @@ function CheckoutForm({ sessionData }: { sessionData: CreateCheckoutSessionInput
                     </Button>
                 </div>
               </div>
-              {/* <Alert>
-                <AlertDescription>
-                  Memo for zelle- Memo write order number only.                
-                </AlertDescription>
-              </Alert> */}
+               )}
               <Button onClick={handleConfirmation} className="w-full" disabled={isProcessing}>
                 {isProcessing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                 I Have Sent The Zelle Payment
