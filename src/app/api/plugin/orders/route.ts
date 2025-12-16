@@ -78,7 +78,7 @@ export async function GET(request: Request) {
         u.websiteUrl as merchantWebsiteUrl,
         pa.accountEmail as paymentAccountEmail,
         pa.name as paymentAccountName,
-        pa.zelleEmail as paymentAccountZelleEmail
+        pa.accountEmail as paymentAccountZelleEmail
       FROM orders o
       LEFT JOIN users u ON o.merchantId = u.id AND u.role = 'Merchant'
       LEFT JOIN payment_accounts pa ON o.paymentAccountId = pa.id
