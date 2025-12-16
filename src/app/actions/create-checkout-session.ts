@@ -272,7 +272,9 @@ export async function createCheckoutSession(input: CreateCheckoutSessionInput): 
             paymentAccountId: `pa_${paymentAccountId}`, // Then overwrite/add our secure details
             qrCodeUrl: selectedAccount.qrCodeUrl,
             accountEmail: selectedAccount.accountEmail,
-            zelleName: selectedAccount.name ?? ''
+            zelleName: selectedAccount.name ?? '',
+            // Backwards-compat: also expose `name` for older plugin templates
+            name: selectedAccount.name ?? ''
         }
     };
     await appLog({ ...logContext, description: `Step 10: Created session data with all details for order ID ${newOrderId}.`, raw_request: sessionDataWithDetails, plugin_status: 'info' });
