@@ -206,11 +206,49 @@ export async function createCheckoutSession(input: CreateCheckoutSessionInput): 
         wooSiteUrl,
         orderAmount
     ];
-    await appLog({ ...logContext, description: `Step 7: Inserting order into DB with visual ID ${visualId}.`, plugin_status: 'info' });
-    const orderResult = await runQuery(orderInsertQuery, orderParams);
-    await appLog({ ...logContext, description: `Step 8: Order inserted successfully with DB ID ${orderResult.id}.`, plugin_status: 'info' });
+    // Idempotency: check for existing order with same merchantOrderId + wooCommerceSiteUrl
+    let orderResult: any;
+    try {
+        const existingQuery = `SELECT id, totalAmount, status FROM orders WHERE merchantOrderId = ? AND wooCommerceSiteUrl LIKE ? LIMIT 1`;
+        const existingParams = [input.merchantOrderId, wooSiteUrl ? `%${wooSiteUrl}%` : '%'];
+        const existingRows = await executeQuery(existingQuery, existingParams as any[]);
+        if (existingRows && existingRows.length > 0) {
+            const existing = existingRows[0];
+            const existingTotal = Number(existing.totalAmount || 0);
+            const existingStatus = (existing.status || '').toString();
+            // If the existing order is already completed, do not create/return a new session
+            if (existingStatus.toLowerCase() === 'completed') {
+                const errMsg = `Order ${input.merchantOrderId} has already been completed (order id=${existing.id}).`;
+                console.warn(`❌ [createCheckoutSession] ${errMsg}`);
+                await appLog({ ...logContext, description: `Attempt to create session for already completed order id=${existing.id}.`, plugin_status: 'error' });
+                return { error: errMsg };
+            }
+            const requestedTotal = Number(input.totalAmount || 0);
+            const diff = Math.abs(existingTotal - requestedTotal);
+            // Allow tiny rounding differences (1 cent)
+            if (diff <= 0.01) {
+                console.log(`⚠️ [createCheckoutSession] Existing order found (id=${existing.id}) matching merchantOrderId=${input.merchantOrderId}. Reusing existing order.`);
+                await appLog({ ...logContext, description: `Existing order reused id=${existing.id} for merchantOrderId=${input.merchantOrderId}.`, plugin_status: 'warning' });
+                orderResult = { id: existing.id };
+            } else {
+                const errMsg = `Existing order found with different totalAmount (existing=${existingTotal}, requested=${requestedTotal}).`;
+                console.warn(`❌ [createCheckoutSession] ${errMsg}`);
+                await appLog({ ...logContext, description: `Idempotency rejected: ${errMsg}`, plugin_status: 'error' });
+                return { error: errMsg };
+            }
+        } else {
+            await appLog({ ...logContext, description: `Step 7: Inserting order into DB with visual ID ${visualId}.`, plugin_status: 'info' });
+            orderResult = await runQuery(orderInsertQuery, orderParams);
+            await appLog({ ...logContext, description: `Step 8: Order inserted successfully with DB ID ${orderResult.id}.`, plugin_status: 'info' });
+        }
+    } catch (err) {
+        console.error('[createCheckoutSession] Idempotency check failed, proceeding with insert:', err);
+        await appLog({ ...logContext, description: `Idempotency check failed: ${String(err)}. Proceeding to insert.`, plugin_status: 'error' });
+        orderResult = await runQuery(orderInsertQuery, orderParams);
+        await appLog({ ...logContext, description: `Step 8: Order inserted successfully with DB ID ${orderResult.id}.`, plugin_status: 'info' });
+    }
     const newOrderId = `CP${orderResult.id}`;
-    console.log(`📝 [createCheckoutSession] Order created in DB. Result:`, { newComfortPayId: newOrderId, dbInsertId: orderResult.id });
+    console.log(`📝 [createCheckoutSession] Order created or reused in DB. Result:`, { newComfortPayId: newOrderId, dbInsertId: orderResult.id });
     // If a Zelle account was used, update its last_used_at timestamp.
     if (selectedAccount.type === 'Zelle') {
         console.log(`[createCheckoutSession] Updating last_used_at for Zelle account ID: ${selectedAccount.id}`);
