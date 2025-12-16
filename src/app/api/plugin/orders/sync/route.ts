@@ -49,19 +49,35 @@ export async function POST(request: Request) {
     }
     console.log(`✅ [${timestamp}] [Plugin API /plugin/orders/sync] Token authenticated for merchant id ${merchant.id}`);
 
-    // 2. Verify domain matches merchant's websiteUrl
+    // 2. Verify domain matches merchant's websiteUrl. If this request used a
+    // Bearer token (server-side plugin), require X-Merchant-Site header and
+    // validate it against the merchant record.
     const reqHost = extractRequestHost(request);
     const mHost = merchantHostFromUrl(merchant.websiteUrl);
-    const match = domainMatches(reqHost, mHost);
-    
-    if (!match.ok) {
-      console.warn(`⚠️ [${timestamp}] [Plugin API /plugin/orders/sync] Domain mismatch`, {
-        merchantId: merchant.id,
-        requestHost: reqHost,
-        merchantHost: mHost,
-        reason: match.reason
-      });
-      return NextResponse.json({ error: 'Origin domain mismatch' }, { status: 403 });
+    const usedBearerToken = !!apiTokenFromHeader;
+    if (usedBearerToken) {
+      const xMerchantSite = request.headers.get('x-merchant-site') || request.headers.get('x-merchant-url');
+      if (!xMerchantSite) {
+        console.warn(`⚠️ [${timestamp}] [Plugin API /plugin/orders/sync] Missing X-Merchant-Site header`, { merchantId: merchant.id });
+        return NextResponse.json({ error: 'Missing X-Merchant-Site header' }, { status: 400 });
+      }
+      const reportedHost = merchantHostFromUrl(xMerchantSite);
+      if (!reportedHost || reportedHost !== mHost) {
+        console.warn(`⚠️ [${timestamp}] [Plugin API /plugin/orders/sync] Merchant site header mismatch`, { merchantId: merchant.id, reportedHost, merchantHost: mHost });
+        return NextResponse.json({ error: 'Merchant site mismatch' }, { status: 403 });
+      }
+      console.info(`🔒 [${timestamp}] [Plugin API /plugin/orders/sync] Bearer token + X-Merchant-Site validated`, { merchantId: merchant.id, reportedHost });
+    } else {
+      const match = domainMatches(reqHost, mHost);
+      if (!match.ok) {
+        console.warn(`⚠️ [${timestamp}] [Plugin API /plugin/orders/sync] Domain mismatch`, {
+          merchantId: merchant.id,
+          requestHost: reqHost,
+          merchantHost: mHost,
+          reason: match.reason
+        });
+        return NextResponse.json({ error: 'Origin domain mismatch' }, { status: 403 });
+      }
     }
 
     if (merchantOrderIds.length === 0) {

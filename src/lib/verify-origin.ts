@@ -41,18 +41,51 @@ function registeredDomain(host?: string | null): string | null {
  * Extract the request's originating hostname from headers.
  * Tries in order: Origin, Referer, X-Forwarded-Host, Host
  */
-export function extractRequestHost(req: Request): string | null {
-  const origin = req.headers.get("origin");
-  const referer = req.headers.get("referer");
-  const forwarded = req.headers.get("x-forwarded-host");
-  const hostHeader = req.headers.get("host");
+export function extractRequestHost(req: Request | any): string | null {
+  console.log('[verify-origin] extractRequestHost called');
+  // Support both Next `Request` (headers.get) and raw Node-style `req.headers` object
+  let origin: string | null | undefined = undefined;
+  let referer: string | null | undefined = undefined;
+  let forwarded: string | null | undefined = undefined;
+  let hostHeader: string | null | undefined = undefined;
+
+  try {
+    if (req && typeof req.headers?.get === 'function') {
+      console.log('[verify-origin] detected Next Request (headers.get)');
+      origin = req.headers.get('origin');
+      referer = req.headers.get('referer') || req.headers.get('referrer');
+      forwarded = req.headers.get('x-forwarded-host');
+      hostHeader = req.headers.get('host');
+      console.log('[verify-origin] header values (Next):', { origin, referer, forwarded, hostHeader });
+    } else if (req && req.headers) {
+      // Node IncomingMessage or plain object
+      console.log('[verify-origin] detected Node-style req.headers');
+      origin = req.headers['origin'] || req.headers['Origin'] || null;
+      referer = req.headers['referer'] || req.headers['referrer'] || req.headers['Referer'] || null;
+      forwarded = req.headers['x-forwarded-host'] || req.headers['X-Forwarded-Host'] || null;
+      hostHeader = req.headers['host'] || req.headers['Host'] || null;
+      console.log('[verify-origin] header values (Node):', { origin, referer, forwarded, hostHeader });
+    } else {
+      console.log('[verify-origin] no headers found on request object');
+    }
+  } catch (e: any) {
+    console.log('[verify-origin] error reading headers:', e && e.message ? e.message : e);
+  }
 
   const tryOrder = [origin, referer, forwarded, hostHeader];
+  let result: string | null = null;
   for (const candidate of tryOrder) {
-    const h = normalizeHost(candidate);
-    if (h) return h;
+    console.log('[verify-origin] trying candidate:', candidate);
+    const h = normalizeHost(typeof candidate === 'string' ? candidate : candidate ?? null);
+    console.log('[verify-origin] normalized candidate ->', h);
+    if (h) {
+      result = h;
+      break;
+    }
   }
-  return null;
+
+  console.log('[verify-origin] extractRequestHost returning:', result);
+  return result;
 }
 
 /**
@@ -86,3 +119,5 @@ export function domainMatches(
 
   return { ok: false, reason: "mismatch" };
 }
+
+// Re-export named helpers explicitly to ensure build tools recognize them

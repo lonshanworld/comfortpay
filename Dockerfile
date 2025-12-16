@@ -39,10 +39,10 @@ COPY --from=builder /app/src ./src
 RUN mkdir -p /app/.next/cache && chmod 777 /app/.next/cache
 
 # Note: Running as root for faster builds. For production, uncomment non-root user below.
-RUN addgroup --gid 1001 --system app && \
-    adduser --uid 1001 --system --ingroup app app && \
-    chown -R app:app /app
-USER app
+# RUN addgroup --gid 1001 --system app && \
+#     adduser --uid 1001 --system --ingroup app app && \
+#     chown -R app:app /app
+# USER app
 
 EXPOSE 3000
 

@@ -43,19 +43,36 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Authentication failed: Invalid API token.' }, { status: 401 });
     }
 
-    // Verify domain matches merchant's websiteUrl
+    // Verify domain matches merchant's websiteUrl. For server-side plugin calls
+    // authenticated via Authorization Bearer, require `X-Merchant-Site` header
+    // and validate it against the merchant's registered URL.
     const reqHost = extractRequestHost(request);
     const mHost = merchantHostFromUrl(merchant.websiteUrl);
-    const match = domainMatches(reqHost, mHost);
-    
-    if (!match.ok) {
-      console.warn('[Plugin API] Domain mismatch', {
-        merchantId: merchant.id,
-        requestHost: reqHost,
-        merchantHost: mHost,
-        reason: match.reason
-      });
-      return NextResponse.json({ error: 'Origin domain mismatch' }, { status: 403 });
+
+    const usedBearerToken = !!apiTokenFromHeader;
+    if (usedBearerToken) {
+      const xMerchantSite = request.headers.get('x-merchant-site') || request.headers.get('x-merchant-url');
+      if (!xMerchantSite) {
+        console.warn('[Plugin API] Missing X-Merchant-Site header on bearer request', { merchantId: merchant.id });
+        return NextResponse.json({ error: 'Missing X-Merchant-Site header' }, { status: 400 });
+      }
+      const reportedHost = merchantHostFromUrl(xMerchantSite);
+      if (!reportedHost || reportedHost !== mHost) {
+        console.warn('[Plugin API] Merchant site header mismatch', { merchantId: merchant.id, reportedHost, merchantHost: mHost });
+        return NextResponse.json({ error: 'Merchant site mismatch' }, { status: 403 });
+      }
+      console.info('[Plugin API] Bearer token + X-Merchant-Site validated', { merchantId: merchant.id, reportedHost });
+    } else {
+      const match = domainMatches(reqHost, mHost);
+      if (!match.ok) {
+        console.warn('[Plugin API] Domain mismatch', {
+          merchantId: merchant.id,
+          requestHost: reqHost,
+          merchantHost: mHost,
+          reason: match.reason
+        });
+        return NextResponse.json({ error: 'Origin domain mismatch' }, { status: 403 });
+      }
     }
 
     // Add the authenticated merchant's ID to the checkout input

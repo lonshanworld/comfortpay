@@ -26,19 +26,51 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: 'Authentication failed: Invalid API token.' }, { status: 401 });
     }
 
-    // Verify domain matches merchant's websiteUrl
+    // Verify domain matches merchant's websiteUrl. If the request used a
+    // bearer API token (server-to-server plugin auth), skip the origin check
+    // because server-side requests won't include a browser Origin header.
     const reqHost = extractRequestHost(request);
     const mHost = merchantHostFromUrl(merchant.websiteUrl);
-    const match = domainMatches(reqHost, mHost);
-    
-    if (!match.ok) {
-      console.warn('[Plugin API] Domain mismatch', {
-        merchantId: merchant.id,
-        requestHost: reqHost,
-        merchantHost: mHost,
-        reason: match.reason
-      });
-      return NextResponse.json({ error: 'Origin domain mismatch' }, { status: 403 });
+
+    const usedBearerToken = !!apiTokenFromHeader;
+    if (usedBearerToken) {
+      // For server-to-server calls authenticated with a Bearer token, require
+      // an explicit X-Merchant-Site header that indicates the merchant's site.
+      // This prevents unauthenticated callers from spoofing merchant identity.
+      const xMerchantSite = request.headers.get('x-merchant-site') || request.headers.get('x-merchant-url');
+      if (!xMerchantSite) {
+        console.warn('[Plugin API] Missing X-Merchant-Site header on bearer request', { merchantId: merchant.id });
+        return NextResponse.json({ error: 'Missing X-Merchant-Site header' }, { status: 400 });
+      }
+
+      const reportedHost = merchantHostFromUrl(xMerchantSite);
+      if (!reportedHost) {
+        console.warn('[Plugin API] Invalid X-Merchant-Site header value', { merchantId: merchant.id, xMerchantSite });
+        return NextResponse.json({ error: 'Invalid X-Merchant-Site header' }, { status: 400 });
+      }
+
+      // Verify reported merchant host matches the merchant record tied to the token
+      if (reportedHost !== mHost) {
+        console.warn('[Plugin API] Merchant site header does not match token owner', {
+          merchantId: merchant.id,
+          reportedHost,
+          merchantHost: mHost
+        });
+        return NextResponse.json({ error: 'Merchant site mismatch' }, { status: 403 });
+      }
+
+      console.info('[Plugin API] Bearer token + X-Merchant-Site validated', { merchantId: merchant.id, reportedHost });
+    } else {
+      const match = domainMatches(reqHost, mHost);
+      if (!match.ok) {
+        console.warn('[Plugin API] Domain mismatch', {
+          merchantId: merchant.id,
+          requestHost: reqHost,
+          merchantHost: mHost,
+          reason: match.reason
+        });
+        return NextResponse.json({ error: 'Origin domain mismatch' }, { status: 403 });
+      }
     }
 
     // Return gateway availability
