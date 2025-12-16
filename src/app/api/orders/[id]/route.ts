@@ -1,5 +1,5 @@
 
-import { NextResponse } from 'next/server';
+import { NextResponse, NextRequest } from 'next/server';
 import { executeQuery, runQuery } from '@/lib/db';
 import { formatDateForMySQL } from '@/lib/utils';
 import type { Order } from '@/lib/types';
@@ -26,8 +26,8 @@ export async function GET(
 }
 
 export async function PUT(
-  request: Request,
-  context: { params: { id: string } }
+  request: NextRequest,
+  context: { params: Promise<{ id: string }> }
 ) {
   const { id } = await context.params;
   const numericId = id.replace('CP', '');

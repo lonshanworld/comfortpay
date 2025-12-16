@@ -16,8 +16,5 @@ export const ai = genkit({
       // as it is the most performant and cost-effective model.
     }),
   ],
-  // Log developer-friendly errors and warnings.
-  logLevel: 'debug',
   // Perform OpenTelemetry instrumentation and enable traces.
-  enableTracing: true,
 });

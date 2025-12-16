@@ -13,6 +13,7 @@ import { CreateCheckoutSessionInputSchema } from '@/lib/schemas';
 import { executeQuery, runQuery } from '@/lib/db';
 import type { PaymentAccount, User } from '@/lib/types';
 import { formatDateForMySQL } from '@/lib/utils';
+import * as jwt from 'jsonwebtoken';
 import { appLog } from '@/lib/logger';
 
 
@@ -237,8 +238,16 @@ export async function createCheckoutSession(input: CreateCheckoutSessionInput): 
         }
     };
     await appLog({ ...logContext, description: `Step 10: Created session data with all details for order ID ${newOrderId}.`, raw_request: sessionDataWithDetails, plugin_status: 'info' });
-    const sessionData = JSON.stringify(sessionDataWithDetails);
-    const sessionToken = Buffer.from(sessionData).toString('base64');
+        const sessionData = sessionDataWithDetails;
+
+        const signingKey = process.env.SESSION_SIGNING_KEY;
+        if (!signingKey) {
+            console.error('❌ [createCheckoutSession] SESSION_SIGNING_KEY is not configured in the environment.');
+            return { error: 'Server misconfiguration: missing session signing key.' };
+        }
+
+        // Sign the session payload as a JWT with a short expiry
+        const sessionToken = jwt.sign(sessionData as object, signingKey, { algorithm: 'HS256', expiresIn: '15m' });
     
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
     const checkoutUrl = `${appUrl}/checkout/new?session=${sessionToken}`;

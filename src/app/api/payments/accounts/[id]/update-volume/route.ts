@@ -1,7 +1,7 @@
 
 'use server';
 
-import { NextResponse } from 'next/server';
+import { NextResponse, NextRequest } from 'next/server';
 import { runQuery } from '@/lib/db';
 import { z } from 'zod';
 
@@ -10,8 +10,8 @@ const UpdateVolumeSchema = z.object({
 });
 
 export async function POST(
-  request: Request,
-  context: { params: { id: string } }
+  request: NextRequest,
+  context: { params: Promise<{ id: string }> }
 ) {
   const { id } = await context.params;
   // Handle both 'pa_1' and '1' formats

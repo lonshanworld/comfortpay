@@ -11,7 +11,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import Stripe from 'stripe';
 import { headers } from 'next/headers';
 import { executeQuery, runQuery } from '@/lib/db';
-import { sendOrderNotification } from '@/app/actions/send-order-notification';
 
 
 async function getOrderDetails(orderId: string) {
@@ -102,13 +101,13 @@ export async function POST(req: NextRequest) {
         // Fetch order and merchant details to send emails
         const details = await getOrderDetails(numericOrderId);
         if (details) {
-            const { order, merchant } = details;
-             // Send notifications (don't block the response for this)
-            Promise.all([
-                sendOrderNotification({ recipientType: 'customer', customerEmail: order.customerEmail, merchantName: merchant.name, orderDetails: order }),
-                sendOrderNotification({ recipientType: 'merchant', merchantEmail: merchant.email, merchantName: merchant.name, orderDetails: order })
-            ]).catch(err => console.error("Webhook email notification failed:", err));
-             console.log("[Stripe Webhook] Triggered customer and merchant email notifications.");
+            // const { order, merchant } = details;
+            //  // Send notifications (don't block the response for this)
+            // Promise.all([
+            //     sendOrderNotification({ recipientType: 'customer', customerEmail: order.customerEmail, merchantName: merchant.name, orderDetails: order }),
+            //     sendOrderNotification({ recipientType: 'merchant', merchantEmail: merchant.email, merchantName: merchant.name, orderDetails: order })
+            // ]).catch(err => console.error("Webhook email notification failed:", err));
+            //  console.log("[Stripe Webhook] Triggered customer and merchant email notifications.");
         }
 
         console.log(`✅ [Stripe Webhook] Transaction ${comfortPayOrderId} status updated to 'Completed'.`);

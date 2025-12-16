@@ -5,9 +5,13 @@ const nextConfig: NextConfig = {
  typescript: {
     ignoreBuildErrors: true,
   },
-  eslint: {
-    ignoreDuringBuilds: true,
+  // Explicit Turbopack workspace root to avoid inferring from parent lockfiles
+  turbopack: {
+    root: '.',
   },
+  // eslint: {
+  //   ignoreDuringBuilds: true,
+  // },
   images: {
     remotePatterns: [
       {
@@ -19,9 +23,7 @@ const nextConfig: NextConfig = {
     unoptimized: process.env.NODE_ENV === "development",
   },
   // compiler: {
-  //  removeConsole: {
-  //     exclude: ['error'],
-  //   },
+  //  removeConsole: true,
   // },
 
   

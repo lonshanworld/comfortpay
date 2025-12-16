@@ -10,7 +10,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import { ApiError, Client, Environment } from 'square/legacy';
 import crypto from 'crypto';
 import { executeQuery, runQuery } from '@/lib/db';
-import { sendOrderNotification } from '@/app/actions/send-order-notification';
 import type { Order, PaymentAccount } from '@/lib/types';
 
 
@@ -118,11 +117,11 @@ export async function POST(req: NextRequest) {
             if (details) {
                 const { order, merchant } = details;
                 // Send notifications (don't block the response for this)
-                 Promise.all([
-                    sendOrderNotification({ recipientType: 'customer', customerEmail: order.customerEmail, merchantName: merchant.name, orderDetails: order, items: order.items }),
-                    sendOrderNotification({ recipientType: 'merchant', merchantEmail: merchant.email, merchantName: merchant.name, orderDetails: order, items: order.items })
-                ]).catch(err => console.error("Webhook email notification failed:", err));
-                console.log("[Square Webhook] Triggered customer and merchant email notifications.");
+                //  Promise.all([
+                //     sendOrderNotification({ recipientType: 'customer', customerEmail: order.customerEmail, merchantName: merchant.name, orderDetails: order, items: order.items }),
+                //     sendOrderNotification({ recipientType: 'merchant', merchantEmail: merchant.email, merchantName: merchant.name, orderDetails: order, items: order.items })
+                // ]).catch(err => console.error("Webhook email notification failed:", err));
+                // console.log("[Square Webhook] Triggered customer and merchant email notifications.");
             }
 
             console.log(`✅ [Square Webhook] Order ${comfortPayOrderIdWithPrefix} status updated to 'Completed'.`);

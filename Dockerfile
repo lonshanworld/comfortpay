@@ -18,24 +18,36 @@ RUN npm ci --production=false
 COPY . .
 RUN npm run build
 
-# Stage 2 — runtime
+# Stage 2 — runtime (HARDENED)
 FROM node:22-slim AS runner
 WORKDIR /app
 ENV NODE_ENV=production
+
+# Install only runtime dependencies (ca-certificates for HTTPS)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates && rm -rf /var/lib/apt/lists/*
 
 # Copy runtime artifacts from builder
 COPY --from=builder /app/package.json /app/package-lock.json ./
 COPY --from=builder /app/.next ./.next
 COPY --from=builder /app/public ./public
 COPY --from=builder /app/node_modules ./node_modules
-# Copy specific source files needed at runtime
-# COPY --from=builder /app/src/app/sdk.js ./src/app/sdk.js
+# Copy entire src folder (needed for init-db.js, actions, API routes at runtime)
+COPY --from=builder /app/src ./src
 
-# Create a non-root user for running the app
-RUN addgroup --system app && adduser --system --ingroup app app || true
-# Ensure the runtime user owns the application files and cache directories
-# RUN chown -R app:app /app
+# Create writable cache directory for Next.js
+RUN mkdir -p /app/.next/cache && chmod 777 /app/.next/cache
+
+# Note: Running as root for faster builds. For production, uncomment non-root user below.
+RUN addgroup --gid 1001 --system app && \
+    adduser --uid 1001 --system --ingroup app app && \
+    chown -R app:app /app
 USER app
 
 EXPOSE 3000
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
+  CMD node -e "require('http').get('http://localhost:3000/api/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})" || exit 1
+
 CMD ["npm", "run", "start"]

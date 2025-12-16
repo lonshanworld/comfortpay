@@ -67,12 +67,16 @@ export async function processPayment(input: PaymentInput): Promise<{ success: bo
       });
       
       console.log("[processPayment] Stripe PaymentIntent creation result:", { status: paymentIntent.status, id: paymentIntent.id });
-      console.log("🔍 [processPayment] Stripe Radar Risk Evaluation:", paymentIntent.outcome);
+      // `paymentIntent` is a Stripe response object; some properties like `outcome` may live
+      // under nested charge objects or not be present on the typed Response wrapper.
+      // Use a safe any-cast to log any available outcome/radar info without a type error.
+      const stripeOutcome: any = (paymentIntent as any).outcome || (paymentIntent as any).charges?.data?.[0]?.outcome;
+      console.log("🔍 [processPayment] Stripe Radar Risk Evaluation:", stripeOutcome);
 
 
       if (paymentIntent.status === 'succeeded' || paymentIntent.status === 'requires_capture') {
         console.log("✅ [processPayment] Stripe payment successful. Updating order with risk details...");
-        const riskDetails = paymentIntent.outcome ? JSON.stringify(paymentIntent.outcome) : null;
+        const riskDetails = stripeOutcome ? JSON.stringify(stripeOutcome) : null;
         await runQuery(
             `UPDATE orders SET riskDetails = ? WHERE id = ?`,
             [riskDetails, numericOrderId]

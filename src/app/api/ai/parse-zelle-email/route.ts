@@ -107,6 +107,7 @@ function fallbackZelleParser(emailContent: string): ZelleEmailParseOutput {
 
 export async function POST(request: Request) {
   console.log("🚀 [API /ai/parse-zelle-email] Received a request.");
+  
   // 1. Authenticate the request from the Rust script
   const authHeader = request.headers.get('authorization');
   const zelleSecret = process.env.ZELLE_WEBHOOK_SECRET;
@@ -123,6 +124,12 @@ export async function POST(request: Request) {
     // 2. Validate the incoming request body
     const body = await request.json();
     let emailContent = body.email_content || '';
+    
+    // 2a. Check email size to prevent large payload attacks (500KB limit)
+    if (emailContent.length > 500000) {
+      console.error("❌ [API /ai/parse-zelle-email] Email too large:", emailContent.length, "bytes");
+      return NextResponse.json({ error: 'Email content too large (max 500KB)' }, { status: 413 });
+    }
     
     // 3. Pre-scan the email content for the word "Zelle" before calling the AI.
     if (!emailContent || !emailContent.toLowerCase().includes('zelle')) {

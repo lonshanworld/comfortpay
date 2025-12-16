@@ -524,14 +524,32 @@ function CheckoutPage() {
 
   useEffect(() => {
     if (sessionToken) {
-      try {
-        console.log("🚀 [CheckoutPage] Decoding session token...");
-        const decodedData = JSON.parse(atob(sessionToken));
-        setSessionData(decodedData);
-        console.log("[CheckoutPage] Decoded session data result:", decodedData);
-      } catch (error) {
-        console.error("Invalid session token:", error);
-      }
+      (async () => {
+        try {
+          console.log("🚀 [CheckoutPage] Verifying session token server-side...");
+          const res = await fetch('/api/sessions/verify', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ token: sessionToken }),
+          });
+
+          if (!res.ok) {
+            const err = await res.json().catch(() => ({}));
+            console.error('[CheckoutPage] Session verification failed:', err);
+            return;
+          }
+
+          const data = await res.json();
+          if (data && data.payload) {
+            setSessionData(data.payload as CreateCheckoutSessionInput);
+            console.log('[CheckoutPage] Verified session data result:', data.payload);
+          } else {
+            console.error('[CheckoutPage] Session verification response missing payload.');
+          }
+        } catch (error) {
+          console.error('Invalid session token or verification error:', error);
+        }
+      })();
     }
   }, [sessionToken]);
 

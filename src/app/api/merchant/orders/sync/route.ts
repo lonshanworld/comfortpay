@@ -22,22 +22,31 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Invalid request', details: validation.error.flatten() }, { status: 400 });
     }
 
-    const { apiToken, merchantOrderIds } = validation.data;
+    // Support Authorization header as Bearer token for API tokens (preferred)
+    const authHeader = request.headers.get('authorization');
+    let apiTokenFromHeader: string | undefined = undefined;
+    if (authHeader && authHeader.toLowerCase().startsWith('bearer ')) {
+      apiTokenFromHeader = authHeader.slice(7).trim();
+    }
+
+    const { apiToken: apiTokenFromBody, merchantOrderIds } = validation.data;
+    const apiToken = apiTokenFromHeader || apiTokenFromBody;
     console.log(`🔍 [${timestamp}] [API /merchant/orders/sync] Auth token (first 10 chars): ${apiToken.substring(0, 10)}...`);
     console.log(`🔍 [${timestamp}] [API /merchant/orders/sync] Order IDs to check: ${merchantOrderIds.join(', ')}`);
 
-    // 1. Validate token exists
-    const tokenResult: any[] = await executeQuery(
-        "SELECT id FROM users WHERE token = ?",
-        [apiToken]
-    );
-
-    if (tokenResult.length === 0) {
-      console.error(`❌ [${timestamp}] [API /merchant/orders/sync] Invalid token: ${apiToken.substring(0, 10)}...`);
+    // 1. Validate token exists using auth helper (supports plaintext and hashed tokens)
+    try {
+      const { findUserByApiToken } = await import('@/lib/auth-server');
+      const user = await findUserByApiToken(apiToken);
+      if (!user) {
+        console.error(`❌ [${timestamp}] [API /merchant/orders/sync] Invalid token: ${apiToken.substring(0, 10)}...`);
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      }
+      console.log(`✅ [${timestamp}] [API /merchant/orders/sync] Token authenticated for user id ${user.id}`);
+    } catch (err) {
+      console.error(`❌ [${timestamp}] [API /merchant/orders/sync] Token validation error:`, err);
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-    
-    console.log(`✅ [${timestamp}] [API /merchant/orders/sync] Token authenticated`);
 
     if (merchantOrderIds.length === 0) {
         console.log(`⚠️ [${timestamp}] [API /merchant/orders/sync] No order IDs provided, returning empty list.`);

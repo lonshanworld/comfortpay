@@ -1,10 +1,10 @@
 
-import { NextResponse } from 'next/server';
+import { NextResponse, NextRequest } from 'next/server';
 import { executeQuery } from '@/lib/db';
 
 export async function GET(
-  request: Request,
-  context: { params: { accountId: string } }
+  request: NextRequest,
+  context: { params: Promise<{ accountId: string }> }
 ) {
   const { accountId } = await context.params;
   const numericId = accountId.replace('pa_', '');

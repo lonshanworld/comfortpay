@@ -1,5 +1,5 @@
 
-import { NextResponse } from 'next/server';
+import { NextResponse, NextRequest } from 'next/server';
 import { executeQuery, runQuery } from '@/lib/db';
 import type { User } from '@/lib/types';
 import { hashPassword } from '@/lib/password-service';
@@ -67,8 +67,8 @@ const parseDbUserAsMerchant = (dbUser: any): User | null => {
 
 
 export async function GET(
-  request: Request,
-  context: { params: { id: string } }
+  request: NextRequest,
+  context: { params: Promise<{ id: string }> }
 ) {
   const { id } = await context.params;
   const numericId = id.includes('_') ? id.split('_')[1] : id;
@@ -87,8 +87,8 @@ export async function GET(
 }
 
 export async function PUT(
-  request: Request,
-  context: { params: { id: string } }
+  request: NextRequest,
+  context: { params: Promise<{ id: string }> }
 ) {
   const { id } = await context.params;
   const numericId = id.includes('_') ? id.split('_')[1] : id;
@@ -176,8 +176,8 @@ export async function PUT(
 }
 
 export async function DELETE(
-  request: Request,
-  context: { params: { id: string } }
+  request: NextRequest,
+  context: { params: Promise<{ id: string }> }
 ) {
   const { id } = await context.params;
   const numericId = id.split('_')[1];

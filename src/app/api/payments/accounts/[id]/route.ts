@@ -1,5 +1,5 @@
 
-import { NextResponse } from 'next/server';
+import { NextResponse, NextRequest } from 'next/server';
 import { executeQuery, runQuery } from '@/lib/db';
 import { promises as fs } from 'fs';
 import path from 'path';
@@ -38,8 +38,8 @@ const saveQrCodeFromBase64 = async (base64String: string): Promise<string | null
 
 
 export async function PUT(
-  request: Request,
-  context: { params: { id: string } }
+  request: NextRequest,
+  context: { params: Promise<{ id: string }> }
 ) {
   const { id } = await context.params;
   const numericId = id.split('_')[1];
@@ -104,7 +104,7 @@ export async function PUT(
 }
 
 export async function DELETE(
-  request: Request,
+  request: NextRequest,
   context: { params: Promise<{ id: string }> }
 ) {
   const { id } = await context.params;

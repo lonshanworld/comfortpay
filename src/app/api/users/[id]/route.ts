@@ -1,5 +1,5 @@
 
-import { NextResponse } from 'next/server';
+import { NextResponse, NextRequest } from 'next/server';
 import { executeQuery, runQuery } from '@/lib/db';
 import { promises as fs } from 'fs';
 import path from 'path';
@@ -62,10 +62,10 @@ const parseDbUser = (dbUser: any) => {
 
 
 export async function GET(
-  request: Request,
-   context: { params: { id: string } }
+    request: NextRequest,
+     context: { params: Promise<{ id: string }> }
 ) {
-    const { id } = await context.params;
+        const { id } = await context.params;
     const numericId = id.split('_')[1];
     try {
         const results: any[] = await executeQuery("SELECT * FROM users WHERE id = ?", [numericId]);
@@ -82,10 +82,10 @@ export async function GET(
 
 
 export async function PUT(
-  request: Request,
-  { params }: { params: { id: string } }
+    request: NextRequest,
+    { params }: { params: Promise<{ id: string }> }
 ) {
-    const { id } = params;
+        const { id } = await params;
     const numericId = id.split('_')[1];
     const body = await request.json();
     
@@ -138,10 +138,10 @@ export async function PUT(
 }
 
 export async function DELETE(
-  request: Request,
-  { params }: { params: { id: string } }
+    request: NextRequest,
+    { params }: { params: Promise<{ id: string }> }
 ) {
-    const { id } = params;
+        const { id } = await params;
     const numericId = id.split('_')[1];
     try {
         const result: any = await runQuery("DELETE FROM users WHERE id = ?", [numericId]);

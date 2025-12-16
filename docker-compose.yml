@@ -3,34 +3,87 @@ services:
   db:
     image: mysql:8.0
     command: --default-authentication-plugin=mysql_native_password
-    restart: always
+    restart: unless-stopped
     environment:
       MYSQL_ROOT_PASSWORD: 'rootpassword'
       MYSQL_DATABASE: 'comfortpay'
-    ports:
-      - '3306:3306'
+    # No port binding needed - app connects via internal Docker network
     volumes:
       - mysql_data:/var/lib/mysql
+    networks:
+      - comfortpay-network
+    security_opt:
+      - no-new-privileges:true
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 1G
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: redis-server --maxmemory 200mb --maxmemory-policy allkeys-lru --appendonly no --save ""
+    ports:
+      - '127.0.0.1:6379:6379'  # Only bind to localhost
+    volumes:
+      - redis_data:/data
+    networks:
+      - comfortpay-network
+    security_opt:
+      - no-new-privileges:true
+    deploy:
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 256M
 
   app:
     build: .
-    restart: always
-    command: npm run start:prod
+    restart: unless-stopped
+    command: sh -c "npm run db:init && npm run start"
     ports:
-      - '9002:9002'
+      - '127.0.0.1:3000:3000'  # Only bind to localhost (Nginx will proxy)
     environment:
       DATABASE_URL: 'mysql://root:rootpassword@db:3306/comfortpay'
-      # Add other necessary environment variables here
-      # For example:
-      # SUPER_ADMIN_EMAIL: 'admin@comfortpay.com'
-      # SUPER_ADMIN_PASSWORD: 'your_super_secret_password'
-      # ZELLE_WEBHOOK_SECRET: 'your_zelle_secret'
-      # CRON_SECRET: 'your_cron_secret'
-      # STRIPE_SECRET_KEY_... and so on
+      REDIS_URL: 'redis://redis:6379'
+      NODE_ENV: 'production'
     env_file:
       - .env
     depends_on:
       - db
+      - redis
+    networks:
+      - comfortpay-network
+    # SECURITY HARDENING
+    read_only: true  # Filesystem is read-only (prevents shell uploads)
+    tmpfs:
+      - /tmp:mode=1777,size=100M
+      - /app/.next/cache:uid=1000,gid=1000,mode=0755,size=200M
+    security_opt:
+      - no-new-privileges:true  # Prevent privilege escalation
+    cap_drop:
+      - ALL  # Drop all capabilities
+    cap_add:
+      - NET_BIND_SERVICE  # Only allow binding to ports
+    deploy:
+      resources:
+        limits:
+          cpus: '1.5'
+          memory: 1536M
+        reservations:
+          memory: 512M
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3000/api/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+networks:
+  comfortpay-network:
+    driver: bridge
 
 volumes:
   mysql_data:
+  redis_data:

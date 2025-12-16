@@ -1,0 +1,21 @@
+{
+  "summary": "Files referencing plaintext user tokens or apiToken parameters (search performed)",
+  "matches": [
+    {
+      "path": "src/app/api/checkout/sessions/route.ts",
+      "note": "Updated to prefer Authorization header and use findUserByApiToken"
+    },
+    {
+      "path": "src/app/api/merchant/orders/sync/route.ts",
+      "note": "Updated to prefer Authorization header and use findUserByApiToken"
+    },
+    {
+      "path": "src/app/api/merchants/gateways/route.ts",
+      "note": "Updated to prefer Authorization header and use findUserByApiToken"
+    },
+    {
+      "path": "src/lib/auth.ts",
+      "note": "findUserByApiToken supports plaintext and token_hash (backfill via migration)"
+    }
+  ]
+}
