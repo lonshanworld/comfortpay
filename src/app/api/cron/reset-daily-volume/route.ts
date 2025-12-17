@@ -51,6 +51,15 @@ export async function POST(req: NextRequest) {
       const resetQuery = "UPDATE payment_accounts SET currentVolume = 0";
       await runQuery(resetQuery);
       console.log("Reset currentVolume to 0 for all accounts.");
+
+      // 4. Reset merchant daily usage counters to 0 (merchant-level daily limits)
+      try {
+        const resetMerchantLimitsQuery = "UPDATE merchant_daily_limits SET dailyUsed = 0";
+        await runQuery(resetMerchantLimitsQuery);
+        console.log("Reset dailyUsed to 0 for all merchant_daily_limits records.");
+      } catch (err) {
+        console.warn('Failed to reset merchant_daily_limits.dailyUsed:', err);
+      }
     }
 
     // Commit the transaction

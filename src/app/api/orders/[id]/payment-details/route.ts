@@ -19,7 +19,8 @@ export async function GET(
       SELECT 
         o.visualOrderId, 
         o.paymentAccountId,
-        pa.accountEmail 
+        pa.accountEmail,
+        pa.tag as accountTag
       FROM orders o
       LEFT JOIN payment_accounts pa ON o.paymentAccountId = pa.id
       WHERE o.id = ?
@@ -38,7 +39,8 @@ export async function GET(
 
     return NextResponse.json({
         accountEmail: orderDetails.accountEmail,
-        visualOrderId: orderDetails.visualOrderId
+      visualOrderId: orderDetails.visualOrderId,
+      accountTag: orderDetails.accountTag || null
     });
 
   } catch (error) {

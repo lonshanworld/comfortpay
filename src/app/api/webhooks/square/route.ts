@@ -11,6 +11,7 @@ import { ApiError, Client, Environment } from 'square/legacy';
 import crypto from 'crypto';
 import { executeQuery, runQuery } from '@/lib/db';
 import { sendOrderNotification } from '@/app/actions/send-order-notification';
+import { confirmOrderPayment } from '@/app/actions/confirm-order-payment';
 import type { Order, PaymentAccount } from '@/lib/types';
 
 
@@ -125,6 +126,20 @@ export async function POST(req: NextRequest) {
                 console.log("[Square Webhook] Triggered customer and merchant email notifications.");
             }
 
+            // Ensure volumes and merchant limits updated via centralized confirm flow
+            try {
+              const freshOrderRows: any[] = await executeQuery("SELECT * FROM orders WHERE id = ?", [numericOrderId]);
+              if (freshOrderRows.length > 0) {
+                const dbOrder = freshOrderRows[0];
+                const amountRemaining = Math.max(0, dbOrder.totalAmount - (dbOrder.paidAmount || 0));
+                if (amountRemaining > 0) {
+                  await confirmOrderPayment({ order: { ...dbOrder, id: `CP${numericOrderId}` }, amountReceived: amountRemaining });
+                  console.log('[Square Webhook] confirmOrderPayment executed to update volumes and merchant limits.');
+                }
+              }
+            } catch (err) {
+              console.warn('Failed to run confirmOrderPayment from Square webhook:', err);
+            }
             console.log(`✅ [Square Webhook] Order ${comfortPayOrderIdWithPrefix} status updated to 'Completed'.`);
 
         } else if (payment.status === 'FAILED') {

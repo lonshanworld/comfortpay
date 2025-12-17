@@ -8,6 +8,7 @@
  */
 
 import { runQuery, executeQuery } from '@/lib/db';
+import { formatDateForMySQL } from '@/lib/utils';
 import type { Order, OrderStatus } from '@/lib/types';
 import { notifyWooCommerce } from '@/app/actions/notify-woocommerce';
 
@@ -68,6 +69,25 @@ export async function confirmOrderPayment({ order, amountReceived }: ConfirmPaym
                     [newPaidAmount, numericAccountId]
                 );
                 console.log(`   - Step 2 Succeeded.`);
+                // Also increment merchant-level daily usage for this payment type
+                try {
+                    if (currentOrder.merchantId && currentOrder.paymentType) {
+                        const updatedAt = formatDateForMySQL(new Date());
+                        const updateRes = await runQuery(
+                            'UPDATE merchant_daily_limits SET dailyUsed = dailyUsed + ?, updatedAt = ? WHERE merchantId = ? AND paymentType = ?',
+                            [newPaidAmount, updatedAt, currentOrder.merchantId, currentOrder.paymentType]
+                        );
+                        if (updateRes.changes === 0) {
+                            await runQuery(
+                                'INSERT INTO merchant_daily_limits (merchantId, paymentType, dailyLimit, dailyUsed, updatedAt) VALUES (?, ?, NULL, ?, ?)',
+                                [currentOrder.merchantId, currentOrder.paymentType, newPaidAmount, updatedAt]
+                            );
+                        }
+                        console.log(`   - Step 2b Succeeded: Incremented merchant_daily_limits for merchant ${currentOrder.merchantId}, type ${currentOrder.paymentType} by ${newPaidAmount}.`);
+                    }
+                } catch (err) {
+                    console.warn('Failed to update merchant_daily_limits.dailyUsed after order completion:', err);
+                }
             } else {
                  console.warn(`   - Step 2 Skipped: Missing paymentAccountId or paid amount is zero.`);
             }

@@ -3,6 +3,8 @@ import { NextResponse } from 'next/server';
 import { executeQuery } from '@/lib/db';
 import type { User } from '@/lib/types';
 
+// This endpoint now checks merchant-level daily limits and disables gateways when limits reached.
+
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const apiToken = searchParams.get('apiToken');
@@ -32,15 +34,63 @@ export async function GET(request: Request) {
     const interacEnabled = !!gatewayFees?.interac?.enabled;
     const wiseEnabled = !!gatewayFees?.wise?.enabled;
 
-    const enabledGateways = {
+    // Fetch any merchant-level daily limits and current usage
+    try {
+      const limitRows: any[] = await executeQuery(
+        "SELECT paymentType, dailyLimit, dailyUsed FROM merchant_daily_limits WHERE merchantId = ?",
+        [merchant.id]
+      );
+
+      const limitMap: Record<string, { dailyLimit: number | null; dailyUsed: number }> = {};
+      for (const r of limitRows) {
+        limitMap[r.paymentType] = { dailyLimit: r.dailyLimit, dailyUsed: r.dailyUsed };
+      }
+
+      // Apply limit checks per payment type
+      let stripeEnabledAfterLimit = !!gatewayFees?.stripe?.enabled;
+      let squareEnabledAfterLimit = !!gatewayFees?.square?.enabled;
+      let zelleEnabledAfterLimit = !!gatewayFees?.zelle?.enabled;
+      let interacEnabledAfterLimit = !!gatewayFees?.interac?.enabled;
+      let wiseEnabledAfterLimit = !!gatewayFees?.wise?.enabled;
+
+      const checkAndDisable = (type: string, enabledFlag: boolean) => {
+        if (!enabledFlag) return false;
+        const limits = limitMap[type];
+        if (!limits) return true; // no limit set => allowed
+        if (limits.dailyLimit === null) return true; // unlimited
+        // If dailyUsed is greater than or equal to limit, disable
+        if (Number(limits.dailyUsed) >= Number(limits.dailyLimit)) return false;
+        return true;
+      };
+
+      stripeEnabledAfterLimit = checkAndDisable('stripe', stripeEnabledAfterLimit);
+      squareEnabledAfterLimit = checkAndDisable('square', squareEnabledAfterLimit);
+      zelleEnabledAfterLimit = checkAndDisable('zelle', zelleEnabledAfterLimit);
+      interacEnabledAfterLimit = checkAndDisable('interac', interacEnabledAfterLimit);
+      wiseEnabledAfterLimit = checkAndDisable('wise', wiseEnabledAfterLimit);
+
+      const cardAfter = stripeEnabledAfterLimit || squareEnabledAfterLimit;
+
+      const enabledGateways = {
+        card: cardAfter,
+        zelle: zelleEnabledAfterLimit,
+        interac: interacEnabledAfterLimit,
+        wise: wiseEnabledAfterLimit,
+      };
+
+      console.log('Enabled gateways after applying merchant daily limits:', enabledGateways);
+      return NextResponse.json(enabledGateways);
+    } catch (err) {
+      console.error('Error while applying merchant daily limits:', err);
+      // Fallback to previously computed enabledGateways without limit checks
+      const enabledGateways = {
         card: cardEnabled,
         zelle: zelleEnabled,
         interac: interacEnabled,
         wise: wiseEnabled,
-    };
-
-    console.log(enabledGateways);
-    return NextResponse.json(enabledGateways);
+      };
+      return NextResponse.json(enabledGateways);
+    }
 
   } catch (error: any) {
     console.error("API Error: /api/merchants/gateways", error);

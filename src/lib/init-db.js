@@ -208,6 +208,14 @@ async function initialize() {
             console.log("'last_used_at' column added.");
         }
 
+        // Add 'tag' column to payment_accounts if it doesn't exist (for Wise tag like @companyname)
+        const [tagColumn] = await connection.query(`SHOW COLUMNS FROM payment_accounts LIKE 'tag'`);
+        if (tagColumn.length === 0) {
+            console.log("Adding 'tag' column to 'payment_accounts' table...");
+            await connection.query(`ALTER TABLE payment_accounts ADD COLUMN tag VARCHAR(255) DEFAULT NULL;`);
+            console.log("'tag' column added.");
+        }
+
 
         await connection.query(`
             CREATE TABLE IF NOT EXISTS settings (
@@ -245,6 +253,19 @@ async function initialize() {
                 raw_request TEXT,
                 is_solved BOOLEAN DEFAULT FALSE,
                 createdAt DATETIME NOT NULL
+            ) ENGINE=InnoDB;
+        `);
+
+        await connection.query(`
+            CREATE TABLE IF NOT EXISTS merchant_daily_limits (
+                id INT PRIMARY KEY AUTO_INCREMENT,
+                merchantId INT NOT NULL,
+                paymentType VARCHAR(50) NOT NULL,
+                dailyLimit DECIMAL(15,2) DEFAULT NULL,
+                dailyUsed DECIMAL(15,2) DEFAULT 0,
+                updatedAt DATETIME,
+                UNIQUE KEY (merchantId, paymentType),
+                FOREIGN KEY (merchantId) REFERENCES users(id) ON DELETE CASCADE
             ) ENGINE=InnoDB;
         `);
 

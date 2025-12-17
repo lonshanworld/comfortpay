@@ -151,6 +151,7 @@ export interface PaymentAccount {
   prefix_order_name?: string;
   websiteUrl: string;
   accountEmail?: string; // For Zelle
+  tag?: string; // Optional tag for accounts (e.g., @companyname) - used by Wise
   qrCodeUrl?: string | null; // For Zelle QR code image
 }
 

@@ -12,6 +12,7 @@ import Stripe from 'stripe';
 import { headers } from 'next/headers';
 import { executeQuery, runQuery } from '@/lib/db';
 import { sendOrderNotification } from '@/app/actions/send-order-notification';
+import { confirmOrderPayment } from '@/app/actions/confirm-order-payment';
 
 
 async function getOrderDetails(orderId: string) {
@@ -109,6 +110,21 @@ export async function POST(req: NextRequest) {
                 sendOrderNotification({ recipientType: 'merchant', merchantEmail: merchant.email, merchantName: merchant.name, orderDetails: order })
             ]).catch(err => console.error("Webhook email notification failed:", err));
              console.log("[Stripe Webhook] Triggered customer and merchant email notifications.");
+        }
+
+        // Ensure system-level volume and merchant daily limits are updated by invoking centralized confirm flow.
+        try {
+          const freshOrderRows: any[] = await executeQuery("SELECT * FROM orders WHERE id = ?", [numericOrderId]);
+          if (freshOrderRows.length > 0) {
+            const dbOrder = freshOrderRows[0];
+            const amountRemaining = Math.max(0, dbOrder.totalAmount - (dbOrder.paidAmount || 0));
+            if (amountRemaining > 0) {
+              await confirmOrderPayment({ order: { ...dbOrder, id: `CP${numericOrderId}` }, amountReceived: amountRemaining });
+              console.log('[Stripe Webhook] confirmOrderPayment executed to update volumes and merchant limits.');
+            }
+          }
+        } catch (err) {
+          console.warn('Failed to run confirmOrderPayment from Stripe webhook:', err);
         }
 
         console.log(`✅ [Stripe Webhook] Transaction ${comfortPayOrderId} status updated to 'Completed'.`);

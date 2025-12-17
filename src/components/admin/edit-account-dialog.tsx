@@ -45,6 +45,7 @@ const accountFormSchema = z.object({
   prefix_order_name: z.string().optional(),
   websiteUrl: z.string().optional().or(z.literal('')),
   accountEmail: z.string().email("Please enter a valid email.").optional().or(z.literal('')),
+  tag: z.string().optional().or(z.literal('')),
   qrCode: z.any().optional(),
 }).superRefine((data, ctx) => {
     if (data.type === "Zelle" || data.type === "Interac" || data.type === "wise") {
@@ -101,10 +102,11 @@ export function EditAccountDialog({ open, onOpenChange, onAccountUpdated, onAcco
         name: account.name || "",
         type: account.type || "Stripe",
         status: account.status || "Active",
-        dailyLimit: account.dailyLimit || 0,
+          dailyLimit: account.dailyLimit || 0,
         prefix_order_name: account.prefix_order_name || "",
         websiteUrl: account.websiteUrl || "",
-        accountEmail: account.accountEmail || "",
+          accountEmail: account.accountEmail || "",
+          tag: (account as any).tag || "",
         qrCode: null, // Reset file input
       });
     }
@@ -249,6 +251,19 @@ export function EditAccountDialog({ open, onOpenChange, onAccountUpdated, onAcco
                           </FormControl>
                           <FormMessage />
                           </FormItem>
+                      )}
+                  />
+                  <FormField
+                      control={form.control}
+                      name="tag"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Account Tag (Optional)</FormLabel>
+                          <FormControl>
+                            <Input placeholder="e.g., @companyname" {...field} disabled={isLoading} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
                       )}
                   />
                   {

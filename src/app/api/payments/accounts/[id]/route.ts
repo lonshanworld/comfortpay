@@ -42,7 +42,7 @@ export async function PUT(
   const body = await request.json();
 
   try {
-    const { name, status, dailyLimit, prefix_order_name, websiteUrl, accountEmail, qrCode, type } = body;
+    const { name, status, dailyLimit, prefix_order_name, websiteUrl, accountEmail, qrCode, type, tag } = body;
 
     let qrCodeUrl = undefined;
     if (qrCode) {
@@ -80,6 +80,8 @@ export async function PUT(
     if ('accountEmail' in body) {
             updateField('accountEmail', accountEmail === '' ? null : accountEmail, true);
         }
+    // Tag field (e.g. @companyname)
+    updateField('tag', tag === '' ? null : tag, 'tag' in body);
     
     updateField('qrCodeUrl', qrCodeUrl, 'qrCode' in body);
     

@@ -37,6 +37,7 @@ import type { Merchant, User } from "@/lib/types";
 import { ScrollArea } from "../ui/scroll-area";
 import { Label } from "../ui/label";
 import { Switch } from "../ui/switch";
+import { Badge } from "../ui/badge";
 
 
 const feeSchema = z.object({
@@ -97,6 +98,7 @@ const merchantFormSchema = z.object({
       interac: feeSchema.optional(),
       wise: feeSchema.optional(),
   }).optional(),
+  merchantDailyLimits: z.record(z.any()).optional(),
 });
 
 
@@ -161,6 +163,19 @@ const GatewayFeeSection = ({ gatewayName, control }: { gatewayName: 'stripe' | '
       control,
       name: `paymentGatewayFees.${gatewayName}.enabled`,
     });
+    // Watch merchant daily limits so we can show when a gateway is disabled by usage
+    const merchantDailyLimits = useWatch({ control, name: 'merchantDailyLimits' }) as Record<string, any> | undefined;
+    const limitEntry = merchantDailyLimits ? merchantDailyLimits[gatewayName] : undefined;
+    let limitReached = false;
+    let limitDisplay = '';
+    if (limitEntry && typeof limitEntry !== 'string') {
+      const dailyLimit = limitEntry.dailyLimit === '' || limitEntry.dailyLimit === null || typeof limitEntry.dailyLimit === 'undefined' ? null : Number(limitEntry.dailyLimit);
+      const dailyUsed = typeof limitEntry.dailyUsed === 'undefined' || limitEntry.dailyUsed === null || limitEntry.dailyUsed === '' ? 0 : Number(limitEntry.dailyUsed);
+      if (dailyLimit !== null && !Number.isNaN(dailyLimit)) {
+        limitReached = dailyUsed >= dailyLimit;
+        limitDisplay = `${dailyUsed.toFixed(2)} / ${dailyLimit.toFixed(2)}`;
+      }
+    }
   
     return (
         <div className="space-y-4 rounded-md border p-4">
@@ -177,6 +192,13 @@ const GatewayFeeSection = ({ gatewayName, control }: { gatewayName: 'stripe' | '
                     onCheckedChange={field.onChange}
                   />
                 </FormControl>
+                {limitReached && (
+                  <div className="ml-2">
+                    <Badge variant="destructive" title={`Daily limit reached (${limitDisplay})`}>
+                      Limit reached
+                    </Badge>
+                  </div>
+                )}
               </FormItem>
             )}
           />
@@ -208,6 +230,19 @@ const GatewayFeeSection = ({ gatewayName, control }: { gatewayName: 'stripe' | '
                 </div>
                  <FeeInput name={`paymentGatewayFees.${gatewayName}.refundFee`} control={control} label="Refund Fee" />
                  <FeeInput name={`paymentGatewayFees.${gatewayName}.chargebackFee`} control={control} label="Chargeback Fee" />
+                 <FormField
+                   control={control}
+                   name={`merchantDailyLimits.${gatewayName}`}
+                   render={({ field }) => (
+                     <FormItem>
+                       <FormLabel className="text-xs">Daily Limit (leave empty for unlimited)</FormLabel>
+                       <FormControl>
+                         <Input type="number" step="0.01" placeholder="e.g., 1000.00" {...field} value={field.value ?? ''} />
+                       </FormControl>
+                       <FormMessage />
+                     </FormItem>
+                   )}
+                 />
             </div>
          )}
       </div>
@@ -264,6 +299,7 @@ export function EditMerchantDialog({ open, onOpenChange, onMerchantUpdated, merc
             dateOfBirth: merchant.dateOfBirth ? new Date(merchant.dateOfBirth).toISOString().split('T')[0] : "",
             salesAgentId: merchant.salesAgentId || "none",
             paymentGatewayFees: paymentGatewayFees,
+          merchantDailyLimits: (merchant as any).merchantDailyLimits || {},
         };
         form.reset(formValues);
     }
@@ -658,6 +694,8 @@ export function EditMerchantDialog({ open, onOpenChange, onMerchantUpdated, merc
                         <FeeInput name="commissionRates.wise" control={form.control} label="Wise Commission" />
                     </div>
                 </div>
+
+                
 
               <DialogFooter className="sticky bottom-0 bg-background/95 pt-4">
                 <Button type="button" variant="ghost" onClick={() => handleOpenChange(false)} disabled={isLoading}>Cancel</Button>

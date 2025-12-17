@@ -118,6 +118,35 @@ export function ViewUserDialog({ open, onOpenChange, user }: ViewUserDialogProps
                         <DetailRow label="Date Joined (GMT)" value={dateJoined} />
                      </div>
                 </section>
+                {user.role === 'Merchant' && (
+                    <>
+                        <Separator />
+                        <section>
+                            <h4 className="text-sm font-semibold text-primary mb-2">Merchant Daily Limits</h4>
+                            <div className="space-y-1">
+                                {(() => {
+                                    const limits = (user as any).merchantDailyLimits || {};
+                                    const types = ['stripe', 'square', 'zelle', 'interac', 'wise'];
+                                    return types.map((t) => {
+                                        const row = limits[t];
+                                        if (!row) return null;
+                                        const dailyLimit = row.dailyLimit === null || typeof row.dailyLimit === 'undefined' || row.dailyLimit === '' ? 'Unlimited' : Number(row.dailyLimit).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                                        const dailyUsed = typeof row.dailyUsed === 'undefined' || row.dailyUsed === null ? '0.00' : Number(row.dailyUsed).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                                        return (
+                                            <div key={t} className="grid grid-cols-3 gap-2 text-sm items-center py-1.5">
+                                                <p className="text-muted-foreground col-span-1 capitalize">{t}</p>
+                                                <div className="col-span-2 font-medium break-words flex items-center gap-4">
+                                                    <span>Limit: <strong>{dailyLimit}</strong></span>
+                                                    <span>Used: <strong>{dailyUsed}</strong></span>
+                                                </div>
+                                            </div>
+                                        );
+                                    });
+                                })()}
+                            </div>
+                        </section>
+                    </>
+                )}
                 {user.role === 'Staff' && (
                     <>
                         <Separator />

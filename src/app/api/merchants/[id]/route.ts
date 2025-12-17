@@ -7,6 +7,7 @@ import crypto from 'crypto';
 import { promises as fs } from 'fs';
 import path from 'path';
 import { getBaseUploadDir } from '@/lib/upload-utils';
+import { formatDateForMySQL } from '@/lib/utils';
 
 // Helper to save a base64 encoded file and return its public URL
 const saveFileFromBase64 = async (base64String: string, subfolder: 'avatars' | 'documents'): Promise<string | null> => {
@@ -80,7 +81,24 @@ export async function GET(
     if (dbMerchants.length === 0) {
       return NextResponse.json({ message: 'Merchant not found' }, { status: 404 });
     }
-    return NextResponse.json(parseDbUserAsMerchant(dbMerchants[0]));
+    const merchant = parseDbUserAsMerchant(dbMerchants[0]);
+
+    // Fetch merchant daily limits and include them in the response
+    try {
+      const limitRows: any[] = await executeQuery(
+        "SELECT paymentType, dailyLimit, dailyUsed FROM merchant_daily_limits WHERE merchantId = ?",
+        [numericId]
+      );
+      const merchantDailyLimits: Record<string, any> = {};
+      for (const r of limitRows) {
+        merchantDailyLimits[r.paymentType] = { dailyLimit: r.dailyLimit, dailyUsed: r.dailyUsed };
+      }
+      (merchant as any).merchantDailyLimits = merchantDailyLimits;
+    } catch (err) {
+      console.warn('Failed to fetch merchant daily limits for merchant', numericId, err);
+    }
+
+    return NextResponse.json(merchant);
   } catch (error) {
     console.error(`Failed to fetch merchant ${id} from DB:`, error);
     return NextResponse.json({ message: 'Merchant not found' }, { status: 404 });
@@ -100,7 +118,7 @@ export async function PUT(
         name, email, password, websiteUrl, status, nationality, dateOfBirth, idType, token,
         orderIdPrefix, bankName, bankAccountNumber, bankAccountType, bankEmail, 
         walletAddress, network, settlementFees, paymentGatewayFees, 
-        salesAgentId, commissionRates, photoId, businessDocument
+      salesAgentId, commissionRates, photoId, businessDocument, merchantDailyLimits
     } = body;
     
     const numericSalesAgentId = salesAgentId ? salesAgentId.split('_')[1] : null;
@@ -165,10 +183,55 @@ export async function PUT(
 
     await runQuery(query, params);
     
+    // Process merchantDailyLimits if provided
+    if (merchantDailyLimits && typeof merchantDailyLimits === 'object') {
+      try {
+        for (const [paymentType, rawValue] of Object.entries(merchantDailyLimits)) {
+          // Normalize value: treat empty string or null-ish as NULL (unlimited)
+          let limitValue = rawValue;
+          if (limitValue === '' || limitValue === null || typeof limitValue === 'undefined') {
+            limitValue = null;
+          }
+          // Check if a row exists
+          const existing: any[] = await executeQuery(
+            "SELECT id FROM merchant_daily_limits WHERE merchantId = ? AND paymentType = ?",
+            [numericId, paymentType]
+          );
+          if (existing.length > 0) {
+            await runQuery(
+              "UPDATE merchant_daily_limits SET dailyLimit = ?, updatedAt = ? WHERE merchantId = ? AND paymentType = ?",
+              [limitValue, formatDateForMySQL(new Date()), numericId, paymentType]
+            );
+          } else {
+            await runQuery(
+              "INSERT INTO merchant_daily_limits (merchantId, paymentType, dailyLimit, dailyUsed, updatedAt) VALUES (?, ?, ?, ?, ?)",
+              [numericId, paymentType, limitValue, 0, formatDateForMySQL(new Date())]
+            );
+          }
+        }
+      } catch (err) {
+        console.warn('Failed to update merchant daily limits for merchant', numericId, err);
+      }
+    }
+
     // Fetch the updated user data to return
     const updatedUser: any[] = await executeQuery("SELECT * FROM users WHERE id = ?", [numericId]);
-    
-    return NextResponse.json(parseDbUserAsMerchant(updatedUser[0]));
+    const merchantResp = parseDbUserAsMerchant(updatedUser[0]);
+    try {
+      const limitRows: any[] = await executeQuery(
+        "SELECT paymentType, dailyLimit, dailyUsed FROM merchant_daily_limits WHERE merchantId = ?",
+        [numericId]
+      );
+      const merchantDailyLimitsResp: Record<string, any> = {};
+      for (const r of limitRows) {
+        merchantDailyLimitsResp[r.paymentType] = { dailyLimit: r.dailyLimit, dailyUsed: r.dailyUsed };
+      }
+      (merchantResp as any).merchantDailyLimits = merchantDailyLimitsResp;
+    } catch (err) {
+      console.warn('Failed to fetch merchant daily limits after update for merchant', numericId, err);
+    }
+
+    return NextResponse.json(merchantResp);
 
   } catch (error) {
     console.error(`Failed to update merchant ${id} in DB:`, error);

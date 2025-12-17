@@ -70,12 +70,13 @@ export async function POST(request: Request) {
     // }
 
     try {
-        const query = `
-            INSERT INTO payment_accounts 
-            (name, type, dailyLimit, prefix_order_name, currentVolume, status, websiteUrl, accountEmail, qrCodeUrl) 
-            VALUES (?, ?, ?, ?, 0, 'Active', ?, ?, ?)
-        `;
-        const params = [name, type, Number(dailyLimit), prefix_order_name, websiteUrl, accountEmail, qrCodeUrl];
+      const { tag } = body;
+      const query = `
+        INSERT INTO payment_accounts 
+        (name, type, dailyLimit, prefix_order_name, currentVolume, status, websiteUrl, accountEmail, qrCodeUrl, tag) 
+        VALUES (?, ?, ?, ?, 0, 'Active', ?, ?, ?, ?)
+      `;
+      const params = [name, type, Number(dailyLimit), prefix_order_name, websiteUrl, accountEmail, qrCodeUrl, tag || null];
         const result: any = await runQuery(query, params);
         
         const newAccount = { id: `pa_${result.id}`, ...body, qrCodeUrl };

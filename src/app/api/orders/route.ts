@@ -62,7 +62,8 @@ export async function GET(request: Request) {
             u.name as merchantName, 
             u.websiteUrl as merchantWebsiteUrl,
             pa.accountEmail as paymentAccountEmail,
-            pa.name as paymentAccountName
+                pa.name as paymentAccountName,
+                pa.tag as paymentAccountTag
     `;
     let countClause = isFromPlugin ? '' : `SELECT COUNT(*) as totalCount`;
 
