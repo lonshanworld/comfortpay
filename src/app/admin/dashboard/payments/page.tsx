@@ -128,10 +128,12 @@ export default function PaymentsPage() {
           </AlertDescription>
         </Alert>
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-3">
+        <TabsList className="grid w-full grid-cols-5">
           <TabsTrigger value="Stripe">Stripe</TabsTrigger>
           <TabsTrigger value="Square">Square</TabsTrigger>
           <TabsTrigger value="Zelle">Zelle</TabsTrigger>
+          <TabsTrigger value="Interac">Interac</TabsTrigger>
+          <TabsTrigger value="Wise">Wise</TabsTrigger>
         </TabsList>
             <TabsContent value={activeTab} className="mt-4">
                <Card>

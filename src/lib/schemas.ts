@@ -31,8 +31,10 @@ const BillingDetailsSchema = z.object({
 // Schema for payment details, which can include the prefix
 const PaymentDetailsSchema = z.object({
   prefix_order_name: z.string().optional().describe('The prefix for the transaction name sent to the payment processor.'),
-  qrCodeUrl: z.string().url().optional().nullable().describe('The URL for the Zelle QR code image.'),
-  accountEmail: z.string().email().optional().describe('The email address for the Zelle account.'),
+  qrCodeUrl: z.string().url().optional().nullable().describe('The URL for a payment QR code image.'),
+  accountEmail: z.string().email().optional().describe('The email address for the payment account (Zelle/Interac).'),
+  accountName: z.string().optional().describe('The human-readable account name (merchant-facing).'),
+  accountTag: z.string().optional().nullable().or(z.literal('')).describe('Optional account tag (e.g. Wise @companyname).'),
 });
 
 // Schema for creating a checkout session
@@ -47,8 +49,8 @@ export const CreateCheckoutSessionInputSchema = z.object({
   visualOrderId: z.string().optional().nullable().or(z.literal('')).describe('The transaction ID that is shown to the customer and sent to the payment processor.'),
   redirectUrl: z.string().url().optional().or(z.literal('')).describe('The URL to redirect the user to after payment completion.'),
   wooCommerceOrderReceivedUrl: z.string().url().optional().nullable().or(z.literal('')).describe('The standard WooCommerce thank you page URL.'),
-  paymentMethod: z.enum(['card', 'zelle']).describe('The selected payment method.'),
-  processor: z.enum(['Stripe', 'Square', 'Zelle']).optional(),
+  paymentMethod: z.enum(['card', 'zelle', 'interac', 'wise']).describe('The selected payment method.'),
+  processor: z.enum(['Stripe', 'Square', 'Zelle', 'Interac', 'Wise']).optional(),
   billingDetails: BillingDetailsSchema.optional().describe("The customer's billing information."),
   items: z.array(OrderItemSchema).optional().describe('The list of items in the transaction.'),
   paymentDetails: PaymentDetailsSchema.optional().describe('Details specific to the payment processor account.'),

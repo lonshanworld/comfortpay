@@ -18,6 +18,8 @@ import { Separator } from "../ui/separator";
 import Link from "next/link";
 import { Badge } from "../ui/badge";
 import { useEffect, useState } from "react";
+import { Progress } from "../ui/progress";
+import { cn } from "@/lib/utils";
 
 interface ViewMerchantDialogProps {
   open: boolean;
@@ -189,6 +191,7 @@ export function ViewMerchantDialog({ open, onOpenChange, merchant }: ViewMerchan
                         <DetailRow label="Login Email" value={merchant.email} />
                         <DetailRow label="API Token" value={merchant.token} isCopyable onCopy={(v) => handleCopy(v, 'API Token')} />
                         <DetailRow label="Order ID Prefix" value={merchant.orderIdPrefix || "Not Set"} />
+                        <DetailRow label="Daily Processing Limit" value={typeof (merchant as any).dailyLimit === 'number' ? `$${Number((merchant as any).dailyLimit).toFixed(2)}` : 'Not Set'} />
                         <DetailRow label="Status"><Badge variant={merchant.status === 'Active' ? "secondary" : "destructive"}>{merchant.status}</Badge></DetailRow>
                         <DetailRow label="Date Joined" value={dateJoined} />
                         {merchant.websiteUrl && <DetailRow label="Website" value={merchant.websiteUrl} />}
@@ -251,12 +254,57 @@ export function ViewMerchantDialog({ open, onOpenChange, merchant }: ViewMerchan
                 <section>
                     <h4 className="text-sm font-semibold text-primary mb-2">Payment Gateway Fees & Status</h4>
                     <div className="space-y-2">
-                        <GatewayFeeDetails name="Stripe" fees={merchant.paymentGatewayFees?.stripe} />
-                        <GatewayFeeDetails name="Square" fees={merchant.paymentGatewayFees?.square} />
-                        <GatewayFeeDetails name="Zelle" fees={merchant.paymentGatewayFees?.zelle} />
+                                                        <GatewayFeeDetails name="Stripe" fees={merchant.paymentGatewayFees?.stripe} />
+                                                        <GatewayFeeDetails name="Square" fees={merchant.paymentGatewayFees?.square} />
+                                                        <GatewayFeeDetails name="Zelle" fees={merchant.paymentGatewayFees?.zelle} />
+                                                        <GatewayFeeDetails name="Interac" fees={merchant.paymentGatewayFees?.interac} />
+                                                        <GatewayFeeDetails name="Wise" fees={merchant.paymentGatewayFees?.wise} />
                     </div>
                 </section>
                  <Separator />
+                                        <section>
+                                                <h4 className="text-sm font-semibold text-primary mb-2">Merchant Daily Limits</h4>
+                                                <div className="space-y-1">
+                                                    {(() => {
+                                                        console.log("Rendering Merchant Daily Limits...", merchant);
+                                                        const limits = (merchant as any).merchantDailyLimits || {};
+                                                        console.log("Merchant Daily Limits:", limits);
+                                                        const getDisplay = (pType: string) => {
+                                                            const row = limits[pType];
+                                                              const dailyLimit = row && row.dailyLimit != null ? `$${Number(row.dailyLimit).toFixed(2)}` : 'Unlimited';
+                                                              // `dailyUsed` is a numeric usage counter (not a currency label) — display as a plain number with two decimals.
+                                                              const dailyUsed = row && row.dailyUsed != null ? Number(row.dailyUsed).toFixed(2) : '0.00';
+                                                            return { dailyLimit, dailyUsed };
+                                                        };
+                                                        const rows = [
+                                                            { key: 'stripe', label: 'Stripe' },
+                                                            { key: 'square', label: 'Square' },
+                                                            { key: 'zelle', label: 'Zelle' },
+                                                            { key: 'interac', label: 'Interac' },
+                                                            { key: 'wise', label: 'Wise' },
+                                                        ];
+                                                        return rows.map(r => {
+                                                            const d = getDisplay(r.key);
+                                                            const currentUsed = d.dailyUsed;
+                                                            const limit = d.dailyLimit ?? 0;
+                                                            const isOverLimit = limit !== 'Unlimited' && Number(limit.replace('$','')) > 0 && Number(currentUsed) >= Number(limit.replace('$',''));
+                                                            const progressValue = limit !== 'Unlimited' && Number(limit.replace('$','')) > 0 ? (Number(currentUsed) / Number(limit.replace('$',''))) * 100 : 0;
+                                                            return (
+                                                                <div className="flex flex-row justify-center items-center gap-4">
+                                                                    <span className="font-medium mb-1">{r.label}</span>
+                                                                    <div className="w-48">
+                                                                    <div className={cn("flex justify-between text-xs mb-1", isOverLimit ? "text-destructive font-semibold" : "text-muted-foreground")}>
+                                                                        <span>{currentUsed}</span>
+                                                                        <span>{limit}</span>
+                                                                    </div>
+                                                                    <Progress value={progressValue} className={cn("h-2", isOverLimit && "[&>div]:bg-destructive")} />
+                                                                </div>
+                                                                </div>
+                                                            );
+                                                        });
+                                                    })()}
+                                                </div>
+                                        </section>
                 <section>
                     <h4 className="text-sm font-semibold text-primary mb-2">Sales & Commission</h4>
                     <div className="space-y-1">

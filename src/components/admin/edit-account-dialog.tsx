@@ -1,7 +1,7 @@
 
 "use client"
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useForm } from "react-hook-form";
 import {
   Dialog,
@@ -39,31 +39,32 @@ import { ScrollArea } from "../ui/scroll-area";
 
 const accountFormSchema = z.object({
   name: z.string().min(3, "Account name must be at least 3 characters."),
-  type: z.enum(["Stripe", "Square", "Zelle"]),
+  type: z.enum(["Stripe", "Square", "Zelle", "Interac", "Wise"]),
   status: z.enum(["Active", "Inactive"]),
   dailyLimit: z.coerce.number().positive("Daily limit must be a positive number."),
   prefix_order_name: z.string().optional(),
   websiteUrl: z.string().optional().or(z.literal('')),
-  accountEmail: z.string().email("Please enter a valid email for Zelle.").optional().or(z.literal('')),
+  accountEmail: z.string().email("Please enter a valid email.").optional().or(z.literal('')),
+  tag: z.string().optional().or(z.literal('')),
   qrCode: z.any().optional(),
 }).superRefine((data, ctx) => {
-    if (data.type === "Zelle") {
-        if (!data.accountEmail) {
-             ctx.addIssue({
-                code: z.ZodIssueCode.custom,
-                message: "Zelle account email is required.",
-                path: ["accountEmail"],
-            });
-        }
-    } else { // Stripe, Square
-        if (!data.websiteUrl || !z.string().url().safeParse(data.websiteUrl).success) {
-            ctx.addIssue({
-                code: z.ZodIssueCode.custom,
-                message: "Please enter a valid URL.",
-                path: ["websiteUrl"],
-            });
-        }
+  if (data.type === "Zelle" || data.type === "Interac" || data.type === "Wise") {
+    if (!data.accountEmail) {
+       ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "account email is required.",
+        path: ["accountEmail"],
+      });
     }
+  } else { // Stripe, Square
+    if (!data.websiteUrl || !z.string().url().safeParse(data.websiteUrl).success) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Please enter a valid URL.",
+        path: ["websiteUrl"],
+      });
+    }
+  }
 });
 
 
@@ -104,7 +105,8 @@ export function EditAccountDialog({ open, onOpenChange, onAccountUpdated, onAcco
         dailyLimit: account.dailyLimit || 0,
         prefix_order_name: account.prefix_order_name || "",
         websiteUrl: account.websiteUrl || "",
-        accountEmail: account.accountEmail || "",
+          accountEmail: account.accountEmail || "",
+          tag: (account as any).tag || "",
         qrCode: null, // Reset file input
       });
     }
@@ -167,6 +169,16 @@ export function EditAccountDialog({ open, onOpenChange, onAccountUpdated, onAcco
     }
   };
 
+  const qrCodeUrlFromAccount = (account as any)?.qrCodeUrl || null;
+  const qrPreviewUrl = useMemo(() => {
+    if (!qrCodeUrlFromAccount) return null;
+    if (qrCodeUrlFromAccount.startsWith('http') || qrCodeUrlFromAccount.startsWith('//')) return qrCodeUrlFromAccount;
+    const uploadsHost = process.env.NEXT_PUBLIC_UPLOADS_HOST;
+    const origin = typeof window !== 'undefined' ? window.location.origin : (process.env.NEXT_PUBLIC_APP_URL || '');
+    const host = uploadsHost || origin;
+    return `${host}${qrCodeUrlFromAccount}`;
+  }, [qrCodeUrlFromAccount]);
+
   if (!account) return null;
   const selectedType = form.watch('type');
   const accountId = String(account.id).replace('pa_', '');
@@ -212,25 +224,40 @@ export function EditAccountDialog({ open, onOpenChange, onAccountUpdated, onAcco
                         <SelectItem value="Stripe">Stripe</SelectItem>
                         <SelectItem value="Square">Square</SelectItem>
                         <SelectItem value="Zelle">Zelle</SelectItem>
+                        <SelectItem value="Interac">Interac</SelectItem>
+                        <SelectItem value="Wise">Wise</SelectItem>
                       </SelectContent>
                     </Select>
                     <FormMessage />
                   </FormItem>
                 )}
               />
-              {selectedType === 'Zelle' && (
+              {(selectedType === 'Zelle' || selectedType === 'Interac' || selectedType === 'Wise') && (
                   <>
                   <FormField
                       control={form.control}
                       name="accountEmail"
                       render={({ field }) => (
                           <FormItem>
-                          <FormLabel>Zelle Account / Email</FormLabel>
+                          <FormLabel>Account / Email</FormLabel>
                           <FormControl>
                               <Input placeholder="e.g., billing@company.com" {...field} disabled={isLoading} />
                           </FormControl>
                           <FormMessage />
                           </FormItem>
+                      )}
+                  />
+                  <FormField
+                      control={form.control}
+                      name="tag"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Account Tag (Optional)</FormLabel>
+                          <FormControl>
+                            <Input placeholder="e.g., @companyname" {...field} disabled={isLoading} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
                       )}
                   />
                   <FormField
@@ -249,6 +276,17 @@ export function EditAccountDialog({ open, onOpenChange, onAccountUpdated, onAcco
                         </FormItem>
                       )}
                     />
+                  {qrCodeUrlFromAccount && (
+                    <div className="space-y-2">
+                      <p className="text-sm font-medium">Current QR Code</p>
+                      {qrPreviewUrl ? (
+                        <img src={qrPreviewUrl} alt="QR Code" className="h-40 w-40 object-contain border" />
+                      ) : (
+                        <p className="text-sm text-muted-foreground">{qrCodeUrlFromAccount}</p>
+                      )}
+                      <a href={qrPreviewUrl || qrCodeUrlFromAccount} target="_blank" rel="noreferrer" className="text-xs text-primary underline">Open image</a>
+                    </div>
+                  )}
                   </>
               )}
               <FormField
@@ -338,8 +376,8 @@ export function EditAccountDialog({ open, onOpenChange, onAccountUpdated, onAcco
                           </ul>
                           </div>
                       )}
-                      {selectedType === 'Zelle' && (
-                        <p>Zelle accounts do not require API keys.</p>
+                      {(selectedType === 'Zelle' || selectedType === 'Wise' || selectedType === 'Interac') && (
+                        <p>{selectedType} accounts do not require API keys.</p>
                       )}
                   </AlertDescription>
               </Alert>

@@ -2,6 +2,7 @@
 import { NextResponse } from 'next/server';
 import { findUserByApiToken } from '@/lib/auth-server';
 import { extractRequestHost, merchantHostFromUrl, domainMatches } from '@/lib/verify-origin';
+import { executeQuery } from '@/lib/db';
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
@@ -77,14 +78,72 @@ export async function GET(request: Request) {
     const gatewayFees = typeof merchant.paymentGatewayFees === 'string'
       ? JSON.parse(merchant.paymentGatewayFees)
       : merchant.paymentGatewayFees;
-      
+
     const cardEnabled = !!(gatewayFees?.stripe?.enabled || gatewayFees?.square?.enabled);
     const zelleEnabled = !!gatewayFees?.zelle?.enabled;
+    const interacEnabled = !!gatewayFees?.interac?.enabled;
+    const wiseEnabled = !!gatewayFees?.wise?.enabled;
 
-    const enabledGateways = {
+    // Default enabled map (will be adjusted by limits below)
+    const enabledGateways: Record<string, boolean> = {
       card: cardEnabled,
       zelle: zelleEnabled,
+      interac: interacEnabled,
+      wise: wiseEnabled,
     };
+
+    // Load per-merchant limits from `merchant_daily_limits` (preferred source)
+    try {
+      const rows: any[] = await executeQuery(
+        `SELECT paymentType, dailyLimit, dailyUsed FROM merchant_daily_limits WHERE merchantId = ?`,
+        [merchant.id]
+      );
+
+      const limitsMap: Record<string, { dailyLimit: number | null; dailyUsed: number }> = {};
+      for (const r of rows) {
+        const paymentTypeRaw = (r.paymentType || '').toString();
+        const key = paymentTypeRaw.trim().toLowerCase() || 'merchant'; // 'merchant' for site-wide row
+        const dailyLimit = r.dailyLimit === null ? null : Number(r.dailyLimit);
+        const dailyUsed = Number(r.dailyUsed || 0);
+        limitsMap[key] = { dailyLimit, dailyUsed };
+      }
+
+      // Helper to evaluate a gateway's allowed status using limitsMap
+      const evaluateAllowed = (gatewayKey: string) => {
+        // If gateway already disabled by settings, keep it disabled
+        if (!enabledGateways[gatewayKey]) return false;
+
+        // Exact gateway limit row (e.g., 'card','zelle','interac','wise')
+        const gRow = limitsMap[gatewayKey];
+        if (gRow && typeof gRow.dailyLimit === 'number') {
+          return gRow.dailyUsed < gRow.dailyLimit;
+        }
+
+        // Fallback to a merchant-wide limit row (key 'merchant' or empty)
+        const merchantRow = limitsMap['merchant'] || limitsMap[''];
+        if (merchantRow && typeof merchantRow.dailyLimit === 'number') {
+          return merchantRow.dailyUsed < merchantRow.dailyLimit;
+        }
+
+        // No limit configured -> allowed
+        return true;
+      };
+
+      for (const k of Object.keys(enabledGateways)) {
+        try {
+          const allowed = evaluateAllowed(k);
+          if (!allowed) {
+            enabledGateways[k] = false;
+            console.info('[Plugin API] Gateway disabled by merchant_daily_limits', { merchantId: merchant.id, gateway: k, row: limitsMap[k] || limitsMap['merchant'] });
+          }
+        } catch (e) {
+          console.warn('[Plugin API] Error evaluating limit for gateway', { merchantId: merchant.id, gateway: k, err: e });
+        }
+      }
+    } catch (e) {
+      console.warn('[Plugin API] Could not load merchant_daily_limits; treating as unlimited', { merchantId: merchant.id, err: e });
+      // If DB fails, keep service permissive (do not disable gateways)
+    }
 
     return NextResponse.json(enabledGateways);
 

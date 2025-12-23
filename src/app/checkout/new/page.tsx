@@ -452,6 +452,76 @@ function CheckoutForm({ sessionData }: { sessionData: CreateCheckoutSessionInput
               </Button>
             </div>
           )}
+          {sessionData.processor === 'Interac' && (
+             <div className="space-y-4">
+              <div className="space-y-1">
+                <p className="text-sm text-muted-foreground">Send payment to (Interac):</p>
+               <div className="relative flex items-center">
+                    <div className="flex-1 text-lg font-semibold text-primary break-all border border-input rounded-md px-3 py-2 pr-10">
+                        {sessionData.paymentDetails?.accountEmail || sessionData.paymentDetails?.accountName || sessionData.paymentDetails?.accountTag}
+                    </div>
+                     <Button type="button" variant="ghost" size="sm" className="absolute right-1 top-1 h-8 px-2 hover:bg-blue-300 active:bg-blue-400" onClick={() => handleCopy(sessionData.paymentDetails?.accountEmail || sessionData.paymentDetails?.accountName || sessionData.paymentDetails?.accountTag || '', 'Account') }>
+                        Copy
+                    </Button>
+                </div>
+              </div>
+              {qrCodeUrl && (
+                <div className="flex justify-center">
+                  <img src={qrCodeUrl} alt="Payment QR Code" width={200} height={200} className="rounded-lg border shadow-sm" />
+                </div>
+              )}
+               <div className="space-y-1">
+                <p className="text-sm text-muted-foreground">Memo - write order number only</p>
+                <div className="relative flex items-center">
+                    <div className="flex-1 text-lg font-bold text-primary break-all border border-input rounded-md px-3 py-2 pr-10">
+                        {visualOrderId}
+                    </div>
+                     <Button type="button" variant="ghost" size="sm" className="absolute right-1 top-1 h-8 px-2 hover:bg-blue-300 active:bg-blue-400" onClick={() => handleCopy(visualOrderId || '', 'Order Number')}>
+                        Copy
+                    </Button>
+                </div>
+              </div>
+              <Button onClick={handleZelleConfirmation} className="w-full" disabled={isProcessing}>
+                {isProcessing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                I Have Sent The Payment
+              </Button>
+            </div>
+          )}
+          {sessionData.processor === 'Wise' && (
+             <div className="space-y-4">
+              <div className="space-y-1">
+                <p className="text-sm text-muted-foreground">Transfer details (Wise):</p>
+               <div className="relative flex items-center">
+                    <div className="flex-1 text-lg font-semibold text-primary break-all border border-input rounded-md px-3 py-2 pr-10">
+                        {sessionData.paymentDetails?.accountName || sessionData.paymentDetails?.accountEmail || sessionData.paymentDetails?.accountTag}
+                    </div>
+                     <Button type="button" variant="ghost" size="sm" className="absolute right-1 top-1 h-8 px-2 hover:bg-blue-300 active:bg-blue-400" onClick={() => handleCopy(sessionData.paymentDetails?.accountName || sessionData.paymentDetails?.accountEmail || sessionData.paymentDetails?.accountTag || '', 'Account') }>
+                        Copy
+                    </Button>
+                </div>
+              </div>
+              {qrCodeUrl && (
+                <div className="flex justify-center">
+                  <img src={qrCodeUrl} alt="Payment QR Code" width={200} height={200} className="rounded-lg border shadow-sm" />
+                </div>
+              )}
+               <div className="space-y-1">
+                <p className="text-sm text-muted-foreground">Reference - write order number only</p>
+                <div className="relative flex items-center">
+                    <div className="flex-1 text-lg font-bold text-primary break-all border border-input rounded-md px-3 py-2 pr-10">
+                        {visualOrderId}
+                    </div>
+                     <Button type="button" variant="ghost" size="sm" className="absolute right-1 top-1 h-8 px-2 hover:bg-blue-300 active:bg-blue-400" onClick={() => handleCopy(visualOrderId || '', 'Order Number')}>
+                        Copy
+                    </Button>
+                </div>
+              </div>
+              <Button onClick={handleZelleConfirmation} className="w-full" disabled={isProcessing}>
+                {isProcessing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                I Have Sent The Payment
+              </Button>
+            </div>
+          )}
         </CardContent>
       </Card>
       <Card className="w-full">

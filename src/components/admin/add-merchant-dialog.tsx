@@ -86,6 +86,8 @@ const merchantFormSchema = z.object({
     stripe: gatewayFeeSchema.optional(),
     square: gatewayFeeSchema.optional(),
     zelle: gatewayFeeSchema.optional(),
+    interac: gatewayFeeSchema.optional(),
+    wise: gatewayFeeSchema.optional(),
   }).optional(),
   salesAgentId: z.string().optional(),
   commissionRates: z.object({
@@ -149,7 +151,7 @@ const FeeInput = ({ name, control, label }: { name: string, control: any, label:
     </div>
 );
 
-const GatewayFeeSection = ({ gatewayName, control }: { gatewayName: 'stripe' | 'square' | 'zelle', control: any }) => {
+const GatewayFeeSection = ({ gatewayName, control }: { gatewayName: 'stripe' | 'square' | 'zelle' | 'interac' | 'wise', control: any }) => {
     const isEnabled = useWatch({
       control,
       name: `paymentGatewayFees.${gatewayName}.enabled`,
@@ -241,12 +243,16 @@ export function AddMerchantDialog({ open, onOpenChange, onMerchantAdded }: AddMe
         stripe: { enabled: true, transactionFee: { value: 2.9 }, transactionFeeFixed: {value: 0.30}, refundFee: { value: 0, type: 'flat'}, chargebackFee: { value: 15.00, type: 'flat'} },
         square: { enabled: true, transactionFee: { value: 2.6 }, transactionFeeFixed: {value: 0.10}, refundFee: { value: 0, type: 'flat'}, chargebackFee: { value: 20.00, type: 'flat'} },
         zelle: { enabled: true, transactionFee: { value: 0 }, transactionFeeFixed: {value: 0}, refundFee: { value: 0, type: 'flat'}, chargebackFee: { value: 0, type: 'flat'} },
+        interac: { enabled: false, transactionFee: { value: 0 }, transactionFeeFixed: {value: 0}, refundFee: { value: 0, type: 'flat'}, chargebackFee: { value: 0, type: 'flat'} },
+        wise: { enabled: false, transactionFee: { value: 0 }, transactionFeeFixed: {value: 0}, refundFee: { value: 0, type: 'flat'}, chargebackFee: { value: 0, type: 'flat'} },
       },
       salesAgentId: "",
       commissionRates: { 
         stripe: { value: 0, type: 'percentage' }, 
         square: { value: 0, type: 'percentage' }, 
-        zelle: { value: 0, type: 'percentage' } 
+        zelle: { value: 0, type: 'percentage' },
+        interac: { value: 0, type: 'percentage' },
+        wise: { value: 0, type: 'percentage' },
       },
     },
   });
@@ -608,9 +614,11 @@ export function AddMerchantDialog({ open, onOpenChange, onMerchantAdded }: AddMe
                 <Separator className="my-4" />
                 <h4 className="text-sm font-semibold text-primary">Payment Gateway Fees & Access</h4>
                 <div className="space-y-6">
-                    <GatewayFeeSection gatewayName="stripe" control={form.control} />
-                    <GatewayFeeSection gatewayName="square" control={form.control} />
-                    <GatewayFeeSection gatewayName="zelle" control={form.control} />
+                      <GatewayFeeSection gatewayName="stripe" control={form.control} />
+                      <GatewayFeeSection gatewayName="square" control={form.control} />
+                      <GatewayFeeSection gatewayName="zelle" control={form.control} />
+                      <GatewayFeeSection gatewayName="interac" control={form.control} />
+                      <GatewayFeeSection gatewayName="wise" control={form.control} />
                 </div>
 
                 <Separator className="my-4" />

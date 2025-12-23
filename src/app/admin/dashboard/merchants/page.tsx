@@ -87,12 +87,35 @@ export default function MerchantsPage() {
   }
 
  const handleViewClick = (merchant: Merchant) => {
-    setSelectedMerchant(merchant)
-    setIsViewDialogOpen(true)
+    console.log('MerchantsPage: handleViewClick', merchant?.id);
+    // ensure edit dialog is closed when opening view
+    setIsEditDialogOpen(false);
+    setSelectedMerchant(merchant);
+    // Fetch the freshest merchant data (including merchantDailyLimits) before opening the view dialog
+    (async () => {
+      try {
+        const res = await fetch(`/api/merchants-v2/${merchant.id}`);
+        if (res.ok) {
+          const fresh = await res.json();
+          setSelectedMerchant(fresh as Merchant);
+        } else {
+          console.warn('Failed to fetch fresh merchant for view, falling back to row data', { status: res.status });
+          setSelectedMerchant(merchant);
+        }
+      } catch (e) {
+        console.warn('Error fetching fresh merchant for view, falling back to row data', e);
+        setSelectedMerchant(merchant);
+      } finally {
+        setIsViewDialogOpen(true);
+      }
+    })();
   }
 
   const handleEditClick = (merchant: Merchant) => {
-    setSelectedMerchant(merchant)
+    console.log('MerchantsPage: handleEditClick', merchant?.id);
+    // ensure view dialog is closed when opening edit
+    setIsViewDialogOpen(false);
+    setSelectedMerchant(merchant);
     setIsEditDialogOpen(true)
   }
 

@@ -3,8 +3,8 @@ import type { CreateCheckoutSessionInputSchema, SendOrderNotificationInputSchema
 import type { z } from "zod";
 
 export type OrderStatus = "Pending" | "Completed" | "Failed" | "Requires Confirmation" | "Refunded"  | "Partially Paid" | "On-Hold" | "Over-paid Refunded";
-export type PaymentMethod = "Credit Card" | "Zelle";
-export type PaymentType = "Stripe" | "Square" | "Zelle";
+export type PaymentMethod = "card" | "zelle" | "interac" | "wise";
+export type PaymentType = "Stripe" | "Square" | "Zelle" | "Interac" | "Wise";
 
 export interface BillingDetails {
   firstName: string;
@@ -123,11 +123,15 @@ export interface User {
     stripe?: GatewayFee;
     square?: GatewayFee;
     zelle?: GatewayFee;
+    wise?: GatewayFee;
+    interac?: GatewayFee;
   };
   commissionRates?: {
     stripe?: { value: number, type: 'percentage' | 'flat' };
     square?: { value: number, type: 'percentage' | 'flat' };
     zelle?: { value: number, type: 'percentage' | 'flat' };
+    wise?: { value: number, type: 'percentage' | 'flat' };
+    interac?: { value: number, type: 'percentage' | 'flat' };
   };
 }
 
@@ -135,7 +139,7 @@ export interface User {
 export type Merchant = User;
 
 
-export type PaymentAccountType = "Stripe" | "Square" | "Zelle";
+export type PaymentAccountType = "Stripe" | "Square" | "Zelle" | "Interac" | "Wise";
 
 export interface PaymentAccount {
   id: number;
@@ -148,6 +152,7 @@ export interface PaymentAccount {
   websiteUrl: string;
   accountEmail?: string; // For Zelle
   qrCodeUrl?: string | null; // For Zelle QR code image
+  tag?: string | null; // Optional tag (e.g. 'business-name' or '@handle' for Wise)
 }
 
 export interface DailyVolumeHistory {

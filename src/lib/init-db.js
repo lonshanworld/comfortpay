@@ -201,11 +201,77 @@ async function initialize() {
             ) ENGINE=InnoDB;
         `);
 
+        // Ensure notifications has an integer AUTO_INCREMENT primary key and correct next AUTO_INCREMENT
+        try {
+            const [notifIdCol] = await connection.query(`SHOW COLUMNS FROM notifications LIKE 'id'`);
+            if (notifIdCol.length === 0) {
+                console.log("Adding integer 'id' column to 'notifications' for AUTO_INCREMENT compatibility...");
+                try {
+                    await connection.query(`ALTER TABLE notifications ADD COLUMN id INT NOT NULL AUTO_INCREMENT PRIMARY KEY FIRST;`);
+                    console.log("'id' column added to 'notifications'.");
+                } catch (e) {
+                    console.warn("Could not add 'id' to notifications:", (e && e.message) || e);
+                }
+            } else {
+                const col = notifIdCol[0];
+                if (!col.Extra || !col.Extra.includes('auto_increment')) {
+                    try {
+                        console.log("Enabling AUTO_INCREMENT on notifications.id...");
+                        await connection.query(`ALTER TABLE notifications MODIFY COLUMN id INT NOT NULL AUTO_INCREMENT`);
+                        console.log("AUTO_INCREMENT enabled on notifications.id.");
+                    } catch (e) {
+                        console.warn("Could not enable AUTO_INCREMENT on notifications.id:", (e && e.message) || e);
+                    }
+                }
+
+                // Ensure id is primary key
+                try {
+                    const [pkRowsNotif] = await connection.query(`SHOW INDEX FROM notifications WHERE Key_name = 'PRIMARY'`);
+                    const primaryColsNotif = pkRowsNotif.map(r => r.Column_name);
+                    if (!(primaryColsNotif.length === 1 && primaryColsNotif[0] === 'id')) {
+                        console.log("Setting notifications primary key to 'id' while preserving existing columns...");
+                        try {
+                            // If there is an existing primary key, drop it and set id as primary
+                            await connection.query(`ALTER TABLE notifications DROP PRIMARY KEY, ADD PRIMARY KEY (id)`);
+                            console.log("notifications primary key set to 'id'.");
+                        } catch (e) {
+                            console.warn("Could not set notifications primary key to 'id':", (e && e.message) || e);
+                        }
+                    }
+                } catch (e) {
+                    console.warn("Could not inspect/alter notifications primary key:", (e && e.message) || e);
+                }
+            }
+
+            // Ensure AUTO_INCREMENT is at least MAX(id)+1
+            try {
+                const [rowsNotif] = await connection.query(`SELECT IFNULL(MAX(id),0)+1 AS next_ai FROM \`notifications\``);
+                const nextAiNotif = rowsNotif && rowsNotif[0] ? (rowsNotif[0].next_ai || 1) : 1;
+                if (nextAiNotif && Number(nextAiNotif) > 0) {
+                    console.log(`Ensuring notifications AUTO_INCREMENT >= ${nextAiNotif}`);
+                    await connection.query(`ALTER TABLE notifications AUTO_INCREMENT = ?`, [Number(nextAiNotif)]);
+                    console.log(`AUTO_INCREMENT for notifications adjusted if necessary.`);
+                }
+            } catch (e) {
+                console.warn("Could not adjust AUTO_INCREMENT for notifications:", (e && e.message) || e);
+            }
+        } catch (e) {
+            console.warn("Skipping notifications AUTO_INCREMENT adjustments:", (e && e.message) || e);
+        }
+
          const [lastUsedAtColumn] = await connection.query(`SHOW COLUMNS FROM payment_accounts LIKE 'last_used_at'`);
         if (lastUsedAtColumn.length === 0) {
             console.log("Adding 'last_used_at' column to 'payment_accounts' table...");
             await connection.query(`ALTER TABLE payment_accounts ADD COLUMN last_used_at DATETIME NULL DEFAULT NULL;`);
             console.log("'last_used_at' column added.");
+        }
+
+        // Add tag column to payment_accounts if missing (used for Wise/Interac tagging)
+        const [tagColumn] = await connection.query(`SHOW COLUMNS FROM payment_accounts LIKE 'tag'`);
+        if (tagColumn.length === 0) {
+            console.log("Adding 'tag' column to 'payment_accounts' table...");
+            await connection.query(`ALTER TABLE payment_accounts ADD COLUMN tag VARCHAR(255) DEFAULT NULL;`);
+            console.log("'tag' column added.");
         }
 
 
@@ -225,6 +291,61 @@ async function initialize() {
                 UNIQUE KEY (paymentAccountId, date)
             ) ENGINE=InnoDB;
         `);
+        // Create history table for merchant daily limit snapshots
+        await connection.query(`
+            CREATE TABLE IF NOT EXISTS daily_volume_history_merchant_limit (
+                id INT PRIMARY KEY AUTO_INCREMENT,
+                merchantId INT NOT NULL,
+                paymentType VARCHAR(50) DEFAULT NULL,
+                date DATE NOT NULL,
+                dailyLimit DECIMAL(15,2) DEFAULT NULL,
+                dailyUsed DECIMAL(15,2) DEFAULT 0,
+                createdAt DATETIME NOT NULL,
+                UNIQUE KEY (merchantId, paymentType, date),
+                FOREIGN KEY (merchantId) REFERENCES users(id) ON DELETE CASCADE
+            ) ENGINE=InnoDB;
+        `);
+        // Create or migrate per-merchant daily limits table to support per-payment-type limits
+        // Schema: merchantId, paymentType, dailyLimit (NULL = unlimited), dailyUsed, createdAt, updatedAt
+        await connection.query(`
+            CREATE TABLE IF NOT EXISTS merchant_daily_limits (
+                id INT PRIMARY KEY AUTO_INCREMENT,
+                merchantId INT NOT NULL,
+                paymentType VARCHAR(50) DEFAULT NULL,
+                dailyLimit DECIMAL(15,2) DEFAULT NULL,
+                dailyUsed DECIMAL(15,2) DEFAULT 0,
+                createdAt DATETIME NOT NULL,
+                updatedAt DATETIME,
+                UNIQUE KEY (merchantId, paymentType),
+                FOREIGN KEY (merchantId) REFERENCES users(id) ON DELETE CASCADE
+            ) ENGINE=InnoDB;
+        `);
+
+        // Ensure legacy columns are migrated if present
+        const [hasPaymentTypeCol] = await connection.query(`SHOW COLUMNS FROM merchant_daily_limits LIKE 'paymentType'`);
+        if (hasPaymentTypeCol.length === 0) {
+            console.log("Adding 'paymentType' column to 'merchant_daily_limits' table...");
+            await connection.query(`ALTER TABLE merchant_daily_limits ADD COLUMN paymentType VARCHAR(50) DEFAULT NULL;`);
+            console.log("'paymentType' column added.");
+        }
+
+        const [hasDailyUsedCol] = await connection.query(`SHOW COLUMNS FROM merchant_daily_limits LIKE 'dailyUsed'`);
+        if (hasDailyUsedCol.length === 0) {
+            console.log("Adding 'dailyUsed' column to 'merchant_daily_limits' table...");
+            await connection.query(`ALTER TABLE merchant_daily_limits ADD COLUMN dailyUsed DECIMAL(15,2) DEFAULT 0;`);
+            console.log("'dailyUsed' column added.");
+        }
+
+        // Make sure dailyLimit allows NULL (NULL = unlimited)
+        const [dailyLimitCol] = await connection.query(`SHOW COLUMNS FROM merchant_daily_limits LIKE 'dailyLimit'`);
+        if (dailyLimitCol.length > 0) {
+            const col = dailyLimitCol[0];
+            if (col.Null === 'NO') {
+                console.log("Altering 'dailyLimit' to allow NULL (NULL = unlimited)...");
+                await connection.query(`ALTER TABLE merchant_daily_limits MODIFY COLUMN dailyLimit DECIMAL(15,2) DEFAULT NULL;`);
+                console.log("'dailyLimit' column altered to allow NULL.");
+            }
+        }
         await connection.query(`
             CREATE TABLE IF NOT EXISTS zelle_email_ai_record (
                 id INT PRIMARY KEY AUTO_INCREMENT,

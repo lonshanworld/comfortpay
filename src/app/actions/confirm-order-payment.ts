@@ -10,6 +10,7 @@
 import { runQuery, executeQuery } from '@/lib/db';
 import type { Order, OrderStatus } from '@/lib/types';
 import { notifyWooCommerce } from '@/app/actions/notify-woocommerce';
+import { formatDateForMySQL } from '@/lib/utils';
 
 interface ConfirmPaymentInput {
     order: Order;
@@ -70,6 +71,36 @@ export async function confirmOrderPayment({ order, amountReceived }: ConfirmPaym
                 console.log(`   - Step 2 Succeeded.`);
             } else {
                  console.warn(`   - Step 2 Skipped: Missing paymentAccountId or paid amount is zero.`);
+            }
+
+            // --- Merchant daily limits: increment dailyUsed when order becomes Completed ---
+            try {
+                const paymentType = currentOrder.paymentType || null;
+                if (paymentType) {
+                    const nowStr = formatDateForMySQL(new Date());
+                    // Atomically upsert/increment dailyUsed for this merchant + paymentType
+                    await runQuery('START TRANSACTION');
+                    try {
+                        const forUpdate = await executeQuery(`SELECT * FROM merchant_daily_limits WHERE merchantId = ? AND paymentType = ? FOR UPDATE`, [currentOrder.merchantId, paymentType]);
+                        if (forUpdate && forUpdate.length > 0) {
+                            const row = forUpdate[0];
+                            const prev = Number(row.dailyUsed || 0);
+                            const newDailyUsed = prev + newPaidAmount;
+                            await runQuery(`UPDATE merchant_daily_limits SET dailyUsed = ?, updatedAt = ? WHERE merchantId = ? AND paymentType = ?`, [newDailyUsed, nowStr, currentOrder.merchantId, paymentType]);
+                            console.log(`   - Step 2b: Incremented merchant_daily_limits.dailyUsed for merchant ${currentOrder.merchantId}, type ${paymentType} by ${newPaidAmount}.`);
+                        } else {
+                            // Insert a row with dailyUsed = newPaidAmount (dailyLimit left NULL if not configured)
+                            await runQuery(`INSERT INTO merchant_daily_limits (merchantId, paymentType, dailyLimit, dailyUsed, createdAt, updatedAt) VALUES (?, ?, NULL, ?, ?, ?)`, [currentOrder.merchantId, paymentType, newPaidAmount, nowStr, nowStr]);
+                            console.log(`   - Step 2b: Inserted merchant_daily_limits row for merchant ${currentOrder.merchantId}, type ${paymentType} with dailyUsed=${newPaidAmount}.`);
+                        }
+                        await runQuery('COMMIT');
+                    } catch (txErr) {
+                        await runQuery('ROLLBACK');
+                        console.warn('Failed to increment merchant_daily_limits.dailyUsed after order completion:', txErr);
+                    }
+                }
+            } catch (e) {
+                console.warn('Failed to update merchant_daily_limits after completion (continuing):', e);
             }
 
             if (currentOrder.wooCommerceSiteUrl) {

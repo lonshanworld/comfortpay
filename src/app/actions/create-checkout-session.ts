@@ -75,6 +75,10 @@ export async function createCheckoutSession(input: CreateCheckoutSessionInput): 
         availableProcessorsForMethod = ['Stripe', 'Square'];
     } else if (input.paymentMethod === 'zelle') {
         availableProcessorsForMethod = ['Zelle'];
+    } else if (input.paymentMethod === 'interac') {
+        availableProcessorsForMethod = ['Interac'];
+    } else if (input.paymentMethod === 'wise') {
+        availableProcessorsForMethod = ['Wise'];
     } else {
         console.error(`❌ [createCheckoutSession] Error: Unsupported payment method: ${input.paymentMethod}`);
        await appLog({ ...logContext, description: `Error at Step 3: Unsupported payment method: ${input.paymentMethod}`, plugin_status: 'error' });
@@ -83,7 +87,8 @@ export async function createCheckoutSession(input: CreateCheckoutSessionInput): 
     
     // Filter down to only the processors the merchant has explicitly enabled
     const enabledProcessors = availableProcessorsForMethod.filter(proc => {
-        const gatewayConfig = merchantGatewayFees?.[proc.toLowerCase() as 'stripe' | 'square' | 'zelle'];
+        const key = proc.toLowerCase();
+        const gatewayConfig = merchantGatewayFees?.[key as 'stripe' | 'square' | 'zelle' | 'interac' | 'wise'];
         return gatewayConfig?.enabled;
     });
 
@@ -99,22 +104,40 @@ export async function createCheckoutSession(input: CreateCheckoutSessionInput): 
     // 2. Query for all active payment accounts of the enabled types that are NOT already over their limit.
     let selectedAccount: PaymentAccount | null = null;
     
-    if (input.paymentMethod === 'zelle') {
-        console.log(`[createCheckoutSession] Zelle method detected. Using round-robin selection.`);
-        await appLog({ ...logContext, description: `Step 4: Selecting Zelle account via round-robin.`, plugin_status: 'info' });
-        const eligibleZelleAccounts: PaymentAccount[] = await executeQuery(
-            `SELECT * FROM payment_accounts 
-             WHERE type = 'Zelle' AND status = 'Active' AND currentVolume < dailyLimit 
-             ORDER BY last_used_at ASC, id ASC`, // Fallback to id for deterministic order
-            []
-        );
-        if (eligibleZelleAccounts.length > 0) {
-            selectedAccount = eligibleZelleAccounts[0]; // Pick the least recently used one
-             console.log(`[createCheckoutSession] Selected Zelle account via round-robin: ID ${selectedAccount.id}`);
-             await appLog({ ...logContext, description: `Step 4: Selected Zelle account ID ${selectedAccount.id} via round-robin.`, plugin_status: 'info' });
-        } else {
-            console.error(`❌ [createCheckoutSession] Error: No Zelle accounts available that are under their daily processing limit.`);
-            await appLog({ ...logContext, description: `Error at Step 5: No Zelle accounts available under daily limit.`, plugin_status: 'error' });
+    if (input.paymentMethod === 'zelle' || input.paymentMethod === 'interac' || input.paymentMethod === 'wise') {
+        const methodType = input.paymentMethod === 'zelle' ? 'Zelle' : (input.paymentMethod === 'interac' ? 'Interac' : 'Wise');
+        console.log(`[createCheckoutSession] ${methodType} method detected. Selecting account atomically.`);
+        await appLog({ ...logContext, description: `Step 4: Selecting ${methodType} account (atomic).`, plugin_status: 'info' });
+        // Atomically pick the least-recently-used account and update its last_used_at to avoid races
+        try {
+            await runQuery('START TRANSACTION');
+            const forUpdateRows: any[] = await executeQuery(
+                `SELECT * FROM payment_accounts WHERE type = ? AND status = 'Active' AND currentVolume < dailyLimit ORDER BY last_used_at ASC, id ASC LIMIT 1 FOR UPDATE`,
+                [methodType]
+            );
+            if (forUpdateRows && forUpdateRows.length > 0) {
+                const candidate = forUpdateRows[0];
+                const nowStr = formatDateForMySQL(new Date());
+                try {
+                    await runQuery(`UPDATE payment_accounts SET last_used_at = ? WHERE id = ?`, [nowStr, candidate.id]);
+                    await runQuery('COMMIT');
+                    // Reload the selected account row to ensure we have the latest values
+                    const reloaded = await executeQuery(`SELECT * FROM payment_accounts WHERE id = ? LIMIT 1`, [candidate.id]);
+                    selectedAccount = reloaded && reloaded.length > 0 ? reloaded[0] : candidate;
+                    console.log(`[createCheckoutSession] Atomically selected account ID ${selectedAccount.id} for ${methodType}`);
+                    await appLog({ ...logContext, description: `Step 4: Atomically selected account ID ${selectedAccount.id} for ${methodType}.`, plugin_status: 'info' });
+                } catch (updErr) {
+                    await runQuery('ROLLBACK');
+                    console.warn('[createCheckoutSession] Failed to update last_used_at for selected account (rollback):', updErr);
+                }
+            } else {
+                await runQuery('ROLLBACK');
+                console.error(`❌ [createCheckoutSession] Error: No ${methodType} accounts available that are under their daily processing limit.`);
+                await appLog({ ...logContext, description: `Error at Step 5: No ${methodType} accounts available under daily limit.`, plugin_status: 'error' });
+            }
+        } catch (txErr) {
+            try { await runQuery('ROLLBACK'); } catch (e) {}
+            console.warn('[createCheckoutSession] Account selection transaction failed (continuing):', txErr);
         }
     } else { // Card payments (Stripe/Square)
         const placeholders = enabledProcessors.map(() => '?').join(',');
@@ -172,7 +195,7 @@ export async function createCheckoutSession(input: CreateCheckoutSessionInput): 
         ? new URL(input.wooCommerceOrderReceivedUrl).origin
         : null;
     
-    const initialStatus = input.paymentMethod === 'zelle' ? 'On-Hold' : 'Pending';
+    const initialStatus = (input.paymentMethod === 'zelle' || input.paymentMethod === 'interac' || input.paymentMethod === 'wise') ? 'On-Hold' : 'Pending';
     
     const orderInsertQuery = `
       INSERT INTO orders 
@@ -192,7 +215,7 @@ export async function createCheckoutSession(input: CreateCheckoutSessionInput): 
         // Safely use email if available
         input.billingDetails?.email ?? null,
         initialStatus,
-        input.paymentMethod === 'card' ? 'Credit Card' : 'Zelle',
+        input.paymentMethod === 'card' ? 'Credit Card' : (input.paymentMethod === 'zelle' ? 'Zelle' : (input.paymentMethod === 'interac' ? 'Interac' : 'Wise')),
         input.subtotal ?? 0,
         input.taxAmount ?? 0,
         input.shippingAmount ?? 0,
@@ -209,7 +232,7 @@ export async function createCheckoutSession(input: CreateCheckoutSessionInput): 
     // Idempotency: check for existing order with same merchantOrderId + wooCommerceSiteUrl
     let orderResult: any;
     try {
-        const existingQuery = `SELECT id, totalAmount, status FROM orders WHERE merchantOrderId = ? AND wooCommerceSiteUrl LIKE ? LIMIT 1`;
+        const existingQuery = `SELECT id, totalAmount, status, paymentAccountId, visualOrderId FROM orders WHERE merchantOrderId = ? AND wooCommerceSiteUrl LIKE ? LIMIT 1`;
         const existingParams = [input.merchantOrderId, wooSiteUrl ? `%${wooSiteUrl}%` : '%'];
         const existingRows = await executeQuery(existingQuery, existingParams as any[]);
         if (existingRows && existingRows.length > 0) {
@@ -229,7 +252,19 @@ export async function createCheckoutSession(input: CreateCheckoutSessionInput): 
             if (diff <= 0.01) {
                 console.log(`⚠️ [createCheckoutSession] Existing order found (id=${existing.id}) matching merchantOrderId=${input.merchantOrderId}. Reusing existing order.`);
                 await appLog({ ...logContext, description: `Existing order reused id=${existing.id} for merchantOrderId=${input.merchantOrderId}.`, plugin_status: 'warning' });
-                orderResult = { id: existing.id };
+                // Try to load the original payment account used for this order to keep session details consistent
+                let accountForSession: any = null;
+                try {
+                    if (existing.paymentAccountId) {
+                        const paRows = await executeQuery(`SELECT * FROM payment_accounts WHERE id = ? LIMIT 1`, [existing.paymentAccountId]);
+                        if (paRows && paRows.length > 0) accountForSession = paRows[0];
+                    }
+                } catch (paErr) {
+                    console.warn('[createCheckoutSession] Failed to load original payment account for reused order:', paErr);
+                }
+                // If we couldn't load original account, fall back to the account we selected earlier
+                if (!accountForSession) accountForSession = selectedAccount;
+                orderResult = { id: existing.id, paymentAccountForSession: accountForSession, visualOrderId: existing.visualOrderId };
             } else {
                 const errMsg = `Existing order found with different totalAmount (existing=${existingTotal}, requested=${requestedTotal}).`;
                 console.warn(`❌ [createCheckoutSession] ${errMsg}`);
@@ -237,9 +272,35 @@ export async function createCheckoutSession(input: CreateCheckoutSessionInput): 
                 return { error: errMsg };
             }
         } else {
-            await appLog({ ...logContext, description: `Step 7: Inserting order into DB with visual ID ${visualId}.`, plugin_status: 'info' });
-            orderResult = await runQuery(orderInsertQuery, orderParams);
-            await appLog({ ...logContext, description: `Step 8: Order inserted successfully with DB ID ${orderResult.id}.`, plugin_status: 'info' });
+                await appLog({ ...logContext, description: `Step 7: Preparing to insert order into DB with visual ID ${visualId}. Enforcing merchant limits if applicable.`, plugin_status: 'info' });
+                // Enforce per-merchant daily limits atomically using merchant_daily_limits table (if configured per payment type)
+                try {
+                                // Determine paymentType to check limits for: use selected gateway (e.g., 'Stripe','Square','Zelle','Interac','Wise')
+                                // Use the stored `dailyUsed` value as the authoritative counter. The system updates `dailyUsed`
+                                // only when an order is completed (or overpaid/refunded), so session creation should only
+                                // block if `dailyUsed` is already at or above the `dailyLimit`.
+                                const paymentType = selectedGateway;
+                                const limitRows = await executeQuery(`SELECT * FROM merchant_daily_limits WHERE merchantId = ? AND paymentType = ? LIMIT 1`, [numericMerchantId, paymentType]);
+                                if (limitRows && limitRows.length > 0) {
+                                    const limitRow = limitRows[0];
+                                    const dailyLimit = limitRow.dailyLimit === null ? null : Number(limitRow.dailyLimit || 0);
+                                    const dailyUsed = limitRow.dailyUsed === null ? 0 : Number(limitRow.dailyUsed || 0);
+                                    if (dailyLimit !== null && dailyLimit > 0) {
+                                        // Block only when the merchant has already used up their allocation.
+                                        if (dailyUsed >= dailyLimit) {
+                                            const errMsg = 'This merchant has exceeded their daily processing limit for this payment type. Please try again tomorrow or contact support.';
+                                            await appLog({ ...logContext, description: `Merchant daily limit exceeded for merchantId=${numericMerchantId}, paymentType=${paymentType}. limit=${dailyLimit}, dailyUsed=${dailyUsed}`, plugin_status: 'error' });
+                                            return { error: errMsg };
+                                        }
+                                        // Otherwise allow the session. `dailyUsed` will be updated when the order reaches completed status.
+                                    }
+                                }
+                } catch (limitErr) {
+                    console.warn('[createCheckoutSession] Could not enforce merchant_daily_limits (continuing):', limitErr);
+                }
+
+                orderResult = await runQuery(orderInsertQuery, orderParams);
+                await appLog({ ...logContext, description: `Step 8: Order inserted successfully with DB ID ${orderResult.id}.`, plugin_status: 'info' });
         }
     } catch (err) {
         console.error('[createCheckoutSession] Idempotency check failed, proceeding with insert:', err);
@@ -249,32 +310,37 @@ export async function createCheckoutSession(input: CreateCheckoutSessionInput): 
     }
     const newOrderId = `CP${orderResult.id}`;
     console.log(`📝 [createCheckoutSession] Order created or reused in DB. Result:`, { newComfortPayId: newOrderId, dbInsertId: orderResult.id });
-    // If a Zelle account was used, update its last_used_at timestamp.
-    if (selectedAccount.type === 'Zelle') {
-        console.log(`[createCheckoutSession] Updating last_used_at for Zelle account ID: ${selectedAccount.id}`);
+    // If a Zelle/Interac/Wise account was used, update its last_used_at timestamp.
+    if (['Zelle', 'Interac', 'Wise'].includes(selectedAccount.type)) {
+        console.log(`[createCheckoutSession] Updating last_used_at for account ID (${selectedAccount.type}): ${selectedAccount.id}`);
         await runQuery(
             `UPDATE payment_accounts SET last_used_at = ? WHERE id = ?`,
             [formatDateForMySQL(now), selectedAccount.id]
         );
-        await appLog({ ...logContext, description: `Step 9: Updated last_used_at for Zelle account ID ${selectedAccount.id}.`, plugin_status: 'info' });
+        await appLog({ ...logContext, description: `Step 9: Updated last_used_at for account ID ${selectedAccount.id}.`, plugin_status: 'info' });
         console.log(`[createCheckoutSession] Timestamp updated successfully.`);
     }
     
+    // Decide which account object to use for session payload (original order's account when reusing)
+    const accountForSession = orderResult?.paymentAccountForSession ? orderResult.paymentAccountForSession : selectedAccount;
+
     const sessionDataWithDetails = { 
         ...input,
         wooCommerceOrderReceivedUrl: input.wooCommerceOrderReceivedUrl || input.redirectUrl,
-        visualOrderId: visualId,
+        visualOrderId: orderResult?.visualOrderId || visualId,
         comfortPayOrderId: newOrderId,
         merchantOrigin: merchant.websiteUrl,
         processor: selectedGateway,
         paymentDetails: {
             ...input.paymentDetails, // Spread incoming details first
             paymentAccountId: `pa_${paymentAccountId}`, // Then overwrite/add our secure details
-            qrCodeUrl: selectedAccount.qrCodeUrl,
-            accountEmail: selectedAccount.accountEmail,
-            zelleName: selectedAccount.name ?? '',
+            qrCodeUrl: accountForSession?.qrCodeUrl || selectedAccount.qrCodeUrl,
+            accountEmail: accountForSession?.accountEmail || selectedAccount.accountEmail,
+            accountName: accountForSession?.name || selectedAccount.name || null,
+            accountTag: accountForSession?.tag || selectedAccount.tag || null,
+            zelleName: accountForSession?.name ?? '',
             // Backwards-compat: also expose `name` for older plugin templates
-            name: selectedAccount.name ?? ''
+            name: accountForSession?.name ?? ''
         }
     };
     await appLog({ ...logContext, description: `Step 10: Created session data with all details for order ID ${newOrderId}.`, raw_request: sessionDataWithDetails, plugin_status: 'info' });

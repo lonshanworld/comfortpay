@@ -37,6 +37,7 @@ import type { Merchant, User } from "@/lib/types";
 import { ScrollArea } from "../ui/scroll-area";
 import { Label } from "../ui/label";
 import { Switch } from "../ui/switch";
+import { Badge } from "../ui/badge";
 
 
 const feeSchema = z.object({
@@ -86,18 +87,180 @@ const merchantFormSchema = z.object({
     stripe: gatewayFeeSchema.optional(),
     square: gatewayFeeSchema.optional(),
     zelle: gatewayFeeSchema.optional(),
+    interac: gatewayFeeSchema.optional(),
+    wise: gatewayFeeSchema.optional(),
   }).optional(),
   salesAgentId: z.string().optional(),
   commissionRates: z.object({
       stripe: feeSchema.optional(),
       square: feeSchema.optional(),
       zelle: feeSchema.optional(),
+      interac: feeSchema.optional(),
+      wise: feeSchema.optional(),
   }).optional(),
+  merchantDailyLimits: z.record(z.any()).optional(),
 });
 
 
 type MerchantFormValues = z.infer<typeof merchantFormSchema>;
 
+const sanitizeForForm = (value: any): any => {
+  // Keep only plain objects and arrays. This ensures we don't pass class
+  // instances (including Zod internals) into react-hook-form defaults.
+  console.log('sanitizeForForm input:', value);
+  const seen = new WeakSet();
+  console.log('sanitizeForForm: initialized seen set');
+  const isPlainObject = (o: any) => {
+    if (!o || typeof o !== 'object') return false;
+    const proto = Object.getPrototypeOf(o);
+    return proto === Object.prototype || proto === null;
+  };
+  console.log('sanitizeForForm: defined isPlainObject helper');
+  const _sanitize = (v: any, path: string = '<root>') => {
+    console.log(`sanitizeForForm: enter path=${path} valueType=${v === null ? 'null' : typeof v}`);
+    if (v === null || v === undefined) {
+      console.log(`sanitizeForForm: path=${path} -> null/undefined`);
+      return v;
+    }
+    const t = typeof v;
+    if (t === 'string' || t === 'number' || t === 'boolean') {
+      console.log(`sanitizeForForm: path=${path} -> primitive (${t}) =`, v);
+      return v;
+    }
+    if (v instanceof Date) {
+      const iso = v.toISOString();
+      console.log(`sanitizeForForm: path=${path} -> Date ->`, iso);
+      return iso;
+    }
+    if (Array.isArray(v)) {
+      console.log(`sanitizeForForm: path=${path} -> array length=${v.length}`);
+      return v.map((item, i) => _sanitize(item, `${path}[${i}]`));
+    }
+    if (isPlainObject(v)) {
+      if (seen.has(v)) {
+        console.log(`sanitizeForForm: path=${path} -> cycle detected, omitting`);
+        return undefined;
+      }
+      seen.add(v);
+      const out: any = {};
+      console.log(`sanitizeForForm: path=${path} -> plain object, keys=${Object.keys(v).join(',')}`);
+      for (const k of Object.keys(v)) {
+        try {
+          const sv = _sanitize(v[k], `${path}.${k}`);
+          if (typeof sv !== 'undefined') {
+            out[k] = sv;
+            console.log(`sanitizeForForm: path=${path}.${k} -> kept`);
+          } else {
+            console.log(`sanitizeForForm: path=${path}.${k} -> omitted`);
+          }
+        } catch (e) {
+          console.warn(`sanitizeForForm: path=${path}.${k} -> sanitize error`, e);
+        }
+      }
+
+      // Coerce fee value strings to numbers where appropriate to match schema expectations
+      if (out && typeof out === 'object') {
+        const maybeFeeKeys = ['value'];
+        for (const fk of maybeFeeKeys) {
+          if (fk in out && typeof out[fk] === 'string' && out[fk] !== '') {
+            const n = Number(out[fk]);
+            console.log(`sanitizeForForm: path=${path}.${fk} coercing string->number candidate='${out[fk]}' => ${n}`);
+            out[fk] = Number.isNaN(n) ? out[fk] : n;
+          }
+        }
+      }
+
+      console.log(`sanitizeForForm: path=${path} -> returning object keys=${Object.keys(out).join(',')}`);
+      return out;
+    }
+    // not a plain object -> omit (filters Zod instances, class instances, functions)
+    console.log(`sanitizeForForm: path=${path} -> non-plain object or function, omitting`);
+    return undefined;
+  };
+
+  try {
+    return _sanitize(value);
+  } catch (e) {
+    console.warn('sanitizeForForm failed', e);
+    return undefined;
+  }
+}
+
+// Ensure form default values use stable primitive types so components
+// don't switch between uncontrolled and controlled states.
+const normalizeFormValues = (v: any) => {
+  const out: any = {
+    name: v?.name ?? "",
+    email: v?.email ?? "",
+    password: "",
+    websiteUrl: v?.websiteUrl ?? "",
+    orderIdPrefix: v?.orderIdPrefix ?? "",
+    status: v?.status ?? "Active",
+    nationality: v?.nationality ?? "",
+    dateOfBirth: v?.dateOfBirth ?? "",
+    idType: v?.idType ?? "",
+    bankName: v?.bankName ?? "",
+    bankAccountNumber: v?.bankAccountNumber ?? "",
+    bankAccountType: v?.bankAccountType ?? "",
+    bankEmail: v?.bankEmail ?? "",
+    walletAddress: v?.walletAddress ?? "",
+    network: v?.network ?? "",
+    photoId: v?.photoId ?? null,
+    businessDocument: v?.businessDocument ?? null,
+    salesAgentId: v?.salesAgentId ?? "none",
+    commissionRates: {},
+    paymentGatewayFees: {},
+    merchantDailyLimits: {},
+    settlementFees: {},
+    ...v,
+  };
+
+  // Normalize payment gateways and fee shapes
+  const gateways = ['stripe','square','zelle','interac','wise'];
+  for (const g of gateways) {
+    const pg = (out.paymentGatewayFees && out.paymentGatewayFees[g]) || {};
+    out.paymentGatewayFees[g] = {
+      enabled: typeof pg.enabled === 'boolean' ? pg.enabled : false,
+      transactionFee: {
+        value: typeof pg.transactionFee?.value === 'number' ? pg.transactionFee.value : (pg.transactionFee?.value ?? ''),
+        type: pg.transactionFee?.type ?? ''
+      },
+      transactionFeeFixed: {
+        value: typeof pg.transactionFeeFixed?.value === 'number' ? pg.transactionFeeFixed.value : (pg.transactionFeeFixed?.value ?? ''),
+        type: pg.transactionFeeFixed?.type ?? ''
+      },
+      refundFee: {
+        value: typeof pg.refundFee?.value === 'number' ? pg.refundFee.value : (pg.refundFee?.value ?? ''),
+        type: pg.refundFee?.type ?? ''
+      },
+      chargebackFee: {
+        value: typeof pg.chargebackFee?.value === 'number' ? pg.chargebackFee.value : (pg.chargebackFee?.value ?? ''),
+        type: pg.chargebackFee?.type ?? ''
+      }
+    };
+
+    const comm = (out.commissionRates && out.commissionRates[g]) || {};
+    out.commissionRates[g] = {
+      value: typeof comm.value === 'number' ? comm.value : (comm.value ?? ''),
+      type: comm.type ?? ''
+    };
+
+    const mdl = (out.merchantDailyLimits && out.merchantDailyLimits[g]) || {};
+    out.merchantDailyLimits[g] = {
+      dailyLimit: typeof mdl.dailyLimit === 'number' ? mdl.dailyLimit : (mdl.dailyLimit ?? ''),
+      dailyUsed: typeof mdl.dailyUsed === 'number' ? mdl.dailyUsed : (mdl.dailyUsed ?? 0),
+    };
+  }
+
+  // Settlement fees
+  out.settlementFees = out.settlementFees || {};
+  const sf = out.settlementFees;
+  sf.domesticTransferFee = sf.domesticTransferFee || { value: '', type: '' };
+  sf.internationalTransferFee = sf.internationalTransferFee || { value: '', type: '' };
+  sf.cryptoTransferFee = sf.cryptoTransferFee || { value: '', type: '' };
+
+  return out;
+}
 interface EditMerchantDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -152,11 +315,24 @@ const FeeInput = ({ name, control, label }: { name: string, control: any, label:
 );
 
 
-const GatewayFeeSection = ({ gatewayName, control }: { gatewayName: 'stripe' | 'square' | 'zelle', control: any }) => {
+const GatewayFeeSection = ({ gatewayName, control }: { gatewayName: 'stripe' | 'square' | 'zelle' | 'interac' | 'wise', control: any }) => {
     const isEnabled = useWatch({
       control,
       name: `paymentGatewayFees.${gatewayName}.enabled`,
     });
+    // Watch merchant daily limits so we can show when a gateway is disabled by usage
+    const merchantDailyLimits = useWatch({ control, name: 'merchantDailyLimits' }) as Record<string, any> | undefined;
+    const limitEntry = merchantDailyLimits ? merchantDailyLimits[gatewayName] : undefined;
+    let limitReached = false;
+    let limitDisplay = '';
+    if (limitEntry && typeof limitEntry !== 'string') {
+      const dailyLimit = limitEntry.dailyLimit === '' || limitEntry.dailyLimit === null || typeof limitEntry.dailyLimit === 'undefined' ? null : Number(limitEntry.dailyLimit);
+      const dailyUsed = typeof limitEntry.dailyUsed === 'undefined' || limitEntry.dailyUsed === null || limitEntry.dailyUsed === '' ? 0 : Number(limitEntry.dailyUsed);
+      if (dailyLimit !== null && !Number.isNaN(dailyLimit)) {
+        limitReached = dailyUsed >= dailyLimit;
+        limitDisplay = `${dailyUsed.toFixed(2)} / ${dailyLimit.toFixed(2)}`;
+      }
+    }
   
     return (
         <div className="space-y-4 rounded-md border p-4">
@@ -173,6 +349,13 @@ const GatewayFeeSection = ({ gatewayName, control }: { gatewayName: 'stripe' | '
                     onCheckedChange={field.onChange}
                   />
                 </FormControl>
+                {limitReached && (
+                  <div className="ml-2">
+                    <Badge variant="destructive" title={`Daily limit reached (${limitDisplay})`}>
+                      Limit reached
+                    </Badge>
+                  </div>
+                )}
               </FormItem>
             )}
           />
@@ -204,6 +387,19 @@ const GatewayFeeSection = ({ gatewayName, control }: { gatewayName: 'stripe' | '
                 </div>
                  <FeeInput name={`paymentGatewayFees.${gatewayName}.refundFee`} control={control} label="Refund Fee" />
                  <FeeInput name={`paymentGatewayFees.${gatewayName}.chargebackFee`} control={control} label="Chargeback Fee" />
+                 <FormField
+                   control={control}
+                   name={`merchantDailyLimits.${gatewayName}.dailyLimit`}
+                   render={({ field }) => (
+                     <FormItem>
+                       <FormLabel className="text-xs">Daily Limit (leave empty for unlimited)</FormLabel>
+                       <FormControl>
+                         <Input type="number" step="0.01" placeholder="e.g., 1000.00" {...field} value={field.value ?? ''} />
+                       </FormControl>
+                       <FormMessage />
+                     </FormItem>
+                   )}
+                 />
             </div>
          )}
       </div>
@@ -217,8 +413,10 @@ export function EditMerchantDialog({ open, onOpenChange, onMerchantUpdated, merc
     const [showPassword, setShowPassword] = useState(false);
 
   
+  // Do not use a resolver to avoid react-hook-form invoking Zod internals.
+  // We'll perform manual sanitation and validation at submit time.
   const form = useForm<MerchantFormValues>({
-    resolver: zodResolver(merchantFormSchema),
+    mode: 'onSubmit',
   });
 
   useEffect(() => {
@@ -236,32 +434,78 @@ export function EditMerchantDialog({ open, onOpenChange, onMerchantUpdated, merc
     }
   }, [open]);
 
+  
+
   useEffect(() => {
-    if (merchant && open) {
-        const defaultGatewayFees = {
-            stripe: { enabled: false, transactionFee: {}, transactionFeeFixed: {}, refundFee: {}, chargebackFee: {} },
-            square: { enabled: false, transactionFee: {}, transactionFeeFixed: {}, refundFee: {}, chargebackFee: {} },
-            zelle: { enabled: false, transactionFee: {}, transactionFeeFixed: {}, refundFee: {}, chargebackFee: {} },
-        };
+    console.log('EditMerchantDialog: merchant prop changed', merchant);
+    if (!merchant || !open) return;
 
-        const paymentGatewayFees = {
-          stripe: { ...defaultGatewayFees.stripe, ...(merchant.paymentGatewayFees?.stripe || {}) },
-          square: { ...defaultGatewayFees.square, ...(merchant.paymentGatewayFees?.square || {}) },
-          zelle: { ...defaultGatewayFees.zelle, ...(merchant.paymentGatewayFees?.zelle || {}) },
-        };
+    let active = true;
+    const fetchAndReset = async () => {
+      // Prepare defaults
+      const defaultGatewayFees = {
+        stripe: { enabled: false, transactionFee: {}, transactionFeeFixed: {}, refundFee: {}, chargebackFee: {} },
+        square: { enabled: false, transactionFee: {}, transactionFeeFixed: {}, refundFee: {}, chargebackFee: {} },
+        zelle: { enabled: false, transactionFee: {}, transactionFeeFixed: {}, refundFee: {}, chargebackFee: {} },
+        interac: { enabled: false, transactionFee: {}, transactionFeeFixed: {}, refundFee: {}, chargebackFee: {} },
+        wise: { enabled: false, transactionFee: {}, transactionFeeFixed: {}, refundFee: {}, chargebackFee: {} },
+      };
 
-        const formValues = {
-            ...merchant,
-            password: "",
-            dateOfBirth: merchant.dateOfBirth ? new Date(merchant.dateOfBirth).toISOString().split('T')[0] : "",
-            salesAgentId: merchant.salesAgentId || "none",
-            paymentGatewayFees: paymentGatewayFees,
-        };
-        form.reset(formValues);
-    }
+      // Start with the prop merchant, but attempt to fetch the freshest server copy
+      let source: Merchant = merchant;
+      try {
+        const res = await fetch(`/api/merchants-v2/${merchant.id}`);
+        if (active && res.ok) {
+          const data = await res.json();
+          source = data as Merchant;
+          console.debug('EditMerchantDialog: fetched fresh merchant data', source);
+        } else if (!res.ok) {
+          console.warn('EditMerchantDialog: failed to fetch fresh merchant, using provided prop', { status: res.status });
+        }
+      } catch (e) {
+        console.warn('EditMerchantDialog: error fetching fresh merchant, using provided prop', e);
+      }
+
+      if (!active) return;
+
+      const paymentGatewayFees = {
+        stripe: { ...defaultGatewayFees.stripe, ...(source.paymentGatewayFees?.stripe || {}) },
+        square: { ...defaultGatewayFees.square, ...(source.paymentGatewayFees?.square || {}) },
+        zelle: { ...defaultGatewayFees.zelle, ...(source.paymentGatewayFees?.zelle || {}) },
+        interac: { ...defaultGatewayFees.interac, ...(source.paymentGatewayFees?.interac || {}) },
+        wise: { ...defaultGatewayFees.wise, ...(source.paymentGatewayFees?.wise || {}) },
+      };
+
+      const formValues = {
+        ...source,
+        password: "",
+        dateOfBirth: source.dateOfBirth ? new Date(source.dateOfBirth).toISOString().split('T')[0] : "",
+        salesAgentId: source.salesAgentId || "none",
+        paymentGatewayFees: paymentGatewayFees,
+        merchantDailyLimits: (source as any).merchantDailyLimits || {},
+      };
+
+      // Sanitize and normalize to stable primitives to avoid uncontrolled->controlled
+      console.log("EditMerchantDialog: resetting form with merchant data", { formValues });
+      try {
+        const sanitized = sanitizeForForm(formValues);
+        const normalized = normalizeFormValues(sanitized || formValues || {});
+        console.log('EditMerchantDialog: resetting form with sanitized+normalized formValues', normalized);
+        form.reset(normalized as any);
+      } catch (e) {
+        console.warn('EditMerchantDialog: JSON sanitize/normalize failed, resetting with raw formValues', e, formValues);
+        const normalized = normalizeFormValues(formValues || {});
+        form.reset(normalized as any);
+      }
+    };
+
+    fetchAndReset();
+    return () => { active = false; };
   }, [merchant, open, form]);
 
   const onSubmit = async (values: MerchantFormValues) => {
+    console.log('on submit start');
+    console.log('EditMerchantDialog: onSubmit called with values', values); 
     if (!merchant) return;
     setIsLoading(true);
 
@@ -286,17 +530,19 @@ export function EditMerchantDialog({ open, onOpenChange, onMerchantUpdated, merc
     }
 
     try {
-      const response = await fetch(`/api/merchants/${merchant.id}`, {
+      const response = await fetch(`/api/merchants-v2/${merchant.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(dataToSubmit),
       });
+      console.log('EditMerchantDialog: PUT payload', dataToSubmit);
 
       if (!response.ok) {
         throw new Error('Failed to update merchant');
       }
       
       const updatedMerchant = await response.json();
+      console.log('EditMerchantDialog: PUT response', updatedMerchant);
       
       toast({
         title: "Merchant Updated",
@@ -315,6 +561,40 @@ export function EditMerchantDialog({ open, onOpenChange, onMerchantUpdated, merc
     } finally {
       setIsLoading(false);
     }
+  };
+
+  // Robust stripper to remove any runtime/schema-like objects before validation
+  const stripZodLikeSafe = (v: any, path = '<root>', seen = new WeakSet()): any => {
+    try {
+      if (v === null || v === undefined) return v;
+    } catch (e) {
+      console.warn('stripZodLikeSafe: early access error', { path, error: e });
+      return undefined;
+    }
+    if (typeof v !== 'object') return v;
+    if (seen.has(v)) return undefined;
+    // Guarded detection
+    try {
+      if ((v as any)._def || (v as any)._zod) {
+        console.warn('stripZodLikeSafe: stripping Zod-like object at', path);
+        return undefined;
+      }
+    } catch (e) {
+      console.warn('stripZodLikeSafe: reading _def/_zod threw, stripping', { path, error: e });
+      return undefined;
+    }
+    seen.add(v);
+    if (Array.isArray(v)) return v.map((it, i) => stripZodLikeSafe(it, `${path}[${i}]`, seen)).filter((x) => typeof x !== 'undefined');
+    const out: any = {};
+    let keys: string[] = [];
+    try { keys = Object.keys(v); } catch (e) { console.warn('stripZodLikeSafe: Object.keys threw', { path, error: e }); return undefined; }
+    for (const k of keys) {
+      let child;
+      try { child = (v as any)[k]; } catch (e) { console.warn('stripZodLikeSafe: reading prop threw', { path: `${path}.${k}`, error: e }); continue; }
+      const cleaned = stripZodLikeSafe(child, path ? `${path}.${k}` : k, seen);
+      if (typeof cleaned !== 'undefined') out[k] = cleaned;
+    }
+    return out;
   };
   
   const handleOpenChange = (open: boolean) => {
@@ -336,7 +616,73 @@ export function EditMerchantDialog({ open, onOpenChange, onMerchantUpdated, merc
         </DialogHeader>
         <Form {...form}>
           <ScrollArea className="max-h-[70vh]">
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 py-4 pr-6">
+            <form
+              onSubmit={async (e) => {
+                e.preventDefault();
+                try {
+                  // Get raw values from the form and perform manual sanitization
+                  const rawValues = form.getValues();
+                  console.debug('EditMerchantDialog: rawValues before sanitize', rawValues);
+                  const cleaned = sanitizeForForm(rawValues) || {};
+
+                  // coerce merchantDailyLimits strings -> numbers
+                  if (cleaned && typeof cleaned === 'object' && cleaned.merchantDailyLimits && typeof cleaned.merchantDailyLimits === 'object') {
+                    for (const [k, v] of Object.entries(cleaned.merchantDailyLimits)) {
+                      if (typeof v === 'string' && v !== '') {
+                        const n = Number(v);
+                        cleaned.merchantDailyLimits[k] = Number.isNaN(n) ? v : n;
+                      }
+                    }
+                  }
+
+                  // Further strip any runtime/schema objects that survived sanitizeForForm
+                  const finalClean = stripZodLikeSafe(cleaned) || {};
+                  console.debug('EditMerchantDialog: finalClean before validation', finalClean);
+
+                  // Run Zod validation manually and show errors if any
+                  let result;
+                  try {
+                    result = merchantFormSchema.safeParse(finalClean);
+                  } catch (parseErr) {
+                    // Zod threw unexpectedly (likely due to a runtime/schema-like value lurking).
+                    console.error('EditMerchantDialog: safeParse threw, falling back to raw submission', parseErr, { finalClean, rawValues });
+                    // As a safe fallback, send a JSON-roundtripped version of the raw values to the API
+                    try {
+                      const fallback = JSON.parse(JSON.stringify(rawValues || {}));
+                      await onSubmit(fallback as any);
+                    } catch (sendErr) {
+                      console.error('EditMerchantDialog: fallback submit failed', sendErr);
+                      toast({ variant: 'destructive', title: 'Submission failed', description: 'Could not submit data.' });
+                    }
+                    return;
+                  }
+
+                  if (!result.success) {
+                    const errors: any = {};
+                    for (const issue of result.error.errors) {
+                      const path = issue.path.join('.') || '_root';
+                      errors[path] = { type: 'validation', message: issue.message };
+                    }
+                    console.warn('EditMerchantDialog: validation failed', result.error, { cleaned });
+                    // Set form errors for UI
+                    for (const [path, err] of Object.entries(errors)) {
+                      // react-hook-form expects nested paths with dot notation
+                      try { form.setError(path as any, { type: (err as any).type, message: (err as any).message } as any); } catch (_e) {}
+                    }
+                    return;
+                  }
+
+                  // If validation passed, call existing onSubmit with parsed data
+                  const validated = result.data as MerchantFormValues;
+                  // Call the same submit handler that sends the PUT
+                  await onSubmit(validated);
+                } catch (err) {
+                  console.error('EditMerchantDialog: manual submit threw', err);
+                  toast({ variant: 'destructive', title: 'Submission failed', description: 'Unexpected error during submit.' });
+                }
+              }}
+              className="space-y-4 py-4 pr-6"
+            >
               <h4 className="text-sm font-semibold text-primary">Login Credentials</h4>
                <FormField
                 control={form.control}
@@ -613,6 +959,8 @@ export function EditMerchantDialog({ open, onOpenChange, onMerchantUpdated, merc
                     <GatewayFeeSection gatewayName="stripe" control={form.control} />
                     <GatewayFeeSection gatewayName="square" control={form.control} />
                     <GatewayFeeSection gatewayName="zelle" control={form.control} />
+                    <GatewayFeeSection gatewayName="interac" control={form.control} />
+                    <GatewayFeeSection gatewayName="wise" control={form.control} />
                 </div>
                 <Separator className="my-4" />
                 <h4 className="text-sm font-semibold text-primary">Sales & Commission</h4>
@@ -644,8 +992,12 @@ export function EditMerchantDialog({ open, onOpenChange, onMerchantUpdated, merc
                         <FeeInput name="commissionRates.stripe" control={form.control} label="Stripe Commission" />
                         <FeeInput name="commissionRates.square" control={form.control} label="Square Commission" />
                         <FeeInput name="commissionRates.zelle" control={form.control} label="Zelle Commission" />
+                        <FeeInput name="commissionRates.interac" control={form.control} label="Interac Commission" />
+                        <FeeInput name="commissionRates.wise" control={form.control} label="Wise Commission" />
                     </div>
                 </div>
+
+                
 
               <DialogFooter className="sticky bottom-0 bg-background/95 pt-4">
                 <Button type="button" variant="ghost" onClick={() => handleOpenChange(false)} disabled={isLoading}>Cancel</Button>

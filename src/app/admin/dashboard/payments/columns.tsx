@@ -95,9 +95,15 @@ export const columns = ({ onManage }: PaymentAccountColumnsProps): ColumnDef<Pay
     header: "Details",
     cell: ({ row }) => {
         const account = row.original;
-        if (account.type === "Zelle") {
-            return <div className="text-sm">{account.accountEmail}</div>
-        }
+      if (account.type === "Zelle" || account.type === "Interac" || account.type === "Wise") {
+        // show account email and optional tag for these account types (no QR preview here)
+        return (
+          <div className="text-sm">
+            <div>{account.accountEmail}</div>
+            {account.tag && <div className="text-xs text-muted-foreground">{account.tag}</div>}
+          </div>
+        )
+      }
         if (account.websiteUrl) {
             return (
                  <Link href={account.websiteUrl} target="_blank" className="flex items-center gap-1.5 hover:underline text-sm">

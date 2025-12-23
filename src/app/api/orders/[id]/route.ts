@@ -67,8 +67,15 @@ export async function PUT(
             try {
                 // Correct the volume on the payment account
                 await runQuery('UPDATE payment_accounts SET currentVolume = currentVolume - ? WHERE id = ?', [overpaidAmount, currentOrder.paymentAccountId]);
-                // Update the order status and paid amount
-                await runQuery("UPDATE orders SET status = ?, paidAmount = ? WHERE id = ?", [body.status, currentOrder.totalAmount, numericId]);
+          // Decrement merchant_daily_limits.dailyUsed for this merchant+paymentType
+          try {
+            await runQuery('UPDATE merchant_daily_limits SET dailyUsed = GREATEST(0, dailyUsed - ?) WHERE merchantId = ? AND paymentType = ?', [overpaidAmount, currentOrder.merchantId, currentOrder.paymentType]);
+            console.log(`[API Order PUT] Decremented merchant_daily_limits.dailyUsed for merchant ${currentOrder.merchantId}, type ${currentOrder.paymentType} by ${overpaidAmount}.`);
+          } catch (e) {
+            console.warn('Failed to decrement merchant_daily_limits.dailyUsed during overpaid-refund handling:', e);
+          }
+          // Update the order status and paid amount
+          await runQuery("UPDATE orders SET status = ?, paidAmount = ? WHERE id = ?", [body.status, currentOrder.totalAmount, numericId]);
                 await runQuery('COMMIT');
                 console.log(`[API Order PUT] Corrected volume for account ${currentOrder.paymentAccountId} by ${overpaidAmount} due to overpayment refund.`);
             } catch (e) {

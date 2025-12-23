@@ -42,7 +42,7 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    let { name, type, dailyLimit, prefix_order_name, websiteUrl, accountEmail, qrCode } = body;
+    let { name, type, dailyLimit, prefix_order_name, websiteUrl, accountEmail, qrCode, tag } = body;
     
     let qrCodeUrl = null;
 
@@ -63,23 +63,23 @@ export async function POST(request: Request) {
         qrCodeUrl = `/uploads/qrcodes/${fileName}`;
     }
 
-    // Ensure that only Zelle accounts have an email.
-    if (type !== 'Zelle') {
-        accountEmail = null;
+    // Allow accountEmail for Zelle, Interac and Wise account types; otherwise clear it.
+    if (!['Zelle', 'Interac', 'Wise'].includes(type)) {
+      accountEmail = null;
     }
 
     try {
-        const query = `
-            INSERT INTO payment_accounts 
-            (name, type, dailyLimit, prefix_order_name, currentVolume, status, websiteUrl, accountEmail, qrCodeUrl) 
-            VALUES (?, ?, ?, ?, 0, 'Active', ?, ?, ?)
-        `;
-        const params = [name, type, Number(dailyLimit), prefix_order_name, websiteUrl, accountEmail, qrCodeUrl];
-        const result: any = await runQuery(query, params);
-        
-        const newAccount = { id: `pa_${result.id}`, ...body, qrCodeUrl };
-        delete newAccount.qrCode; // Don't send back the base64 data
-        return NextResponse.json(newAccount, { status: 201 });
+      const query = `
+        INSERT INTO payment_accounts 
+        (name, type, dailyLimit, prefix_order_name, currentVolume, status, websiteUrl, accountEmail, qrCodeUrl, tag) 
+        VALUES (?, ?, ?, ?, 0, 'Active', ?, ?, ?, ?)
+      `;
+      const params = [name, type, Number(dailyLimit), prefix_order_name, websiteUrl, accountEmail, qrCodeUrl, tag || null];
+      const result: any = await runQuery(query, params);
+      
+      const newAccount = { id: `pa_${result.id}`, ...body, qrCodeUrl, tag: tag || null };
+      delete newAccount.qrCode; // Don't send back the base64 data
+      return NextResponse.json(newAccount, { status: 201 });
     } catch (error: any) {
         console.error("Failed to create payment account in DB:", error);
         return NextResponse.json({ message: `Failed to create payment account in DB: ${error.message}` }, { status: 500 });

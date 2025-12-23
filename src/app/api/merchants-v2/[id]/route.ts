@@ -1,4 +1,3 @@
-
 import { NextResponse, NextRequest } from 'next/server';
 import { executeQuery, runQuery } from '@/lib/db';
 import type { User } from '@/lib/types';
@@ -15,7 +14,7 @@ const saveFileFromBase64 = async (base64String: string, subfolder: 'avatars' | '
         const mimeType = base64String.substring(base64String.indexOf(':') + 1, base64String.indexOf(';'));
         if (!mimeType.startsWith('image/')) {
             console.warn(`Unsupported file type for upload: ${mimeType}. Only images are allowed.`);
-            return null; // Or handle other file types if needed
+            return null;
         }
         
         const base64Data = base64String.split(',')[1];
@@ -90,31 +89,11 @@ export async function GET(
       for (const r of limitRows) {
         merchantDailyLimits[r.paymentType] = { dailyLimit: r.dailyLimit, dailyUsed: r.dailyUsed };
       }
-      console.debug(`merchants GET: fetched ${limitRows.length} merchant_daily_limits rows for merchant ${numericId}`, limitRows);
+      console.debug(`merchants-v2 GET: fetched ${limitRows.length} merchant_daily_limits rows for merchant ${numericId}`, limitRows);
       (merchant as any).merchantDailyLimits = merchantDailyLimits;
-      console.debug('merchants GET: attached merchantDailyLimits', merchantDailyLimits);
+      console.debug('merchants-v2 GET: attached merchantDailyLimits', merchantDailyLimits);
     } catch (e) {
       console.warn('Could not fetch merchant daily limits for merchant', numericId, e);
-    }
-
-    // Diagnostic: check merchant payload for Zod-like objects before returning
-    try {
-      const findZodLike = (v: any, path = ''): string[] => {
-        const out: string[] = [];
-        if (!v || typeof v !== 'object') return out;
-        if ((v as any)._def || (v as any)._zod) {
-          out.push(path || '<root>');
-          return out;
-        }
-        for (const k of Object.keys(v)) {
-          try { out.push(...findZodLike(v[k], path ? `${path}.${k}` : k)); } catch (_e) {}
-        }
-        return out;
-      };
-      const zodPaths = findZodLike(merchant);
-      if (zodPaths.length > 0) console.warn('merchants/[id] GET detected Zod-like objects at paths:', zodPaths);
-    } catch (e) {
-      console.warn('merchants/[id] GET diagnostics failed', e);
     }
 
     return NextResponse.json(merchant);
@@ -131,27 +110,6 @@ export async function PUT(
   const { id } = await context.params;
   const numericId = id.includes('_') ? id.split('_')[1] : id;
   const body = await request.json();
-  // Diagnostic: log incoming body shallow info and detect any Zod-like values
-  try {
-    console.debug(`merchants/[id] PUT incoming body for ${id}:`, Object.keys(body || {}));
-    const findZodLike = (v: any, path = ''): string[] => {
-      const out: string[] = [];
-      if (!v || typeof v !== 'object') return out;
-      if ((v as any)._def || (v as any)._zod) {
-        out.push(path || '<root>');
-        return out;
-      }
-      for (const k of Object.keys(v)) {
-        try { out.push(...findZodLike(v[k], path ? `${path}.${k}` : k)); } catch (_e) {}
-      }
-      return out;
-    };
-    const zodPaths = findZodLike(body);
-    if (zodPaths.length > 0) console.warn('merchants/[id] PUT detected Zod-like objects at paths:', zodPaths);
-  } catch (e) {
-    console.warn('merchants/[id] PUT diagnostics failed', e);
-  }
-  
   try {
     const { 
         name, email, password, websiteUrl, status, nationality, dateOfBirth, idType, token,
@@ -177,7 +135,6 @@ export async function PUT(
     const fieldsToUpdate: string[] = [];
 
     const updateField = (fieldName: string, value: any) => {
-        // Check if the key exists in the body object to allow setting fields to null/empty
         if (Object.prototype.hasOwnProperty.call(body, fieldName)) {
             fieldsToUpdate.push(`${fieldName} = ?`);
             params.push(value);
@@ -224,35 +181,13 @@ export async function PUT(
     
     // Fetch the updated user data to return
     const updatedUser: any[] = await executeQuery("SELECT * FROM users WHERE id = ?", [numericId]);
-    // Diagnostic: inspect the updated DB row for Zod-like objects
-    try {
-      if (updatedUser && updatedUser[0]) {
-        console.debug(`merchants/[id] PUT updated DB row keys:`, Object.keys(updatedUser[0] || {}));
-        const findZodLike2 = (v: any, path = ''): string[] => {
-          const out: string[] = [];
-          if (!v || typeof v !== 'object') return out;
-          if ((v as any)._def || (v as any)._zod) {
-            out.push(path || '<root>');
-            return out;
-          }
-          for (const k of Object.keys(v)) {
-            try { out.push(...findZodLike2(v[k], path ? `${path}.${k}` : k)); } catch (_e) {}
-          }
-          return out;
-        };
-        const zodPaths2 = findZodLike2(updatedUser[0]);
-        if (zodPaths2.length > 0) console.warn('merchants/[id] PUT found Zod-like objects in DB row at paths:', zodPaths2);
-      }
-    } catch (e) {
-      console.warn('merchants/[id] PUT post-update diagnostics failed', e);
-    }
+
     // Process merchantDailyLimits per payment type if provided
     try {
       if (Object.prototype.hasOwnProperty.call(body, 'merchantDailyLimits') && body.merchantDailyLimits && typeof body.merchantDailyLimits === 'object') {
         const merchantDailyLimits = body.merchantDailyLimits as Record<string, any>;
         for (const [paymentType, rawValue] of Object.entries(merchantDailyLimits)) {
           let limitValue = rawValue;
-          // If the value is an object with dailyLimit property, normalize
           if (limitValue && typeof limitValue === 'object' && 'dailyLimit' in limitValue) {
             limitValue = limitValue.dailyLimit;
           }
@@ -278,7 +213,7 @@ export async function PUT(
     return NextResponse.json(parseDbUserAsMerchant(updatedUser[0]));
 
   } catch (error) {
-    console.error(`Failed to update merchant ${id} in DB:`, error);
+    console.error(`merchants-v2 PUT failed to update merchant ${id} in DB:`, error);
     return NextResponse.json({ message: `Failed to update merchant ${id}` }, { status: 500 });
   }
 }
@@ -299,7 +234,8 @@ export async function DELETE(
     
     return new Response(null, { status: 204 });
   } catch (error) {
-    console.error(`Failed to delete merchant ${id} from DB:`, error);
+    console.error(`merchants-v2 DELETE failed to delete merchant ${id} from DB:`, error);
     return NextResponse.json({ message: 'Failed to delete merchant' }, { status: 500 });
   }
+
 }
