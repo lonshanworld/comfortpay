@@ -22,9 +22,9 @@ const nextConfig: NextConfig = {
     dangerouslyAllowSVG: true,
     unoptimized: process.env.NODE_ENV === "development",
   },
-  // compiler: {
-  //  removeConsole: true,
-  // },
+  compiler: {
+    removeConsole: true,
+  },
 
   
   // async headers()

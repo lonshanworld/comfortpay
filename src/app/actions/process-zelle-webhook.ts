@@ -93,6 +93,7 @@ export async function processZelleWebhook(
   console.log(
     `✅ [Action processZelleWebhook] Found ${potentialMatches.length} potential matching order(s).`
   );
+  console.log('[processZelleWebhook] potentialMatches summary:', potentialMatches.map((o) => ({ id: o.id, totalAmount: o.totalAmount, orderDate: o.orderDate, paymentAccountEmail: (o as any).paymentAccountEmail })));
 
   let finalMatch: Order | undefined;
 
@@ -176,6 +177,8 @@ export async function processZelleWebhook(
       order: { ...finalMatch, id: `CP${finalMatch.id}` },
       amountReceived: money_amount,
     });
+
+    console.log('[processZelleWebhook] confirmOrderPayment result:', result);
 
     if (result.success) {
       return {
