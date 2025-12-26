@@ -87,7 +87,11 @@ export async function GET(
       );
       const merchantDailyLimits: Record<string, any> = {};
       for (const r of limitRows) {
-        merchantDailyLimits[r.paymentType] = { dailyLimit: r.dailyLimit, dailyUsed: r.dailyUsed };
+        // Normalize paymentType keys to lowercase so the front-end sees
+        // consistent keys like `zelle`, `interac`, `wise`.
+        const paymentTypeRaw = (r.paymentType || '').toString();
+        const key = paymentTypeRaw.trim().toLowerCase() || 'merchant';
+        merchantDailyLimits[key] = { dailyLimit: r.dailyLimit, dailyUsed: r.dailyUsed };
       }
       console.debug(`merchants-v2 GET: fetched ${limitRows.length} merchant_daily_limits rows for merchant ${numericId}`, limitRows);
       (merchant as any).merchantDailyLimits = merchantDailyLimits;
@@ -184,9 +188,11 @@ export async function PUT(
 
     // Process merchantDailyLimits per payment type if provided
     try {
-      if (Object.prototype.hasOwnProperty.call(body, 'merchantDailyLimits') && body.merchantDailyLimits && typeof body.merchantDailyLimits === 'object') {
+        if (Object.prototype.hasOwnProperty.call(body, 'merchantDailyLimits') && body.merchantDailyLimits && typeof body.merchantDailyLimits === 'object') {
         const merchantDailyLimits = body.merchantDailyLimits as Record<string, any>;
         for (const [paymentType, rawValue] of Object.entries(merchantDailyLimits)) {
+          // Normalize incoming paymentType to lowercase
+          const normalizedPaymentType = (paymentType || '').toString().trim().toLowerCase();
           let limitValue = rawValue;
           if (limitValue && typeof limitValue === 'object' && 'dailyLimit' in limitValue) {
             limitValue = limitValue.dailyLimit;
@@ -194,15 +200,15 @@ export async function PUT(
           if (limitValue === '' || limitValue === null || typeof limitValue === 'undefined') {
             limitValue = null;
           }
-          const existing: any[] = await executeQuery(
-            `SELECT id FROM merchant_daily_limits WHERE merchantId = ? AND paymentType = ?`,
-            [numericId, paymentType]
-          );
           const nowStr = new Date().toISOString().slice(0,19).replace('T',' ');
+          const existing: any[] = await executeQuery(
+            `SELECT id FROM merchant_daily_limits WHERE merchantId = ? AND LOWER(paymentType) = ?`,
+            [numericId, normalizedPaymentType]
+          );
           if (existing && existing.length > 0) {
-            await runQuery(`UPDATE merchant_daily_limits SET dailyLimit = ?, updatedAt = ? WHERE merchantId = ? AND paymentType = ?`, [limitValue, nowStr, numericId, paymentType]);
+            await runQuery(`UPDATE merchant_daily_limits SET dailyLimit = ?, updatedAt = ?, paymentType = ? WHERE merchantId = ? AND LOWER(paymentType) = ?`, [limitValue, nowStr, normalizedPaymentType, numericId, normalizedPaymentType]);
           } else {
-            await runQuery(`INSERT INTO merchant_daily_limits (merchantId, paymentType, dailyLimit, dailyUsed, createdAt, updatedAt) VALUES (?, ?, ?, 0, ?, ?)`, [numericId, paymentType, limitValue, nowStr, nowStr]);
+            await runQuery(`INSERT INTO merchant_daily_limits (merchantId, paymentType, dailyLimit, dailyUsed, createdAt, updatedAt) VALUES (?, ?, ?, 0, ?, ?)`, [numericId, normalizedPaymentType, limitValue, nowStr, nowStr]);
           }
         }
       }
